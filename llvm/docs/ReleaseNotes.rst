@@ -161,6 +161,13 @@ Changes to the RISC-V Backend
   and Zic64b extensions which were introduced as a part of the RISC-V Profiles
   specification.
 
+Changes to the SystemZ Backend
+------------------------------
+
+* The datalayout string now only depends on the target triple as expected.
+* The GNU attribute for a visible vector ABI is now emitted.
+* Align 128 bit integers to 8 bytes only, per the ABI.
+
 Changes to the WebAssembly Backend
 ----------------------------------
 
