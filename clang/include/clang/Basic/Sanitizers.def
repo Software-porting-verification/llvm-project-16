@@ -85,6 +85,9 @@ SANITIZER("numerical", NumericalStability)
 // RealtimeSanitizer
 SANITIZER("realtime", Realtime)
 
+// TraceRecorder
+SANITIZER("trace", Trace)
+
 // LeakSanitizer
 SANITIZER("leak", Leak)
 

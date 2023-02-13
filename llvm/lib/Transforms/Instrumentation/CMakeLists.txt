@@ -25,6 +25,7 @@ add_llvm_component_library(LLVMInstrumentation
   ValueProfileCollector.cpp
   ThreadSanitizer.cpp
   TypeSanitizer.cpp
+  TraceRecorder.cpp
   HWAddressSanitizer.cpp
   RealtimeSanitizer.cpp
 

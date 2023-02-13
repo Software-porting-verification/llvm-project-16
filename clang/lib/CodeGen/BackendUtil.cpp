@@ -84,6 +84,7 @@
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/Transforms/Instrumentation/TypeSanitizer.h"
+#include "llvm/Transforms/Instrumentation/TraceRecorder.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/GVN.h"
@@ -766,6 +767,11 @@ static void addSanitizers(const Triple &TargetTriple,
 
     if (LangOpts.Sanitize.has(SanitizerKind::Realtime))
       MPM.addPass(RealtimeSanitizerPass());
+      
+    if (LangOpts.Sanitize.has(SanitizerKind::Trace)){
+      MPM.addPass(ModuleTraceRecorderPass());
+      MPM.addPass(createModuleToFunctionPassAdaptor(TraceRecorderPass()));
+    }
 
     auto ASanPass = [&](SanitizerMask Mask, bool CompileKernel) {
       if (LangOpts.Sanitize.has(Mask)) {

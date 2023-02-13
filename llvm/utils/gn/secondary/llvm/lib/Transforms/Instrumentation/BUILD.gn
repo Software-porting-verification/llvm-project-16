@@ -37,6 +37,7 @@ static_library("Instrumentation") {
     "SanitizerCoverage.cpp",
     "ThreadSanitizer.cpp",
     "TypeSanitizer.cpp",
+    "TraceRecorder.cpp",
     "ValueProfileCollector.cpp",
   ]
 }
