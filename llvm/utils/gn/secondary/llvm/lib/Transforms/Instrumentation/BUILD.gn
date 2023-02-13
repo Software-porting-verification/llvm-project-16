@@ -31,6 +31,7 @@ static_library("Instrumentation") {
     "SanitizerBinaryMetadata.cpp",
     "SanitizerCoverage.cpp",
     "ThreadSanitizer.cpp",
+    "TraceRecorder.cpp",
     "ValueProfileCollector.cpp",
   ]
 }

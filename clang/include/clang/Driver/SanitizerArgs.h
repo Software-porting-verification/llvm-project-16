@@ -87,6 +87,7 @@ public:
     return needsHwasanRt() && HwasanUseAliases;
   }
   bool needsTsanRt() const { return Sanitizers.has(SanitizerKind::Thread); }
+  bool needsTrecRt() const { return Sanitizers.has(SanitizerKind::Trace); }
   bool needsMsanRt() const { return Sanitizers.has(SanitizerKind::Memory); }
   bool needsFuzzer() const { return Sanitizers.has(SanitizerKind::Fuzzer); }
   bool needsLsanRt() const {
@@ -136,7 +137,7 @@ public:
                llvm::opt::ArgStringList &CmdArgs, types::ID InputType) const;
 };
 
-}  // namespace driver
-}  // namespace clang
+} // namespace driver
+} // namespace clang
 
 #endif
