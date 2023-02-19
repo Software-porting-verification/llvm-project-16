@@ -264,6 +264,18 @@ C23 Feature Support
   and now we've implemented allowing a label to be followed by a declaration
   instead of a statement.
 
+OpenCL Kernel Language Changes
+------------------------------
+
+- Improved diagnostics for C++ templates used in kernel arguments.
+- Removed redundant pragma for the ``arm-integer-dot-product`` extension.
+- Improved support of enqueued block for AMDGPU.
+- Added ``nounwind`` attribute implicitly to all functions.
+- Improved builtin functions support:
+
+  * Allow disabling default header-based feature/extension support by passing ``-D__undef_<feature>``.
+  * Fixed conditional definition of the depth image and ``read_write image3d`` builtins.
+
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
