@@ -362,7 +362,7 @@
 // Whether the addresses are sign-extended from the VMA range to the word.
 // The SPARC64 Linux port implements this to split the VMA space into two
 // non-contiguous halves with a huge hole in the middle.
-#if defined(__sparc__) && SANITIZER_WORDSIZE == 64
+#if (defined(__sparc__) || defined(__riscv)) && SANITIZER_WORDSIZE == 64
 #  define SANITIZER_SIGN_EXTENDED_ADDRESSES 1
 #else
 #  define SANITIZER_SIGN_EXTENDED_ADDRESSES 0
