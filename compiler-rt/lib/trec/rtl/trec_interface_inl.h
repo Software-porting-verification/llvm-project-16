@@ -55,6 +55,21 @@ void __trec_inst_debug_info(u32 line, u16 col, char *val_name,
     }
 }
 
+void __trec_alloca(void *addr, __sanitizer::u64 sz) {
+  if (LIKELY(ctx->flags.output_trace) &&
+      LIKELY(cur_thread()->ignore_interceptors == 0))
+    if (ctx->flags.trace_mode == 3) {
+      ThreadState *thr = cur_thread();
+      __trec_trace::Event e(
+          __trec_trace::EventType::Alloca, thr->tid,
+          atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed),
+          ((sz & 0xffff) << 48) | ((uptr)addr & 0xffffffffffff), 0, 0);
+
+      thr->tctx->put_trace(&e, sizeof(e));
+      thr->tctx->header.StateInc(__trec_header::RecordType::Alloca);
+    }
+}
+
 void __trec_read1(void *addr, bool isPtr, void *val, void *addr_src_addr,
                   u16 addr_src_idx) {
   SourceAddressInfo SAI_addr(addr_src_idx, (uptr)addr_src_addr);

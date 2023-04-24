@@ -50,6 +50,9 @@ SANITIZER_INTERFACE_ATTRIBUTE void __trec_inst_debug_info(__sanitizer::u32 line,
                                                           char *name1,
                                                           char *name2);
 
+SANITIZER_INTERFACE_ATTRIBUTE void __trec_alloca(void *addr,
+                                                 __sanitizer::u64 sz);
+
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_read1(void *addr, bool isPtr,
                                                 void *val, void *addr_src_addr,
                                                 __sanitizer::u16 addr_src_idx);

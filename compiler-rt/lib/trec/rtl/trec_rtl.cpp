@@ -370,7 +370,7 @@ void Context::put_seqc_trace(void *msg, uptr len) {
   seqc_trace_buffer_size += len;
   trace_summary.totNum += 1;
   if (thread_event_cnt.Size() < (cur_thread()->tid + 1))
-    thread_event_cnt.PushBack(0);
+    thread_event_cnt.Resize(cur_thread()->tid + 1);
   thread_event_cnt[cur_thread()->tid] += 1;
 }
 
