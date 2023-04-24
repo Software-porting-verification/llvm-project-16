@@ -437,7 +437,6 @@ int ThreadCreate(ThreadState *thr, uptr pc, uptr uid, bool detached) {
       internal_strncpy(ctx->record_mode, mode, internal_strlen(mode));
       if (internal_strcmp(ctx->record_mode, "seqcheck") == 0) {
         // Report("Trace mode: SeqCheck\n");
-        ctx->flags.record_alloc_free = false;
         ctx->flags.trace_mode = 1;
         ctx->flags.output_debug = false;
         ctx->trace_summary.tNum = ctx->trace_summary.totNum =
