@@ -59,6 +59,10 @@ static cl::opt<bool> ClInstrumentMemoryAccesses(
 static cl::opt<bool>
     ClInstrumentMemoryReads("trec-instrument-memory-read", cl::init(true),
                             cl::desc("Instrument memory reads"), cl::Hidden);
+static cl::opt<bool> ClInstrumentAllocas("trec-instrument-alloca",
+                                         cl::init(false),
+                                         cl::desc("Instrument allocas"),
+                                         cl::Hidden);
 static cl::opt<bool>
     ClInstrumentMemoryWrites("trec-instrument-memory-write", cl::init(true),
                              cl::desc("Instrument memory writes"), cl::Hidden);
@@ -118,9 +122,10 @@ struct TraceRecorder {
       mode = Mode::Unknown;
     else if (strcmp(getenv("TREC_COMPILE_MODE"), "eagle") == 0)
       mode = Mode::Eagle;
-    else if (strcmp(getenv("TREC_COMPILE_MODE"), "verification") == 0)
+    else if (strcmp(getenv("TREC_COMPILE_MODE"), "verification") == 0) {
       mode = Mode::Verification;
-    else
+      ClInstrumentAllocas = true;
+    } else
       mode = Mode::Unknown;
     if (mode == Mode::Unknown) {
       printf("Error: Unknown TraceRecorder mode: ENV variable "
@@ -157,6 +162,7 @@ private:
   bool instrumentMemIntrinsic(Instruction *I);
   bool instrumentFunctionReturn(Instruction *I);
   bool instrumentFunctionParamCall(Instruction *I);
+  bool instrumentAlloca(Instruction *I, const DataLayout &DL);
   int getMemoryAccessFuncIndex(Type *OrigTy, Value *Addr, const DataLayout &DL);
   struct ValSourceInfo {
     Value *Addr;  // null if not found in variables
@@ -243,6 +249,7 @@ private:
   FunctionCallee TrecFuncParam;
   FunctionCallee TrecFuncExitParam;
   FunctionCallee TrecInstDebugInfo;
+  FunctionCallee TrecAlloca;
 };
 
 void insertModuleCtor(Module &M) {
@@ -398,6 +405,8 @@ void TraceRecorder::initialize(Module &M) {
   TrecInstDebugInfo = M.getOrInsertFunction(
       "__trec_inst_debug_info", Attr, IRB.getVoidTy(), IRB.getInt16Ty(),
       IRB.getInt16Ty(), IRB.getInt8PtrTy(), IRB.getInt8PtrTy());
+  TrecAlloca = M.getOrInsertFunction("__trec_alloca", Attr, IRB.getVoidTy(),
+                                     IRB.getInt8PtrTy(), IRB.getInt64Ty());
 }
 
 static bool isVtableAccess(Instruction *I) {
@@ -451,6 +460,8 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   SmallVector<Instruction *> ParamFuncCalls;
   SmallVector<Instruction *> NoVoidFuncCalls;
   SmallVector<Instruction *> Returns;
+  SmallVector<Instruction *> AllAllocas;
+
   bool Res = false;
   const DataLayout &DL = F.getParent()->getDataLayout();
 
@@ -502,6 +513,8 @@ bool TraceRecorder::sanitizeFunction(Function &F,
         Branches.push_back(&Inst); // switch
       } else if (isa<ReturnInst>(Inst)) {
         Returns.push_back(&Inst); // function return
+      } else if (isa<AllocaInst>(Inst)) {
+        AllAllocas.push_back(&Inst);
       }
     }
   }
@@ -526,7 +539,8 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     }
   }
 
-  // Instrument memory accesses only if we want to report bugs in the function.
+  // Instrument memory accesses only if we want to report bugs in the
+  // function.
   if (ClInstrumentMemoryAccesses) {
     if (ClInstrumentMemoryWrites)
       for (const auto &II : AllStores) {
@@ -536,6 +550,10 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       for (const auto &II : AllLoads) {
         Res |= instrumentLoadStore(II, DL);
       }
+  }
+  if (ClInstrumentAllocas) {
+    for (const auto Inst : AllAllocas)
+      Res |= instrumentAlloca(Inst, DL);
   }
   // Instrument function entry/exit points if there were instrumented
   // accesses.
@@ -585,6 +603,20 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     Res |= true;
   }
   return Res;
+}
+bool TraceRecorder::instrumentAlloca(Instruction *I, const DataLayout &DL) {
+  IRBuilder<> IRB(I->getNextNode());
+  AllocaInst *AI = dyn_cast<AllocaInst>(I);
+  auto size = AI->getAllocationSizeInBits(DL);
+  bool res = false;
+  if (size) {
+    res = true;
+    uint64_t sz = (*size + 7) / 8;
+    IRB.CreateCall(
+        TrecAlloca,
+        {IRB.CreateBitOrPointerCast(AI, IRB.getInt8PtrTy()), IRB.getInt64(sz)});
+  }
+  return res;
 }
 
 bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL) {
