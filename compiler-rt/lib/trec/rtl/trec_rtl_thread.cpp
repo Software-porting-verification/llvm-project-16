@@ -709,29 +709,19 @@ void ThreadSetName(ThreadState *thr, const char *name) {
 
 void MemoryAccessRange(ThreadState *thr, uptr pc, uptr addr, uptr size,
                        bool is_write, __trec_metadata::SourceAddressInfo SAI) {
-  // Currently we do not use memory range access: use memory access instead.
+if (LIKELY(ctx->flags.output_trace) &&
+      LIKELY(cur_thread()->ignore_interceptors == 0) && is_write) {
+    if (ctx->flags.trace_mode == 3) {
+      __trec_trace::Event e(
+          __trec_trace::EventType::MemRangeWrite, thr->tid,
+          atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed),
+          (((size & 0xffff) << 48) | (addr & ((((u64)1) << 48) - 1))),
+          0, pc);
 
-  // if (LIKELY(ctx->flags.output_trace)&&
-  //    LIKELY(cur_thread()->ignore_interceptors == 0)) {
-  //   if ((ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3)) {
-  //     __trec_trace::Event e(
-  //         is_write ? __trec_trace::EventType::MemRangeWrite
-  //                  : __trec_trace::EventType::MemRangeRead,thr->tid,
-  //         atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed),
-  //         (((size & 0xffff) << 48) | (addr & ((((u64)1) << 48) - 1))),
-  //         thr->tctx->metadata_offset);
-
-  //     __trec_metadata::MemRangeMeta meta(SAI.idx, SAI.addr);
-  //     thr->tctx->put_metadata(&meta, sizeof(meta));
-
-  //     thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
-  //     thr->tctx->header.StateInc(is_write
-  //                                    ?
-  //                                    __trec_header::RecordType::MemRangeWrite
-  //                                    :
-  //                                    __trec_header::RecordType::MemRangeRead);
-  //   }
-  // }
+      thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
+      thr->tctx->header.StateInc(__trec_header::RecordType::MemRangeWrite);
+    }
+  }
   return;
 }
 
