@@ -211,11 +211,12 @@ ScopedInterceptor::ScopedInterceptor(ThreadState *thr, const char *fname,
     RecordFuncEntry(thr, should_record_ret, fname, pc);
     thr->should_record &= should_record_ret;
   }
-   if (!thr_->ignore_interceptors) {
+  if (!thr_->ignore_interceptors) {
     bool should_record_ret = false;
     RecordBBLEntry(thr, should_record_ret);
     thr->should_record &= should_record_ret;
   }
+
   if (internal_strcmp(fname, "pthread_create")) {
     thr->tctx->isFuncEnterMetaVaild = false;
     thr->tctx->isFuncExitMetaVaild = false;

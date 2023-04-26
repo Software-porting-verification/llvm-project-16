@@ -331,6 +331,7 @@ void RecordFuncEntry(ThreadState *thr, bool &should_record, const char *name,
                      __sanitizer::u64 pc);
 void RecordFuncExit(ThreadState *thr, bool &should_record, const char *name);
 void RecordBBLEntry(ThreadState *thr, bool &should_record);
+bool IsTrecBBL(ThreadState *thr, bool &should_record);
 
 int ThreadCreate(ThreadState *thr, uptr pc, uptr uid, bool detached);
 void ThreadStart(ThreadState *thr, int tid, tid_t os_id,

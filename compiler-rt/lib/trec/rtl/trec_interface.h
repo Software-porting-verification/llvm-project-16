@@ -44,7 +44,7 @@ SANITIZER_INTERFACE_ATTRIBUTE void __trec_inst_debug_info(__sanitizer::u64 fid,
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_entry(void *);
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_exit();
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_bbl_entry();
-SANITIZER_INTERFACE_ATTRIBUTE bool __is_bbl_inst();
+SANITIZER_INTERFACE_ATTRIBUTE bool __is_trec_bbl();
 
 #endif  // SANITIZER_GO
 #ifdef __cplusplus

@@ -455,9 +455,9 @@ void Initialize(ThreadState *thr) {
 #if !SANITIZER_GO
 
   // Do not install SEGV handler
-  // InstallDeadlySignalHandlers(TrecOnDeadlySignal);
-  if (common_flags()->use_sigaltstack)
-    SetAlternateSignalStack();
+  InstallDeadlySignalHandlers(TrecOnDeadlySignal);
+  // if (common_flags()->use_sigaltstack)
+  //   SetAlternateSignalStack();
 #endif
   // Setup correct file descriptor for error reports.
   // __sanitizer_set_report_path(common_flags()->log_path);
@@ -675,9 +675,24 @@ ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record,
   }
 }
 
+ALWAYS_INLINE USED bool IsTrecBBL(ThreadState *thr, bool &should_record) {
+  // return false;
+  if (GetEnv("FUNC_ID") == nullptr) {
+    return false;
+  } else {
+    __trec_debug_info::InstDebugInfo &debug_info =
+        (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
+    __sanitizer::u64 id = debug_info.fid;
+    __sanitizer::u64 fun_id = strtoul(GetEnv("FUNC_ID"), nullptr, 10);
+    if (fun_id == id) {
+      return true;
+    }
+  }
+  return false;
+}
+
 ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr, bool &should_record) {
-  
-  if (getenv("FUNC_ID") == nullptr) {
+  if (GetEnv("FUNC_ID") == nullptr) {
     return;
   }
   if (LIKELY(ctx->flags.output_trace) &&
@@ -686,36 +701,31 @@ ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr, bool &should_record) {
     if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
       __trec_debug_info::InstDebugInfo &debug_info =
           (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
-      __sanitizer::u64 fid = debug_info.fid;
-      __sanitizer::u64 func_id = 0;
-      func_id = strtoull(getenv("FUNC_ID"), nullptr, 10);
+      __sanitizer::u64 oid =
+          (((((u64)1) << 48) - 1) & (thr->tctx->debug_offset));
+      __trec_trace::Event e(
+          __trec_trace::EventType::BBLEnter, thr->tid,
+          atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
+          thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
 
-      if (fid == func_id) {
-        __sanitizer::u64 oid =
-            (((((u64)1) << 48) - 1) & (thr->tctx->debug_offset));
-        __trec_trace::Event e(
-            __trec_trace::EventType::BBLEnter, thr->tid,
-            atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
-            thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
+      timespec current_time;
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &current_time);
+      u64 sec = current_time.tv_sec;
+      u64 nsec = current_time.tv_nsec;
+      debug_info.time = (sec * 1000000000 + nsec);
 
-        timespec current_time;
-        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &current_time);
-        u64 sec = current_time.tv_sec;
-        u64 nsec = current_time.tv_nsec;
-        debug_info.time = (sec * 1000000000 + nsec);
+      thr->tctx->dbg_temp_buffer_size =
+          sizeof(__trec_debug_info::InstDebugInfo);
+      thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
+                                thr->tctx->dbg_temp_buffer_size);
 
-        thr->tctx->dbg_temp_buffer_size =
-            sizeof(__trec_debug_info::InstDebugInfo);
-        thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
-                                  thr->tctx->dbg_temp_buffer_size);
-
-        thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
-        thr->tctx->header.StateInc(__trec_header::RecordType::BBLEnter);
-        thr->tctx->isFuncEnterMetaVaild = false;
-        thr->tctx->isFuncExitMetaVaild = false;
-        thr->tctx->parammetas.Resize(0);
-        thr->tctx->dbg_temp_buffer_size = 0;
-      }
+      thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
+      thr->tctx->header.StateInc(__trec_header::RecordType::BBLEnter);
+      thr->tctx->isFuncEnterMetaVaild = false;
+      thr->tctx->isFuncExitMetaVaild = false;
+      thr->tctx->parammetas.Resize(0);
+      thr->tctx->dbg_temp_buffer_size = 0;
+      return;
     }
   }
 }
@@ -734,10 +744,13 @@ void __sanitizer::BufferedStackTrace::UnwindImpl(uptr pc, uptr bp,
                                                  u32 max_depth) {
   uptr top = 0;
   uptr bottom = 0;
-  if (StackTrace::WillUseFastUnwind(request_fast)) {
-    GetThreadStackTopAndBottom(false, &top, &bottom);
-    Unwind(max_depth, pc, bp, nullptr, top, bottom, true);
-  } else
-    Unwind(max_depth, pc, 0, context, 0, 0, false);
+  // if (StackTrace::WillUseFastUnwind(request_fast)) {
+  //   GetThreadStackTopAndBottom(false, &top, &bottom);
+  //   Unwind(max_depth, pc, bp, nullptr, top, bottom, true);
+  // } else
+  //   Unwind(max_depth, pc, 0, context, 0, 0, false);
+  GetThreadStackTopAndBottom(false, &top, &bottom);
+  bool fast = StackTrace::WillUseFastUnwind(request_fast);
+  Unwind(max_depth, pc, bp, context, top, bottom, fast);
 }
 #endif  // SANITIZER_GO

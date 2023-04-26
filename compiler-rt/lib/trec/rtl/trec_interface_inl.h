@@ -62,3 +62,9 @@ void __trec_bbl_entry() {
   RecordBBLEntry(cur_thread(), should_record);
 }
 
+
+bool __is_trec_bbl() {
+  bool should_record = true;
+  return IsTrecBBL(cur_thread(), should_record);
+}
+

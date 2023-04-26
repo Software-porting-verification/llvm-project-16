@@ -94,6 +94,7 @@ struct TraceRecorder {
   }
 
   bool sanitizeFunction(Function &F, const TargetLibraryInfo &TLI);
+  void CopyBlocksInfo(Function &F, SmallVector<BasicBlock *> &CopyBlocks);
   std::map<std::string, Value *> &VarNames;
 
 private:
@@ -107,6 +108,7 @@ private:
   FunctionCallee TrecFuncExit;
   FunctionCallee TrecInstDebugInfo;
   FunctionCallee TrecBBLEntry;
+  FunctionCallee IsTrecBBL;
 };
 
 void insertModuleCtor(Module &M) {
@@ -152,6 +154,8 @@ void TraceRecorder::initialize(Module &M) {
       IRB.getInt8PtrTy());
   TrecBBLEntry =
       M.getOrInsertFunction("__trec_bbl_entry", Attr, IRB.getVoidTy());
+
+  IsTrecBBL = M.getOrInsertFunction("__is_trec_bbl", Attr, IRB.getInt1Ty());
 }
 
 bool TraceRecorder::sanitizeFunction(Function &F,
@@ -177,45 +181,9 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   SmallVector<Instruction *> FuncCalls;
   bool Res = false;
   const DataLayout &DL = F.getParent()->getDataLayout();
-
-  // printf("f_name:%s,%d\n", F.getName().str().c_str(), F.getType());
-  // BasicBlock *block = BasicBlock::Create(F.getParent()->getContext());
-  // block->insertInto(&F);
-
-
-  SmallVector<BasicBlock *, 8> NewBlocks;
-  ValueToValueMapTy VMap;
-  std::map<BasicBlock *, BasicBlock *> bbMap;
-  for (auto &BB : F) {
-    NewBlocks.push_back(&BB);
-  }
-  for (auto &BB : NewBlocks) {
-    BasicBlock *block = CloneBasicBlock(BB, VMap, "", &F);
-    bbMap[BB] = block;
-  }
-  for (auto &entry : bbMap) {
-    BasicBlock *bb = entry.first;
-    BasicBlock *copy = entry.second;
-    for (auto &Inst : *copy) {
-      if (auto *jumpInst = dyn_cast<BranchInst>(&Inst)) {
-        for (unsigned i = 0; i < jumpInst->getNumSuccessors(); i++) {
-          BasicBlock *succ = jumpInst->getSuccessor(i);
-          if (bbMap.count(succ)) {
-            BasicBlock *target = bbMap[succ];
-            jumpInst->setSuccessor(i, target);
-          }
-        }
-      } else if (auto *switchInst = dyn_cast<SwitchInst>(&Inst)) {
-        for (unsigned i = 0; i < switchInst->getNumSuccessors(); i++) {
-          BasicBlock *succ = switchInst->getSuccessor(i);
-          if (bbMap.count(succ)) {
-            BasicBlock *target = bbMap[succ];
-            switchInst->setSuccessor(i, target);
-          }
-        }
-      }
-    }
-  }
+  SmallVector<BasicBlock *> CopyBlocks;
+  // Clone all the basic blocks and store them in a vector 
+  CopyBlocksInfo(F, CopyBlocks);
 
   for (auto &BB : F) {
     for (auto &Inst : BB) {
@@ -229,6 +197,30 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   for (auto Inst : FuncCalls) {
     instrumentFunctionCall(Inst);
   }
+  
+  BasicBlock *entry = &F.getEntryBlock();
+  BasicBlock *newBlock =
+      BasicBlock::Create((F.getParent()->getContext()), "newblock", &F, entry);
+  IRBuilder<> BuildIR(F.getContext());
+  BuildIR.SetInsertPoint(newBlock, newBlock->getFirstInsertionPt());
+  auto *Cond = BuildIR.CreateCall(IsTrecBBL, {});
+  BuildIR.CreateCondBr(Cond, CopyBlocks.front(), entry);
+
+  for (auto BB : CopyBlocks) {
+    Instruction *I = BB->getFirstNonPHI();
+    IRBuilder<> IRB(I);
+    int32_t line = I->getDebugLoc().get() ? I->getDebugLoc().getLine() : 0;
+    printf("line:%d\n",line);
+    int16_t col = I->getDebugLoc().get() ? I->getDebugLoc().getCol() : 0;
+    IRB.CreateCall(TrecInstDebugInfo,
+                   {IRB.getInt64(0), IRB.getInt32(line), IRB.getInt16(col),
+                    IRB.getInt64(0), IRB.CreateGlobalStringPtr(""),
+                    IRB.CreateGlobalStringPtr("")});
+    if (line != 0) {
+    IRB.CreateCall(TrecBBLEntry);
+    }
+  }
+
   // Instrument function entry/exit points if there were instrumented
   // accesses.
   if (ClInstrumentFuncEntryExit) {
@@ -272,7 +264,6 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     }
 
     IRB.CreateCall(TrecFuncEntry, {name_ptr});
-    // IRB.CreateCall(TrecBBLEntry);
 
     EscapeEnumerator EE(F);
     while (IRBuilder<> *AtExit = EE.Next()) {
@@ -282,6 +273,65 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   }
 
   return Res;
+}
+
+void TraceRecorder::CopyBlocksInfo(Function &F, SmallVector<BasicBlock *> &CopyBlocks) {
+  SmallVector<BasicBlock *> NewBlocks;
+  ValueToValueMapTy VMap;
+  std::map<BasicBlock *, BasicBlock *> BlockMap;
+  for (auto &BB : F) {
+    NewBlocks.push_back(&BB);
+  }
+  for (auto &BB : NewBlocks) {
+    BasicBlock *Block = CloneBasicBlock(BB, VMap, "", &F);
+    for (auto &Inst : *BB) {
+      auto *NewInst = cast<Instruction>(VMap[&Inst]);
+      // update operand addresses in the instruction
+      for (unsigned i = 0; i < Inst.getNumOperands(); ++i) {
+        Value *OldOperand = Inst.getOperand(i);
+        if (auto *OldOperandInst = dyn_cast<Instruction>(OldOperand)) {
+          Value *NewOperand = VMap[OldOperandInst];
+          if (NewOperand) {
+            NewInst->setOperand(i, NewOperand);
+          }
+        }
+      }
+    }
+    CopyBlocks.push_back(Block);
+    BlockMap[BB] = Block;
+  }
+
+  // Iterate over the copied basic blocks and their instructions
+  for (auto &CopyBB : CopyBlocks) {
+    for (auto &Inst : *CopyBB) {
+      if (auto *jumpInst = dyn_cast<BranchInst>(&Inst)) {
+        if (jumpInst->isConditional()) {  // conditional branch
+          BasicBlock *SuccBB1 = jumpInst->getSuccessor(0);
+          BasicBlock *SuccBB2 = jumpInst->getSuccessor(1);
+          if (BlockMap.count(SuccBB1) && BlockMap.count(SuccBB2)) {
+            BasicBlock *TargetBB1 = BlockMap[SuccBB1];
+            BasicBlock *TargetBB2 = BlockMap[SuccBB2];
+            jumpInst->setSuccessor(0, TargetBB1);
+            jumpInst->setSuccessor(1, TargetBB2);
+          }
+        } else if (jumpInst->isUnconditional()) { // unconditional branch
+          BasicBlock *SuccBB = jumpInst->getSuccessor(0);
+          if (BlockMap.count(SuccBB)) {
+            BasicBlock *TargetBB = BlockMap[SuccBB];
+            jumpInst->setSuccessor(0, TargetBB);
+          }
+        }
+      } else if (auto *switchInst = dyn_cast<SwitchInst>(&Inst)) {
+        for (unsigned i = 0; i < switchInst->getNumSuccessors(); i++) {
+          BasicBlock *SuccBB = switchInst->getSuccessor(i);
+          if (BlockMap.count(SuccBB)) {
+            BasicBlock *TargetBB = BlockMap[SuccBB];
+            switchInst->setSuccessor(i, TargetBB);
+          }
+        }
+      }
+    }
+  }
 }
 
 bool TraceRecorder::instrumentFunctionCall(Instruction *I) {
