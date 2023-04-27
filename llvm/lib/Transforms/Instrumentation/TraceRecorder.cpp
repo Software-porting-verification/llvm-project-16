@@ -182,7 +182,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   bool Res = false;
   const DataLayout &DL = F.getParent()->getDataLayout();
   SmallVector<BasicBlock *> CopyBlocks;
-  // Clone all the basic blocks and store them in a vector 
+  // Clone all the basic blocks and store them in a vector
   CopyBlocksInfo(F, CopyBlocks);
 
   for (auto &BB : F) {
@@ -197,7 +197,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   for (auto Inst : FuncCalls) {
     instrumentFunctionCall(Inst);
   }
-  
+
   BasicBlock *entry = &F.getEntryBlock();
   BasicBlock *newBlock =
       BasicBlock::Create((F.getParent()->getContext()), "newblock", &F, entry);
@@ -210,14 +210,14 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     Instruction *I = BB->getFirstNonPHI();
     IRBuilder<> IRB(I);
     int32_t line = I->getDebugLoc().get() ? I->getDebugLoc().getLine() : 0;
-    printf("line:%d\n",line);
     int16_t col = I->getDebugLoc().get() ? I->getDebugLoc().getCol() : 0;
+    
     IRB.CreateCall(TrecInstDebugInfo,
                    {IRB.getInt64(0), IRB.getInt32(line), IRB.getInt16(col),
                     IRB.getInt64(0), IRB.CreateGlobalStringPtr(""),
                     IRB.CreateGlobalStringPtr("")});
     if (line != 0) {
-    IRB.CreateCall(TrecBBLEntry);
+      IRB.CreateCall(TrecBBLEntry);
     }
   }
 
@@ -275,7 +275,8 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   return Res;
 }
 
-void TraceRecorder::CopyBlocksInfo(Function &F, SmallVector<BasicBlock *> &CopyBlocks) {
+void TraceRecorder::CopyBlocksInfo(Function &F,
+                                   SmallVector<BasicBlock *> &CopyBlocks) {
   SmallVector<BasicBlock *> NewBlocks;
   ValueToValueMapTy VMap;
   std::map<BasicBlock *, BasicBlock *> BlockMap;
@@ -304,8 +305,18 @@ void TraceRecorder::CopyBlocksInfo(Function &F, SmallVector<BasicBlock *> &CopyB
   // Iterate over the copied basic blocks and their instructions
   for (auto &CopyBB : CopyBlocks) {
     for (auto &Inst : *CopyBB) {
-      if (auto *jumpInst = dyn_cast<BranchInst>(&Inst)) {
-        if (jumpInst->isConditional()) {  // conditional branch
+      if (auto *phiInst = dyn_cast<PHINode>(&Inst)) {
+        for (unsigned i = 0; i < phiInst->getNumIncomingValues(); i++) {
+          BasicBlock *InBB = phiInst->getIncomingBlock(i);
+          if (BlockMap.count(InBB)) {
+            BasicBlock *TargetBB = BlockMap[InBB];
+            Value *InValue = phiInst->getIncomingValue(i);
+            phiInst->setIncomingBlock(i, TargetBB);
+            phiInst->setIncomingValue(i, InValue);
+          }
+        }
+      } else if (auto *jumpInst = dyn_cast<BranchInst>(&Inst)) {
+        if (jumpInst->isConditional()) { // conditional branch
           BasicBlock *SuccBB1 = jumpInst->getSuccessor(0);
           BasicBlock *SuccBB2 = jumpInst->getSuccessor(1);
           if (BlockMap.count(SuccBB1) && BlockMap.count(SuccBB2)) {
@@ -338,13 +349,17 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I) {
   IRBuilder<> IRB(I);
   CallBase *CI = dyn_cast<CallBase>(I);
 
-  if (CI->getCalledFunction() &&
-      (CI->getCalledFunction()->hasFnAttribute(Attribute::Naked) ||
-       CI->getCalledFunction()->getName().startswith("llvm.dbg"))) {
+  if (!CI->getCalledFunction()) {
     return false;
   }
+  if (CI->getCalledFunction()->hasFnAttribute(Attribute::Naked) ||
+       CI->getCalledFunction()->getName().startswith("llvm.dbg")) {
+    return false;
+  }
+
   Function *F = CI->getCalledFunction();
   uint64_t fid = (uint64_t)(F->getGUID());
+
   if (ClTrecAddDebugInfo) {
     std::string CurrentFileName = "";
     if (CI->getDebugLoc().get())
