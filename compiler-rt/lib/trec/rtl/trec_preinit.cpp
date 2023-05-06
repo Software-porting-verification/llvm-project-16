@@ -18,7 +18,7 @@
 
 // The symbol is called __local_trec_preinit, because it's not intended to be
 // exported.
-// This code linked into the main executable when -fsanitize=thread is in
+// This code linked into the main executable when -fsanitize=trace is in
 // the link flags. It can only use exported interface functions.
 __attribute__((section(".preinit_array"), used))
 void (*__local_trec_preinit)(void) = __trec_init;

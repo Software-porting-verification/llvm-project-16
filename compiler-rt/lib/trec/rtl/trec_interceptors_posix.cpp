@@ -204,18 +204,6 @@ ScopedInterceptor::ScopedInterceptor(ThreadState *thr, const char *fname,
   Initialize(thr);
   if (!thr_->is_inited)
     return;
-  should_record = thr->should_record;
-
-  if (!thr_->ignore_interceptors) {
-    bool should_record_ret = false;
-    RecordFuncEntry(thr, should_record_ret, fname, pc);
-    thr->should_record &= should_record_ret;
-  }
-  if (!thr_->ignore_interceptors) {
-    bool should_record_ret = false;
-    RecordBBLEntry(thr, should_record_ret);
-    thr->should_record &= should_record_ret;
-  }
 
   if (internal_strcmp(fname, "pthread_create")) {
     thr->tctx->isFuncEnterMetaVaild = false;
@@ -223,8 +211,6 @@ ScopedInterceptor::ScopedInterceptor(ThreadState *thr, const char *fname,
     thr->tctx->parammetas.Resize(0);
     thr->tctx->dbg_temp_buffer_size = 0;
   }
-
-  internal_strlcpy(func_name, fname, 255);
 }
 
 ScopedInterceptor::~ScopedInterceptor() {
@@ -232,13 +218,7 @@ ScopedInterceptor::~ScopedInterceptor() {
     return;
   if (!thr_->ignore_interceptors) {
     ProcessPendingSignals(thr_);
-    RecordFuncExit(thr_, thr_->should_record, func_name);
   }
-  thr_->should_record = should_record;
-  thr_->tctx->isFuncEnterMetaVaild = false;
-  thr_->tctx->isFuncExitMetaVaild = false;
-  thr_->tctx->parammetas.Resize(0);
-  thr_->tctx->dbg_temp_buffer_size = 0;
 }
 
 #define TREC_INTERCEPT(func) INTERCEPT_FUNCTION(func);
