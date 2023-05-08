@@ -572,7 +572,7 @@ void ForkChildAfter(ThreadState *thr, uptr pc) {
 #endif
 
 ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
-                                        const char *name, __sanitizer::u64 pc) {
+                                        __sanitizer::u64 pc) {
   if (LIKELY(ctx->flags.output_trace) &&
       LIKELY(ctx->flags.record_func_enter_exit) &&
       LIKELY(thr->ignore_interceptors == 0)) {
@@ -609,21 +609,6 @@ ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
           u64 nsec = current_time.tv_nsec;
           debug_info.time = (sec * 1000000000 + nsec);
 
-          if (debug_info.name_len[0] == 0 && internal_strlen(name) != 0) {
-            internal_memmove(thr->tctx->dbg_temp_buffer +
-                                 sizeof(__trec_debug_info::InstDebugInfo) +
-                                 internal_strlen(name),
-                             thr->tctx->dbg_temp_buffer +
-                                 sizeof(__trec_debug_info::InstDebugInfo),
-                             debug_info.name_len[1]);
-            internal_memcpy(thr->tctx->dbg_temp_buffer +
-                                sizeof(__trec_debug_info::InstDebugInfo),
-                            name, internal_strlen(name));
-            debug_info.name_len[0] = internal_strlen(name);
-            thr->tctx->dbg_temp_buffer_size =
-                sizeof(__trec_debug_info::InstDebugInfo) +
-                internal_strlen(name) + debug_info.name_len[1];
-          }
           thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
                                     thr->tctx->dbg_temp_buffer_size);
         }
@@ -638,8 +623,7 @@ ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
   }
 }
 
-ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record,
-                                       const char *name) {
+ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
   if (LIKELY(ctx->flags.output_trace) &&
       LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
       thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {

@@ -327,9 +327,9 @@ const int kSizeLog4 = 2;
 const int kSizeLog8 = 3;
 
 
-void RecordFuncEntry(ThreadState *thr, bool &should_record, const char *name,
+void RecordFuncEntry(ThreadState *thr, bool &should_record,
                      __sanitizer::u64 pc);
-void RecordFuncExit(ThreadState *thr, bool &should_record, const char *name);
+void RecordFuncExit(ThreadState *thr, bool &should_record);
 void RecordBBLEntry(ThreadState *thr, bool &should_record);
 bool IsTrecBBL(ThreadState *thr, bool &should_record);
 

@@ -49,6 +49,10 @@
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
+#include <fcntl.h>
+#include <sqlite3.h>
+#include <sys/file.h>
+#include <unistd.h>
 
 using namespace llvm;
 
@@ -68,6 +72,13 @@ const char kTrecInitName[] = "__trec_init";
 namespace {
 std::map<std::string, Value *> TraceRecorderModuleVarNames;
 static enum Mode { Eagle, Verification, Unknown } mode;
+
+int manager_query_callback(void *ret, int argc, char **argv, char **azColName) {
+  assert(argc == 1);
+  *(int *)ret = atoi(argv[0]);
+  return 0;
+}
+
 /// TraceRecorder: instrument the code in module to record traces.
 ///
 /// Instantiating TraceRecorder inserts the trec runtime library API
@@ -77,6 +88,102 @@ static enum Mode { Eagle, Verification, Unknown } mode;
 struct TraceRecorder {
   TraceRecorder(std::map<std::string, Value *> &VN) : VarNames(VN) {
     // Sanity check options and warn user.
+
+    char *DatabaseDir = getenv("TREC_DATABASE_DIR");
+    if (DatabaseDir == nullptr) {
+      printf("ERROR: ENV variable `TREC_DATABASE_DIR` has not been set!\n");
+      exit(-1);
+    }
+    int pid = getpid();
+    char buffer[200];
+    snprintf(buffer, 200, "%s/manager.db", DatabaseDir);
+    int status;
+    char *errmsg;
+    status = sqlite3_open(buffer, &db);
+    if (status) {
+      printf("Open manager databased failed(%d): %s\n", status,
+             sqlite3_errmsg(db));
+      exit(status);
+    }
+    int database_fd = open(buffer, O_RDONLY);
+    if ((status = flock(database_fd, LOCK_EX)) != 0) {
+      printf("ERROR: acquire flock failed\n");
+      exit(status);
+    }
+    status = sqlite3_exec(
+        db,
+        "CREATE TABLE MANAGER (ID INTEGER PRIMARY KEY, PID INTEGER UNIQUE);",
+        nullptr, nullptr, &errmsg);
+    if (status != SQLITE_OK && status != SQLITE_INTERNAL &&
+        strcmp(errmsg, "table MANAGER already exists")) {
+      printf("create table error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+    sqlite3_free(errmsg);
+
+    bool isCreated = false;
+    snprintf(buffer, 200, "SELECT ID from MANAGER where PID=%d;", pid);
+    status = sqlite3_exec(db, buffer, manager_query_callback, &DBID, &errmsg);
+    if (status != SQLITE_OK) {
+      printf("query manager table error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+    while (DBID == -1) {
+      snprintf(buffer, 200, "SELECT ID from MANAGER where PID IS NULL;");
+      status = sqlite3_exec(db, buffer, manager_query_callback, &DBID, &errmsg);
+      if (status != SQLITE_OK) {
+        printf("query manager table error(%d): %s\n", status, errmsg);
+        exit(status);
+      };
+      if (DBID == -1) {
+        // no line
+        isCreated = true;
+        snprintf(buffer, 200, "INSERT INTO MANAGER VALUES (NULL, NULL);");
+        while ((status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg)) ==
+               SQLITE_BUSY)
+          ;
+        if (status != SQLITE_OK && status != SQLITE_CONSTRAINT) {
+          printf("insert manager table error(%d): %s\n", status, errmsg);
+          exit(status);
+        };
+      }
+    }
+    snprintf(buffer, 200, "UPDATE MANAGER SET PID=%d where ID=%d;", pid, DBID);
+    status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg);
+    if (status != SQLITE_OK) {
+      printf("update manager table error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+
+    if ((status = flock(database_fd, LOCK_UN)) != 0) {
+      printf("ERROR: release flock failed\n");
+      exit(status);
+    }
+    close(database_fd);
+    sqlite3_close(db);
+    snprintf(buffer, 200, "%s/debuginfo%d.db", DatabaseDir, DBID);
+    sqlite3_open(buffer, &db);
+    if (status) {
+      printf("open %s file failed(%d): %s\n", buffer, status,
+             sqlite3_errmsg(db));
+      exit(status);
+    }
+    if (isCreated) {
+      status = sqlite3_exec(
+          db,
+          "CREATE TABLE DEBUGINFO (ID INTEGER PRIMARY KEY, NAMEIDA INTEGER NOT "
+          "NULL, NAMEIDB INTEGER NOT NULL, LINE SMALLINT NOT NULL, COL "
+          "SMALLINT NOT NULL); CREATE TABLE DEBUGVARNAME (ID INTEGER PRIMARY "
+          "KEY, NAME VARCHAR(512) UNIQUE); CREATE TABLE DEBUGFILENAME (ID "
+          "INTEGER "
+          "PRIMARY "
+          "KEY, NAME VARCHAR(1024) UNIQUE);",
+          nullptr, nullptr, &errmsg);
+      if (status) {
+        printf("create subtables failed %d:%s\n", status, sqlite3_errmsg(db));
+        exit(status);
+      }
+    }
     if (getenv("TREC_COMPILE_MODE") == nullptr)
       mode = Mode::Unknown;
     else if (strcmp(getenv("TREC_COMPILE_MODE"), "eagle") == 0)
@@ -92,17 +199,57 @@ struct TraceRecorder {
       exit(-1);
     }
   }
+  ~TraceRecorder() {
+    sqlite3_close(db);
+    char buffer[200];
+    char *DatabaseDir = getenv("TREC_DATABASE_DIR");
+    if (DatabaseDir == nullptr) {
+      printf("ERROR: ENV variable `TREC_DATABASE_DIR` has not been set!\n");
+      exit(-1);
+    }
+    snprintf(buffer, 200, "%s/manager.db", DatabaseDir);
+    int status;
+    char *errmsg;
+    status = sqlite3_open(buffer, &db);
+    if (status) {
+      printf("Open manager databased failed(%d): %s\n", status,
+             sqlite3_errmsg(db));
+      exit(status);
+    }
+    int database_fd = open(buffer, O_RDONLY);
+    if ((status = flock(database_fd, LOCK_EX)) != 0) {
+      printf("ERROR: acquire flock failed\n");
+      exit(status);
+    }
+    snprintf(buffer, 200, "UPDATE MANAGER SET PID=NULL where ID=%d;", DBID);
+    status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg);
+    if (status != SQLITE_OK) {
+      printf("update manager table error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+
+    if ((status = flock(database_fd, LOCK_UN)) != 0) {
+      printf("ERROR: release flock failed\n");
+      exit(status);
+    }
+    sqlite3_close(db);
+  }
 
   bool sanitizeFunction(Function &F, const TargetLibraryInfo &TLI);
   void CopyBlocksInfo(Function &F, SmallVector<BasicBlock *> &CopyBlocks);
   std::map<std::string, Value *> &VarNames;
+  int getID(const char *table_name, const char *name);
 
 private:
   void initialize(Module &M);
+  void insertFuncNames(Instruction *I, std::string &sql,
+                       std::set<std::string> &Names);
   bool instrumentFunctionCall(Instruction *I);
   inline std::string concatFileName(std::string dir, std::string file) {
     return dir + "/" + file;
   }
+  sqlite3 *db;
+  int DBID = -1;
 
   FunctionCallee TrecFuncEntry;
   FunctionCallee TrecFuncExit;
@@ -150,8 +297,8 @@ void TraceRecorder::initialize(Module &M) {
 
   TrecInstDebugInfo = M.getOrInsertFunction(
       "__trec_inst_debug_info", Attr, IRB.getVoidTy(), IRB.getInt64Ty(),
-      IRB.getInt32Ty(), IRB.getInt16Ty(), IRB.getInt64Ty(), IRB.getInt8PtrTy(),
-      IRB.getInt8PtrTy());
+      IRB.getInt32Ty(), IRB.getInt16Ty(), IRB.getInt64Ty(), IRB.getInt32Ty(),
+      IRB.getInt32Ty());
   TrecBBLEntry =
       M.getOrInsertFunction("__trec_bbl_entry", Attr, IRB.getVoidTy());
 
@@ -194,7 +341,21 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     }
   }
 
-  for (auto Inst : FuncCalls) {
+  std::string sql = "";
+  std::set<std::string> Names;
+  for (auto &Inst : FuncCalls) {
+    insertFuncNames(Inst, sql, Names);
+  }
+
+  char *errmsg;
+  int status = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &errmsg);
+  if (status != SQLITE_OK) {
+    printf("insert error(%d): %s\n", status, errmsg);
+    exit(status);
+  };
+  sqlite3_free(errmsg);
+
+  for (auto &Inst : FuncCalls) {
     instrumentFunctionCall(Inst);
   }
 
@@ -206,16 +367,19 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   auto *Cond = BuildIR.CreateCall(IsTrecBBL, {});
   BuildIR.CreateCondBr(Cond, CopyBlocks.front(), entry);
 
+  int FileID = getID("DEBUGFILENAME", ""), FuncID = getID("DEBUGVARNAME", "");
+  FileID = ((DBID & 0xff) << 24) | (FileID & ((1 << 24) - 1));
+  FuncID = ((DBID & 0xff) << 24) | (FuncID & ((1 << 24) - 1));
   for (auto BB : CopyBlocks) {
     Instruction *I = BB->getFirstNonPHI();
     IRBuilder<> IRB(I);
     int32_t line = I->getDebugLoc().get() ? I->getDebugLoc().getLine() : 0;
     int16_t col = I->getDebugLoc().get() ? I->getDebugLoc().getCol() : 0;
-    
+
     IRB.CreateCall(TrecInstDebugInfo,
                    {IRB.getInt64(0), IRB.getInt32(line), IRB.getInt16(col),
-                    IRB.getInt64(0), IRB.CreateGlobalStringPtr(""),
-                    IRB.CreateGlobalStringPtr("")});
+                    IRB.getInt64(0), IRB.getInt32(FileID),
+                    IRB.getInt32(FuncID)});
     if (line != 0) {
       IRB.CreateCall(TrecBBLEntry);
     }
@@ -235,35 +399,21 @@ bool TraceRecorder::sanitizeFunction(Function &F,
                          F.getSubprogram()->getFile()->getFilename().str());
       FuncName = F.getSubprogram()->getName();
       if (FuncName == "main") {
-        Value *func_name, *file_name;
-        if (VarNames.count(FuncName.str())) {
-          func_name = VarNames.find(FuncName.str())->second;
-        } else {
-          func_name = IRB.CreateGlobalStringPtr(FuncName);
-          VarNames.insert(std::make_pair(FuncName.str(), func_name));
-        }
-        if (VarNames.count(CurrentFileName)) {
-          file_name = VarNames.find(CurrentFileName)->second;
-        } else {
-          file_name = IRB.CreateGlobalStringPtr(CurrentFileName);
-          VarNames.insert(std::make_pair(CurrentFileName, file_name));
-        }
-        IRB.CreateCall(
-            TrecInstDebugInfo,
-            {IRB.getInt64(fid), IRB.getInt32(F.getSubprogram()->getLine()),
-             IRB.getInt16(0), IRB.getInt64(0), func_name, file_name});
+        FuncID = getID("DEBUGVARNAME", FuncName.str().c_str());
+        FileID =
+            getID("DEBUGFILENAME", CurrentFileName.substr(0, 1023).c_str());
+        FileID = ((DBID & 0xff) << 24) | (FileID & ((1 << 24) - 1));
+        FuncID = ((DBID & 0xff) << 24) | (FuncID & ((1 << 24) - 1));
+
+        IRB.CreateCall(TrecInstDebugInfo,
+                       {IRB.getInt64(fid),
+                        IRB.getInt32(F.getSubprogram()->getLine()),
+                        IRB.getInt16(0), IRB.getInt64(0), IRB.getInt32(FileID),
+                        IRB.getInt32(FuncID)});
       }
     }
 
-    Value *name_ptr;
-    if (VarNames.count(FuncName.str())) {
-      name_ptr = VarNames.find(FuncName.str())->second;
-    } else {
-      name_ptr = IRB.CreateGlobalStringPtr(FuncName.str());
-      VarNames.insert(std::make_pair(FuncName.str(), name_ptr));
-    }
-
-    IRB.CreateCall(TrecFuncEntry, {name_ptr});
+    IRB.CreateCall(TrecFuncEntry, {});
 
     EscapeEnumerator EE(F);
     while (IRBuilder<> *AtExit = EE.Next()) {
@@ -345,6 +495,55 @@ void TraceRecorder::CopyBlocksInfo(Function &F,
   }
 }
 
+void TraceRecorder::insertFuncNames(Instruction *I, std::string &sql,
+                                    std::set<std::string> &Names) {
+  CallBase *CI = dyn_cast<CallBase>(I);
+
+  if (!CI->getCalledFunction()) {
+    return;
+  }
+  if (CI->getCalledFunction()->hasFnAttribute(Attribute::Naked) ||
+      CI->getCalledFunction()->getName().startswith("llvm.dbg")) {
+    return;
+  }
+
+  Function *F = CI->getCalledFunction();
+
+  if (ClTrecAddDebugInfo) {
+    StringRef FuncName = "";
+    if (F)
+      FuncName =
+          (F->getSubprogram()) ? F->getSubprogram()->getName() : F->getName();
+
+    if (FuncName == "pthread_create") {
+      Function *called = dyn_cast<Function>(CI->getArgOperand(2));
+      FuncName = called ? called->getSubprogram()->getName()
+                        : CI->getArgOperand(2)->getName();
+    }
+    char *errmsg;
+    char *buf;
+    int buf_size = 200 + strlen(FuncName.str().c_str());
+    buf = (char *)malloc(buf_size);
+    int ID = -1;
+    snprintf(buf, buf_size, "SELECT ID from DEBUGVARNAME where NAME=\"%s\";",
+             FuncName.str().substr(0, 511).c_str());
+    int status = sqlite3_exec(db, buf, manager_query_callback, &ID, &errmsg);
+    if (status != SQLITE_OK) {
+      printf("query error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+    sqlite3_free(errmsg);
+    if (ID == -1 && Names.count(FuncName.str().substr(0, 511)) == 0) {
+
+      snprintf(buf, buf_size, "INSERT INTO DEBUGVARNAME VALUES (NULL, \"%s\");",
+               FuncName.str().substr(0, 511).c_str());
+      sql += std::string(buf);
+      Names.insert(FuncName.str().substr(0, 511));
+    }
+  }
+  return;
+}
+
 bool TraceRecorder::instrumentFunctionCall(Instruction *I) {
   IRBuilder<> IRB(I);
   CallBase *CI = dyn_cast<CallBase>(I);
@@ -353,7 +552,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I) {
     return false;
   }
   if (CI->getCalledFunction()->hasFnAttribute(Attribute::Naked) ||
-       CI->getCalledFunction()->getName().startswith("llvm.dbg")) {
+      CI->getCalledFunction()->getName().startswith("llvm.dbg")) {
     return false;
   }
 
@@ -376,25 +575,46 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I) {
       FuncName = called ? called->getSubprogram()->getName()
                         : CI->getArgOperand(2)->getName();
     }
-    Value *func_name, *file_name;
-    if (VarNames.count(FuncName.str())) {
-      func_name = VarNames.find(FuncName.str())->second;
-    } else {
-      func_name = IRB.CreateGlobalStringPtr(FuncName);
-      VarNames.insert(std::make_pair(FuncName.str(), func_name));
-    }
-    if (VarNames.count(CurrentFileName)) {
-      file_name = VarNames.find(CurrentFileName)->second;
-    } else {
-      file_name = IRB.CreateGlobalStringPtr(CurrentFileName);
-      VarNames.insert(std::make_pair(CurrentFileName, file_name));
-    }
+    int FileID =
+            getID("DEBUGFILENAME", CurrentFileName.substr(0, 1023).c_str()),
+        FuncID = getID("DEBUGVARNAME", FuncName.str().substr(0, 511).c_str());
+    FuncID = ((DBID & 0xff) << 24) | (FuncID & ((1 << 24) - 1));
+    FileID = ((DBID & 0xff) << 24) | (FileID & ((1 << 24) - 1));
+
     IRB.CreateCall(
         TrecInstDebugInfo,
         {IRB.getInt64(fid),
          IRB.getInt32(I->getDebugLoc().get() ? I->getDebugLoc().getLine() : 0),
          IRB.getInt16(I->getDebugLoc().get() ? I->getDebugLoc().getCol() : 0),
-         IRB.getInt64(0), func_name, file_name});
+         IRB.getInt64(0), IRB.getInt32(FileID), IRB.getInt32(FuncID)});
   }
   return true;
+}
+
+int TraceRecorder::getID(const char *table_name, const char *name) {
+  int ID = -1;
+  int buf_size = 200 + strlen(name);
+  char *buf, *errmsg;
+  buf = (char *)malloc(buf_size);
+  while (ID == -1) {
+    snprintf(buf, buf_size, "SELECT ID from %s where NAME=\"%s\";", table_name,
+             name);
+    int status = sqlite3_exec(db, buf, manager_query_callback, &ID, &errmsg);
+    if (status != SQLITE_OK) {
+      printf("query error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+    sqlite3_free(errmsg);
+    if (ID == -1) {
+      snprintf(buf, buf_size, "INSERT INTO %s VALUES (NULL, \"%s\");",
+               table_name, name);
+      status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
+      if (status != SQLITE_OK) {
+        printf("insert error(%d): %s\n", status, errmsg);
+        exit(status);
+      };
+    }
+  }
+  free(buf);
+  return ID;
 }

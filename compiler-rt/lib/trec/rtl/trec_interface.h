@@ -35,13 +35,10 @@ extern "C" {
 // before any instrumented code is executed and before any call to malloc.
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_init();
 
-SANITIZER_INTERFACE_ATTRIBUTE void __trec_inst_debug_info(__sanitizer::u64 fid,
-                                                          __sanitizer::u32 line,
-                                                          __sanitizer::u16 col,
-                                                          __sanitizer::u64 time,
-							                              char *name1,
-                                                          char *name2);
-SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_entry(void *);
+SANITIZER_INTERFACE_ATTRIBUTE void __trec_inst_debug_info(
+    __sanitizer::u64 fid, __sanitizer::u32 line, __sanitizer::u16 col,
+    __sanitizer::u64 time, __sanitizer::u32 nameID1, __sanitizer::u32 nameID2);
+SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_entry();
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_exit();
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_bbl_entry();
 SANITIZER_INTERFACE_ATTRIBUTE bool __is_trec_bbl();
@@ -51,4 +48,3 @@ SANITIZER_INTERFACE_ATTRIBUTE bool __is_trec_bbl();
 }  // extern "C"
 #endif
 #endif  // TREC_INTERFACE_H
-

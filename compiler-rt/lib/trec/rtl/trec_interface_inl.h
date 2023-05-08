@@ -22,39 +22,28 @@
 using namespace __trec;
 using namespace __trec_metadata;
 
-void __trec_inst_debug_info(u64 fid, u32 line, u16 col, u64 time,
-                            char *val_name, char *addr_name) {
+void __trec_inst_debug_info(u64 fid, u32 line, u16 col, u64 time, u32 nameID1,
+                            u32 nameID2) {
   if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.output_debug) &&
       LIKELY(cur_thread()->ignore_interceptors == 0))
     if ((ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3)) {
-      __trec_debug_info::InstDebugInfo info(
-          fid, line, col, time,
-          min(internal_strlen(val_name),
-              (uptr)((1 << (8 * sizeof(info.name_len[0]))) - 1)),
-          min(internal_strlen(addr_name),
-              (uptr)((1 << (8 * sizeof(info.name_len[1]))) - 1)));
+      __trec_debug_info::InstDebugInfo info(fid, line, col, time, nameID1,
+                                            nameID2);
       ThreadState *thr = cur_thread();
-
       internal_memcpy(thr->tctx->dbg_temp_buffer, &info, sizeof(info));
-      internal_memcpy(thr->tctx->dbg_temp_buffer + sizeof(info), val_name,
-                      info.name_len[0]);
-      internal_memcpy(
-          thr->tctx->dbg_temp_buffer + sizeof(info) + info.name_len[0],
-          addr_name, info.name_len[1]);
-      thr->tctx->dbg_temp_buffer_size =
-          sizeof(info) + info.name_len[0] + info.name_len[1];
+      thr->tctx->dbg_temp_buffer_size = sizeof(info);
     }
 }
 
-void __trec_func_entry(void *name) {
+void __trec_func_entry() {
   bool should_record = true;
-  RecordFuncEntry(cur_thread(), should_record, (char *)name,
+  RecordFuncEntry(cur_thread(), should_record,
                   StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()));
 }
 
 void __trec_func_exit() {
   bool should_record = true;
-  RecordFuncExit(cur_thread(), should_record, __func__);
+  RecordFuncExit(cur_thread(), should_record);
 }
 
 void __trec_bbl_entry() {
@@ -62,9 +51,7 @@ void __trec_bbl_entry() {
   RecordBBLEntry(cur_thread(), should_record);
 }
 
-
 bool __is_trec_bbl() {
   bool should_record = true;
   return IsTrecBBL(cur_thread(), should_record);
 }
-

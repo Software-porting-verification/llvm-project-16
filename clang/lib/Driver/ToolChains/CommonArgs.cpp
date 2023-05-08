@@ -1098,8 +1098,6 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   if (!SanArgs.needsSharedRt() && SanArgs.needsTrecRt() &&
       SanArgs.linkRuntimes()) {
     StaticRuntimes.push_back("trec");
-    if (SanArgs.linkCXXRuntimes())
-      StaticRuntimes.push_back("trec_cxx");
   }
   if (!SanArgs.needsSharedRt() && SanArgs.needsUbsanRt() && SanArgs.linkRuntimes()) {
     if (SanArgs.requiresMinimalRuntime()) {
