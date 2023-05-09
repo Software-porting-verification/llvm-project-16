@@ -174,10 +174,10 @@ struct TraceRecorder {
           "CREATE TABLE DEBUGINFO (ID INTEGER PRIMARY KEY, NAMEIDA INTEGER NOT "
           "NULL, NAMEIDB INTEGER NOT NULL, LINE SMALLINT NOT NULL, COL "
           "SMALLINT NOT NULL); CREATE TABLE DEBUGVARNAME (ID INTEGER PRIMARY "
-          "KEY, NAME VARCHAR(512) UNIQUE); CREATE TABLE DEBUGFILENAME (ID "
+          "KEY, NAME CHAR(512) UNIQUE); CREATE TABLE DEBUGFILENAME (ID "
           "INTEGER "
           "PRIMARY "
-          "KEY, NAME VARCHAR(1024) UNIQUE);",
+          "KEY, NAME CHAR(1024) UNIQUE);",
           nullptr, nullptr, &errmsg);
       if (status) {
         printf("create subtables failed %d:%s\n", status, sqlite3_errmsg(db));
@@ -521,11 +521,9 @@ void TraceRecorder::insertFuncNames(Instruction *I, std::string &sql,
                         : CI->getArgOperand(2)->getName();
     }
     char *errmsg;
-    char *buf;
-    int buf_size = 200 + strlen(FuncName.str().c_str());
-    buf = (char *)malloc(buf_size);
+    char buf[2048];
     int ID = -1;
-    snprintf(buf, buf_size, "SELECT ID from DEBUGVARNAME where NAME=\"%s\";",
+    snprintf(buf, 2047, "SELECT ID from DEBUGVARNAME where NAME=\"%s\";",
              FuncName.str().substr(0, 511).c_str());
     int status = sqlite3_exec(db, buf, manager_query_callback, &ID, &errmsg);
     if (status != SQLITE_OK) {
@@ -535,7 +533,7 @@ void TraceRecorder::insertFuncNames(Instruction *I, std::string &sql,
     sqlite3_free(errmsg);
     if (ID == -1 && Names.count(FuncName.str().substr(0, 511)) == 0) {
 
-      snprintf(buf, buf_size, "INSERT INTO DEBUGVARNAME VALUES (NULL, \"%s\");",
+      snprintf(buf, 2047, "INSERT INTO DEBUGVARNAME VALUES (NULL, \"%s\");",
                FuncName.str().substr(0, 511).c_str());
       sql += std::string(buf);
       Names.insert(FuncName.str().substr(0, 511));
@@ -593,12 +591,15 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I) {
 
 int TraceRecorder::getID(const char *table_name, const char *name) {
   int ID = -1;
-  int buf_size = 200 + strlen(name);
-  char *buf, *errmsg;
-  buf = (char *)malloc(buf_size);
+  char buf[2048], *errmsg;
+  std::string real_name;
+  if (strcmp(table_name, "DEBUGFILENAME") == 0)
+    real_name = std::string(name).substr(0, 1023);
+  else if (strcmp(table_name, "DEBUGVARNAME") == 0)
+    real_name = std::string(name).substr(511);
   while (ID == -1) {
-    snprintf(buf, buf_size, "SELECT ID from %s where NAME=\"%s\";", table_name,
-             name);
+    snprintf(buf, 2047, "SELECT ID from %s where NAME=\"%s\";", table_name,
+             real_name.c_str());
     int status = sqlite3_exec(db, buf, manager_query_callback, &ID, &errmsg);
     if (status != SQLITE_OK) {
       printf("query error(%d): %s\n", status, errmsg);
@@ -606,8 +607,8 @@ int TraceRecorder::getID(const char *table_name, const char *name) {
     };
     sqlite3_free(errmsg);
     if (ID == -1) {
-      snprintf(buf, buf_size, "INSERT INTO %s VALUES (NULL, \"%s\");",
-               table_name, name);
+      snprintf(buf, 2047, "INSERT INTO %s VALUES (NULL, \"%s\");", table_name,
+               real_name.c_str());
       status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
       if (status != SQLITE_OK) {
         printf("insert error(%d): %s\n", status, errmsg);
@@ -615,6 +616,5 @@ int TraceRecorder::getID(const char *table_name, const char *name) {
       };
     }
   }
-  free(buf);
   return ID;
 }
