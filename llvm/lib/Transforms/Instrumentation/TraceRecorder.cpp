@@ -250,6 +250,7 @@ private:
   }
   sqlite3 *db;
   int DBID = -1;
+  std::map<std::string, uint32_t> KnownNames;
 
   FunctionCallee TrecFuncEntry;
   FunctionCallee TrecFuncExit;
@@ -523,20 +524,24 @@ void TraceRecorder::insertFuncNames(Instruction *I, std::string &sql,
     char *errmsg;
     char buf[2048];
     int ID = -1;
-    snprintf(buf, 2047, "SELECT ID from DEBUGVARNAME where NAME=\"%s\";",
-             FuncName.str().substr(0, 511).c_str());
-    int status = sqlite3_exec(db, buf, manager_query_callback, &ID, &errmsg);
-    if (status != SQLITE_OK) {
-      printf("query error(%d): %s\n", status, errmsg);
-      exit(status);
-    };
-    sqlite3_free(errmsg);
-    if (ID == -1 && Names.count(FuncName.str().substr(0, 511)) == 0) {
-
-      snprintf(buf, 2047, "INSERT INTO DEBUGVARNAME VALUES (NULL, \"%s\");",
+    if (!KnownNames.count(FuncName.str().substr(0, 511))) {
+      snprintf(buf, 2047, "SELECT ID from DEBUGVARNAME where NAME=\"%s\";",
                FuncName.str().substr(0, 511).c_str());
-      sql += std::string(buf);
-      Names.insert(FuncName.str().substr(0, 511));
+      int status = sqlite3_exec(db, buf, manager_query_callback, &ID, &errmsg);
+      if (status != SQLITE_OK) {
+        printf("query error(%d): %s\n", status, errmsg);
+        exit(status);
+      };
+      sqlite3_free(errmsg);
+      if (ID != -1) {
+        KnownNames[FuncName.str().substr(0, 511).c_str()] = ID;
+      } else if (ID == -1 && Names.count(FuncName.str().substr(0, 511)) == 0) {
+
+        snprintf(buf, 2047, "INSERT INTO DEBUGVARNAME VALUES (NULL, \"%s\");",
+                 FuncName.str().substr(0, 511).c_str());
+        sql += std::string(buf);
+        Names.insert(FuncName.str().substr(0, 511));
+      }
     }
   }
   return;
@@ -606,7 +611,9 @@ int TraceRecorder::getID(const char *table_name, const char *name) {
       exit(status);
     };
     sqlite3_free(errmsg);
-    if (ID == -1) {
+    if (ID != -1) {
+      KnownNames[real_name] = ID;
+    } else if (ID == -1) {
       snprintf(buf, 2047, "INSERT INTO %s VALUES (NULL, \"%s\");", table_name,
                real_name.c_str());
       status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
