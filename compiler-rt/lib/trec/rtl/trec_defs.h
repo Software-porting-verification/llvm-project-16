@@ -87,6 +87,7 @@ enum EventType : __sanitizer::u64 {
   CondWait,
   CondSignal,
   CondBroadcast,
+  Alloca,
   None,
   EventTypeSize,
   BBLEnter,
@@ -300,6 +301,7 @@ enum RecordType : __sanitizer::u32 {
   CondWait,
   CondSignal,
   CondBroadcast,
+  Alloca,
   EventTypeCnt,
   BBLEnter,
 
