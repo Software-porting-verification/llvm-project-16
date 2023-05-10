@@ -168,16 +168,22 @@ struct TraceRecorder {
              sqlite3_errmsg(db));
       exit(status);
     }
+    status =
+        sqlite3_exec(db, "PRAGMA synchronous=OFF;", nullptr, nullptr, nullptr);
+    if (status != SQLITE_OK) {
+      printf("trun off synchronous mode failed: %s\n", sqlite3_errmsg(db));
+      exit(status);
+    }
     if (isCreated) {
       status = sqlite3_exec(
           db,
           "CREATE TABLE DEBUGINFO (ID INTEGER PRIMARY KEY, NAMEIDA INTEGER NOT "
           "NULL, NAMEIDB INTEGER NOT NULL, LINE SMALLINT NOT NULL, COL "
           "SMALLINT NOT NULL); CREATE TABLE DEBUGVARNAME (ID INTEGER PRIMARY "
-          "KEY, NAME CHAR(512) UNIQUE); CREATE TABLE DEBUGFILENAME (ID "
+          "KEY, NAME CHAR(512)); CREATE TABLE DEBUGFILENAME (ID "
           "INTEGER "
           "PRIMARY "
-          "KEY, NAME CHAR(1024) UNIQUE);",
+          "KEY, NAME CHAR(1024));",
           nullptr, nullptr, &errmsg);
       if (status) {
         printf("create subtables failed %d:%s\n", status, sqlite3_errmsg(db));
@@ -342,12 +348,12 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     }
   }
 
-  std::string sql = "";
+  std::string sql = "BEGIN;";
   std::set<std::string> Names;
   for (auto &Inst : FuncCalls) {
     insertFuncNames(Inst, sql, Names);
   }
-
+  sql += "COMMIT;";
   char *errmsg;
   int status = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &errmsg);
   if (status != SQLITE_OK) {
