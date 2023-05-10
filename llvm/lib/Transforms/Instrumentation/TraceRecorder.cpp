@@ -601,7 +601,7 @@ int TraceRecorder::getID(const char *table_name, const char *name) {
   if (strcmp(table_name, "DEBUGFILENAME") == 0)
     real_name = std::string(name).substr(0, 1023);
   else if (strcmp(table_name, "DEBUGVARNAME") == 0)
-    real_name = std::string(name).substr(511);
+    real_name = std::string(name).substr(0, 511);
   while (ID == -1) {
     snprintf(buf, 2047, "SELECT ID from %s where NAME=\"%s\";", table_name,
              real_name.c_str());
