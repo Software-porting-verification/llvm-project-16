@@ -589,7 +589,7 @@ ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
                    ? thr->tctx->entry_meta.parammeta_cnt
                    : 0)
               << 48) |
-             (ctx->flags.output_debug && thr->tctx->dbg_temp_buffer_size
+             (ctx->flags.output_debug
                   ? (((((u64)1) << 48) - 1) & (thr->tctx->debug_offset))
                   : 0));
         __trec_trace::Event e(
