@@ -596,9 +596,6 @@ ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
             __trec_trace::EventType::FuncEnter, thr->tid,
             atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
             thr->tctx->parammetas.Size() ? thr->tctx->metadata_offset : 0, pc);
-        // for (uptr i = 0; i < thr->tctx->parammetas.Size(); i++)
-        //   thr->tctx->put_metadata(&thr->tctx->parammetas[i],
-        //                           sizeof(__trec_metadata::FuncParamMeta));
         __trec_debug_info::InstDebugInfo &debug_info =
             (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
         timespec current_time;
@@ -633,9 +630,6 @@ ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
           __trec_trace::EventType::FuncExit, thr->tid,
           atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
           thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
-      // if (thr->tctx->isFuncExitMetaVaild)
-      //   thr->tctx->put_metadata(&thr->tctx->exit_meta,
-      //                           sizeof(thr->tctx->exit_meta));
       __trec_debug_info::InstDebugInfo &debug_info =
           (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
       timespec current_time;
@@ -659,7 +653,6 @@ ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
 }
 
 ALWAYS_INLINE USED bool IsTrecBBL(ThreadState *thr, bool &should_record) {
-  // return false;
   if (GetEnv("FUNC_ID") == nullptr) {
     return false;
   } else {
@@ -667,6 +660,7 @@ ALWAYS_INLINE USED bool IsTrecBBL(ThreadState *thr, bool &should_record) {
         (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
     __sanitizer::u64 id = debug_info.fid;
     __sanitizer::u64 fun_id = strtoul(GetEnv("FUNC_ID"), nullptr, 10);
+    Report("id = %ld\n",id);
     if (fun_id == id) {
       return true;
     }
