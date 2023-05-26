@@ -173,7 +173,7 @@ struct WriteMeta {
   __sanitizer::u64 debug_offset : 48;
   WriteMeta(__sanitizer::u64 v, __sanitizer::u64 asi, __sanitizer::u64 asa,
             __sanitizer::u64 vsi, __sanitizer::u64 vsa,
-             __sanitizer::u16 isMemCpyFlag, __sanitizer::u64 debug = 0)
+            __sanitizer::u16 isMemCpyFlag, __sanitizer::u64 debug = 0)
       : val(v),
         addr_src_idx(asi),
         addr_src_addr(asa),
@@ -276,7 +276,7 @@ static_assert(sizeof(MemRangeMeta) == 8, "ERROR: sizeof(MemRangeMeta) != 8");
 }  // namespace __trec_metadata
 
 namespace __trec_header {
-const char TREC_HEADER_VER[] = "20221206";
+const char TREC_HEADER_VER[] = "20230526";
 enum RecordType : __sanitizer::u32 {
   // Event type count
   PlainRead,
@@ -319,12 +319,14 @@ struct TraceHeader {
   __sanitizer::u64 state[RecordType::RecordTypeCnt];
   char binary_path[512];
   char cmd[1024];
+  char pwd[1024];
   char version[9];
   TraceHeader(__sanitizer::u64 tid) {
     __sanitizer::internal_memset(state, 0, sizeof(state));
     state[RecordType::Tid] = tid;
     __sanitizer::internal_memset(binary_path, 0, sizeof(binary_path));
     __sanitizer::internal_memset(cmd, 0, sizeof(cmd));
+    __sanitizer::internal_memset(pwd, 0, sizeof(pwd));
     __sanitizer::internal_strlcpy(version, TREC_HEADER_VER, sizeof(version));
   }
   void StateInc(RecordType type) { state[type] += 1; }
@@ -342,8 +344,9 @@ struct InstDebugInfo {
   // val_name_len, addr_name_len for read/write events
   // func_name_len,file_name_len for funcEntry events
   __sanitizer::u32 nameID[2];
-  InstDebugInfo(__sanitizer::u64 _id, __sanitizer::u32 _l, __sanitizer::u16 _c, __sanitizer::u64  _t,
-                __sanitizer::u32 name_ID_1, __sanitizer::u32 name_ID_2)
+  InstDebugInfo(__sanitizer::u64 _id, __sanitizer::u32 _l, __sanitizer::u16 _c,
+                __sanitizer::u64 _t, __sanitizer::u32 name_ID_1,
+                __sanitizer::u32 name_ID_2)
       : fid(_id), line(_l), column(_c), time(_t) {
     nameID[0] = name_ID_1;
     nameID[1] = name_ID_2;

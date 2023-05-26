@@ -12,8 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <errno.h>
-#include <sys/fcntl.h>
 #include <stdlib.h>
+#include <sys/fcntl.h>
 
 #include "sanitizer_common/sanitizer_placement_new.h"
 #include "trec_platform.h"
@@ -310,8 +310,7 @@ void ThreadContext::put_trace(void *msg, uptr len) {
 
 void ThreadContext::put_metadata(void *msg, uptr len) {
   if (UNLIKELY(metadata_buffer == nullptr)) {
-    metadata_buffer =
-        (char *)malloc(TREC_BUFFER_SIZE);
+    metadata_buffer = (char *)malloc(TREC_BUFFER_SIZE);
     metadata_buffer_size = 0;
   }
   if (UNLIKELY(metadata_buffer_size + len > TREC_BUFFER_SIZE)) {
@@ -578,6 +577,7 @@ void ThreadStart(ThreadState *thr, int tid, tid_t os_id,
               internal_strlcpy(thr->tctx->header.cmd + cmd_len, cmds[i],
                                sizeof(thr->tctx->header.cmd) - 1 - cmd_len);
         }
+        ReadBinaryDir(thr->tctx->header.pwd, 1024);
       }
     }
   }
