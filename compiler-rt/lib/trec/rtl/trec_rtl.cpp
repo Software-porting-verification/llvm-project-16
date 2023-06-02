@@ -660,7 +660,6 @@ ALWAYS_INLINE USED bool IsTrecBBL(ThreadState *thr, bool &should_record) {
         (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
     __sanitizer::u64 id = debug_info.fid;
     __sanitizer::u64 fun_id = strtoul(GetEnv("FUNC_ID"), nullptr, 10);
-    Report("id = %ld\n",id);
     if (fun_id == id) {
       return true;
     }
