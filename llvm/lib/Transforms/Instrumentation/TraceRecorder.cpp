@@ -377,7 +377,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   FileID = ((DBID & 0xff) << 24) | (FileID & ((1 << 24) - 1));
   FuncID = ((DBID & 0xff) << 24) | (FuncID & ((1 << 24) - 1));
   for (auto BB : CopyBlocks) {
-    Instruction *I = BB->getFirstNonPHI();
+    Instruction *I = &(*BB->getFirstInsertionPt());
     IRBuilder<> IRB(I);
     int32_t line = I->getDebugLoc().get() ? I->getDebugLoc().getLine() : 0;
     int16_t col = I->getDebugLoc().get() ? I->getDebugLoc().getCol() : 0;
