@@ -91,6 +91,7 @@ enum EventType : __sanitizer::u64 {
   None,
   EventTypeSize,
   BBLEnter,
+  BBLExit,
 };
 static_assert(EventType::EventTypeSize < 256,
               "ERROR: EventType::EventTypeSize >= 256");
@@ -304,6 +305,7 @@ enum RecordType : __sanitizer::u32 {
   Alloca,
   EventTypeCnt,
   BBLEnter,
+  BBLExit,
 
   // trace information
   Tid,

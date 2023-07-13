@@ -37,6 +37,7 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/CommandLine.h"
@@ -263,6 +264,7 @@ private:
   FunctionCallee TrecFuncExit;
   FunctionCallee TrecInstDebugInfo;
   FunctionCallee TrecBBLEntry;
+  FunctionCallee TrecBBLExit;
   FunctionCallee IsTrecBBL;
 };
 
@@ -308,7 +310,8 @@ void TraceRecorder::initialize(Module &M) {
       IRB.getInt32Ty());
   TrecBBLEntry =
       M.getOrInsertFunction("__trec_bbl_entry", Attr, IRB.getVoidTy());
-
+  TrecBBLExit =
+      M.getOrInsertFunction("__trec_bbl_exit", Attr, IRB.getVoidTy());
   IsTrecBBL = M.getOrInsertFunction("__is_trec_bbl", Attr, IRB.getInt1Ty());
 }
 
@@ -387,6 +390,9 @@ bool TraceRecorder::sanitizeFunction(Function &F,
                     IRB.getInt32(FuncID)});
     if (line != 0) {
       IRB.CreateCall(TrecBBLEntry, {});
+      llvm::Instruction* BI = (BB->getTerminator());
+      IRBuilder<> ExitIRB(BI);
+      ExitIRB.CreateCall(TrecBBLExit, {});
     }
   }
   Res |= true;
