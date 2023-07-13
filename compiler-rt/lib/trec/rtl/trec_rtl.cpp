@@ -706,6 +706,46 @@ ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr, bool &should_record) {
   }
 }
 
+ALWAYS_INLINE USED void RecordBBLExit(ThreadState *thr, bool &should_record) {
+  if (GetEnv("FUNC_ID") == nullptr) {
+    return;
+  }
+  if (LIKELY(ctx->flags.output_trace) &&
+      LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
+      thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
+    if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
+      __trec_debug_info::InstDebugInfo &debug_info =
+          (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
+      __sanitizer::u64 oid =
+          (((((u64)1) << 48) - 1) & (thr->tctx->debug_offset));
+      __trec_trace::Event e(
+          __trec_trace::EventType::BBLExit, thr->tid,
+          atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
+          thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
+
+      timespec current_time;
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &current_time);
+      u64 sec = current_time.tv_sec;
+      u64 nsec = current_time.tv_nsec;
+      debug_info.time = (sec * 1000000000 + nsec);
+
+      thr->tctx->dbg_temp_buffer_size =
+          sizeof(__trec_debug_info::InstDebugInfo);
+      thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
+                                thr->tctx->dbg_temp_buffer_size);
+      Printf("bbl exit time : %ld", debug_info.time);
+
+      thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
+      thr->tctx->header.StateInc(__trec_header::RecordType::BBLExit);
+      thr->tctx->isFuncEnterMetaVaild = false;
+      thr->tctx->isFuncExitMetaVaild = false;
+      thr->tctx->parammetas.Resize(0);
+      thr->tctx->dbg_temp_buffer_size = 0;
+      return;
+    }
+  }
+}
+
 }  // namespace __trec
 
 #if !SANITIZER_GO
