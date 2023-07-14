@@ -376,24 +376,56 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   auto *Cond = BuildIR.CreateCall(IsTrecBBL, {});
   BuildIR.CreateCondBr(Cond, CopyBlocks.front(), entry);
 
+ 
   int FileID = getID("DEBUGFILENAME", ""), FuncID = getID("DEBUGVARNAME", "");
   FileID = ((DBID & 0xff) << 24) | (FileID & ((1 << 24) - 1));
   FuncID = ((DBID & 0xff) << 24) | (FuncID & ((1 << 24) - 1));
+ 
   for (auto BB : CopyBlocks) {
-    Instruction *I = &(*BB->getFirstInsertionPt());
-    IRBuilder<> IRB(I);
-    int32_t line = I->getDebugLoc().get() ? I->getDebugLoc().getLine() : 0;
-    int16_t col = I->getDebugLoc().get() ? I->getDebugLoc().getCol() : 0;
-    IRB.CreateCall(TrecInstDebugInfo,
-                   {IRB.getInt64(0), IRB.getInt32(line), IRB.getInt16(col),
-                    IRB.getInt64(0), IRB.getInt32(FileID),
-                    IRB.getInt32(FuncID)});
-    if (line != 0) {
-      IRB.CreateCall(TrecBBLEntry, {});
-      llvm::Instruction* BI = (BB->getTerminator());
-      IRBuilder<> ExitIRB(BI);
-      ExitIRB.CreateCall(TrecBBLExit, {});
+    int32_t enter_line = 0, enter_col = 0, exit_line = 0, exit_col = 0;
+    llvm::Instruction *FirstI = &(*BB->getFirstInsertionPt());
+    if (FirstI->getDebugLoc()) {
+        enter_line = FirstI->getDebugLoc().getLine();
+        enter_col = FirstI->getDebugLoc().getCol();
     }
+    llvm::Instruction *TermI = &(*BB->getTerminator());
+    if (TermI->getDebugLoc()) {
+        exit_line = TermI->getDebugLoc().getLine();
+        exit_col = TermI->getDebugLoc().getCol();
+    } else if (enter_line != 0 && exit_line == 0) {
+
+        llvm::Instruction *CurI = TermI;
+        while (CurI != &BB->front() && (exit_line == 0 || exit_col == 0)) {
+            CurI = CurI->getPrevNode();
+            if (CurI->getDebugLoc()) {
+                exit_line = CurI->getDebugLoc().getLine();
+                exit_col = CurI->getDebugLoc().getCol();
+            }
+        }
+    }
+    
+    if (enter_line !=0 && enter_col != 0 && exit_line !=0 && exit_col != 0 ) {
+    IRBuilder<> IRB(FirstI);
+    if (&(*BB->getFirstInsertionPt()) == TermI) {
+        IRB.CreateCall(TrecBBLExit, {});
+    } else {
+        IRB.CreateCall(TrecBBLEntry, {});
+    }
+    IRB.CreateCall(TrecInstDebugInfo,
+                   {IRB.getInt64(0), IRB.getInt32(enter_line), IRB.getInt16(enter_col),
+                    IRB.getInt64(0), IRB.getInt32(FileID), IRB.getInt32(FuncID)});
+    
+    IRBuilder<> ExitIRB(TermI);
+    if (&(*BB->getFirstInsertionPt()) == TermI) {
+        ExitIRB.CreateCall(TrecBBLEntry, {});
+    } else {
+        ExitIRB.CreateCall(TrecBBLExit, {});
+    }
+    ExitIRB.CreateCall(TrecInstDebugInfo,
+                   {ExitIRB.getInt64(0), ExitIRB.getInt32(exit_line), ExitIRB.getInt16(exit_col),
+                    ExitIRB.getInt64(0), ExitIRB.getInt32(FileID), ExitIRB.getInt32(FuncID)});
+    }
+
   }
   Res |= true;
 
