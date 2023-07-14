@@ -28,6 +28,7 @@
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -37,7 +38,6 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
-#include "llvm/IR/BasicBlock.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/CommandLine.h"
@@ -310,8 +310,7 @@ void TraceRecorder::initialize(Module &M) {
       IRB.getInt32Ty());
   TrecBBLEntry =
       M.getOrInsertFunction("__trec_bbl_entry", Attr, IRB.getVoidTy());
-  TrecBBLExit =
-      M.getOrInsertFunction("__trec_bbl_exit", Attr, IRB.getVoidTy());
+  TrecBBLExit = M.getOrInsertFunction("__trec_bbl_exit", Attr, IRB.getVoidTy());
   IsTrecBBL = M.getOrInsertFunction("__is_trec_bbl", Attr, IRB.getInt1Ty());
 }
 
@@ -376,56 +375,65 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   auto *Cond = BuildIR.CreateCall(IsTrecBBL, {});
   BuildIR.CreateCondBr(Cond, CopyBlocks.front(), entry);
 
- 
-  int FileID = getID("DEBUGFILENAME", ""), FuncID = getID("DEBUGVARNAME", "");
+  std::string CurrentFileName =
+      concatFileName(F.getSubprogram()->getFile()->getDirectory().str(),
+                     F.getSubprogram()->getFile()->getFilename().str());
+  int FileID = getID("DEBUGFILENAME", CurrentFileName.substr(0, 1023).c_str());
+
+  int FuncID = getID("DEBUGVARNAME", "");
   FileID = ((DBID & 0xff) << 24) | (FileID & ((1 << 24) - 1));
   FuncID = ((DBID & 0xff) << 24) | (FuncID & ((1 << 24) - 1));
- 
+
   for (auto BB : CopyBlocks) {
     int32_t enter_line = 0, enter_col = 0, exit_line = 0, exit_col = 0;
     llvm::Instruction *FirstI = &(*BB->getFirstInsertionPt());
     if (FirstI->getDebugLoc()) {
-        enter_line = FirstI->getDebugLoc().getLine();
-        enter_col = FirstI->getDebugLoc().getCol();
+      enter_line = FirstI->getDebugLoc().getLine();
+      enter_col = FirstI->getDebugLoc().getCol();
     }
     llvm::Instruction *TermI = &(*BB->getTerminator());
     if (TermI->getDebugLoc()) {
+      exit_line = TermI->getDebugLoc().getLine();
+      exit_col = TermI->getDebugLoc().getCol();
+    }
+
+    IRBuilder<> EnterIRB(FirstI);
+
+    while (FirstI != TermI && (enter_line == 0)) {
+      FirstI = FirstI->getNextNode();
+      if (FirstI->getDebugLoc()) {
+        enter_line = FirstI->getDebugLoc().getLine();
+        enter_col = FirstI->getDebugLoc().getCol();
+        break;
+      }
+    }
+
+    IRBuilder<> ExitIRB(TermI);
+    while (TermI != FirstI && (exit_line == 0)) {
+      TermI = TermI->getPrevNode();
+      if (TermI->getDebugLoc()) {
         exit_line = TermI->getDebugLoc().getLine();
         exit_col = TermI->getDebugLoc().getCol();
-    } else if (enter_line != 0 && exit_line == 0) {
-
-        llvm::Instruction *CurI = TermI;
-        while (CurI != &BB->front() && (exit_line == 0 || exit_col == 0)) {
-            CurI = CurI->getPrevNode();
-            if (CurI->getDebugLoc()) {
-                exit_line = CurI->getDebugLoc().getLine();
-                exit_col = CurI->getDebugLoc().getCol();
-            }
-        }
-    }
-    
-    if (enter_line !=0 && enter_col != 0 && exit_line !=0 && exit_col != 0 ) {
-    IRBuilder<> IRB(FirstI);
-    if (&(*BB->getFirstInsertionPt()) == TermI) {
-        IRB.CreateCall(TrecBBLExit, {});
-    } else {
-        IRB.CreateCall(TrecBBLEntry, {});
-    }
-    IRB.CreateCall(TrecInstDebugInfo,
-                   {IRB.getInt64(0), IRB.getInt32(enter_line), IRB.getInt16(enter_col),
-                    IRB.getInt64(0), IRB.getInt32(FileID), IRB.getInt32(FuncID)});
-    
-    IRBuilder<> ExitIRB(TermI);
-    if (&(*BB->getFirstInsertionPt()) == TermI) {
-        ExitIRB.CreateCall(TrecBBLEntry, {});
-    } else {
-        ExitIRB.CreateCall(TrecBBLExit, {});
-    }
-    ExitIRB.CreateCall(TrecInstDebugInfo,
-                   {ExitIRB.getInt64(0), ExitIRB.getInt32(exit_line), ExitIRB.getInt16(exit_col),
-                    ExitIRB.getInt64(0), ExitIRB.getInt32(FileID), ExitIRB.getInt32(FuncID)});
+        break;
+      }
     }
 
+    if ( FirstI == TermI || enter_line == 0 || exit_line == 0) {
+      continue;
+    } {
+      EnterIRB.CreateCall(TrecInstDebugInfo,
+                          {EnterIRB.getInt64(0), EnterIRB.getInt32(enter_line),
+                           EnterIRB.getInt16(enter_col), EnterIRB.getInt64(0),
+                           EnterIRB.getInt32(FileID),
+                           EnterIRB.getInt32(FuncID)});
+      EnterIRB.CreateCall(TrecBBLEntry, {});
+
+      ExitIRB.CreateCall(TrecInstDebugInfo,
+                         {ExitIRB.getInt64(0), ExitIRB.getInt32(exit_line),
+                          ExitIRB.getInt16(exit_col), ExitIRB.getInt64(0),
+                          ExitIRB.getInt32(FileID), ExitIRB.getInt32(FuncID)});
+      ExitIRB.CreateCall(TrecBBLExit, {});
+    }
   }
   Res |= true;
 
