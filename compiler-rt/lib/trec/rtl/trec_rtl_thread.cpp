@@ -63,7 +63,7 @@ bool ThreadContext::state_restore() {
   struct stat _st = {0};
   char path[2 * TREC_DIR_PATH_LEN];
   internal_snprintf(path, 2 * TREC_DIR_PATH_LEN - 1,
-                    "%s/trec_%llu/header/%u.bin", ctx->trace_dir,
+                    "%s/trec_%lu/header/%u.bin", ctx->trace_dir,
                     internal_getpid(), tid);
   uptr IS_EXIST = __sanitizer::internal_stat(path, &_st);
   if (IS_EXIST == 0 && _st.st_size > 0) {
@@ -88,8 +88,8 @@ bool ThreadContext::state_restore() {
 void ThreadContext::flush_trace() {
   char filepath[TREC_DIR_PATH_LEN];
   struct stat _st = {0};
-  internal_snprintf(filepath, 2 * TREC_DIR_PATH_LEN - 1, "%s/trec_%llu/trace",
-                    ctx->trace_dir, internal_getpid(), tid);
+  internal_snprintf(filepath, 2 * TREC_DIR_PATH_LEN - 1, "%s/trec_%lu/trace",
+                    ctx->trace_dir, internal_getpid());
   uptr IS_EXIST = __sanitizer::internal_stat(filepath, &_st);
   if (IS_EXIST != 0) {
     ctx->ppid = ctx->pid;
@@ -97,7 +97,7 @@ void ThreadContext::flush_trace() {
     ctx->open_directory(ctx->trace_dir);
   }
 
-  internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1, "%s/trec_%d/trace/%d.bin",
+  internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1, "%s/trec_%lu/trace/%d.bin",
                     ctx->trace_dir, internal_getpid(), this->tid);
   int fd_trace = internal_open(filepath, O_CREAT | O_WRONLY | O_APPEND, 0700);
 
@@ -108,7 +108,7 @@ void ThreadContext::flush_trace() {
     char *buff_pos = (char *)trace_buffer;
     while (trace_buffer_size > 0) {
       uptr write_bytes = internal_write(fd_trace, buff_pos, trace_buffer_size);
-      if (write_bytes == -1 && errno != EINTR) {
+      if (write_bytes == (uptr)-1 && errno != EINTR) {
         Report("Failed to flush metadata info in %s, errno=%u\n", filepath,
                errno);
         Die();
@@ -127,8 +127,7 @@ void ThreadContext::flush_metadata() {
 
   struct stat _st = {0};
   internal_snprintf(filepath, 2 * TREC_DIR_PATH_LEN - 1,
-                    "%s/trec_%llu/metadata", ctx->trace_dir, internal_getpid(),
-                    tid);
+                    "%s/trec_%lu/metadata", ctx->trace_dir, internal_getpid());
   uptr IS_EXIST = __sanitizer::internal_stat(filepath, &_st);
   if (IS_EXIST != 0) {
     ctx->ppid = ctx->pid;
@@ -137,7 +136,7 @@ void ThreadContext::flush_metadata() {
   }
 
   internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1,
-                    "%s/trec_%d/metadata/%d.bin", ctx->trace_dir,
+                    "%s/trec_%lu/metadata/%d.bin", ctx->trace_dir,
                     internal_getpid(), this->tid);
   int fd_metadata =
       internal_open(filepath, O_CREAT | O_WRONLY | O_APPEND, 0700);
@@ -150,7 +149,7 @@ void ThreadContext::flush_metadata() {
     while (metadata_buffer_size > 0) {
       uptr write_bytes =
           internal_write(fd_metadata, buff_pos, metadata_buffer_size);
-      if (write_bytes == -1 && errno != EINTR) {
+      if (write_bytes == (uptr)-1 && errno != EINTR) {
         Report("Failed to flush metadata info in %s, errno=%u\n", filepath,
                errno);
         Die();
@@ -171,8 +170,8 @@ void ThreadContext::flush_debug_info() {
     return;
   char filepath[TREC_DIR_PATH_LEN];
 
-  internal_snprintf(filepath, 2 * TREC_DIR_PATH_LEN - 1, "%s/trec_%llu/debug",
-                    ctx->trace_dir, internal_getpid(), tid);
+  internal_snprintf(filepath, 2 * TREC_DIR_PATH_LEN - 1, "%s/trec_%lu/debug",
+                    ctx->trace_dir, internal_getpid());
   struct stat _st = {0};
   uptr IS_EXIST = __sanitizer::internal_stat(filepath, &_st);
   if (IS_EXIST != 0) {
@@ -181,7 +180,7 @@ void ThreadContext::flush_debug_info() {
     ctx->open_directory(ctx->trace_dir);
   }
 
-  internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1, "%s/trec_%d/debug/%d.bin",
+  internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1, "%s/trec_%lu/debug/%d.bin",
                     ctx->trace_dir, internal_getpid(), thr->tid);
   int fd_debug = internal_open(filepath, O_CREAT | O_WRONLY | O_APPEND, 0700);
 
@@ -192,7 +191,7 @@ void ThreadContext::flush_debug_info() {
     char *buff_pos = (char *)debug_buffer;
     while (debug_buffer_size > 0) {
       uptr write_bytes = internal_write(fd_debug, buff_pos, debug_buffer_size);
-      if (write_bytes == -1 && errno != EINTR) {
+      if (write_bytes == (uptr)-1 && errno != EINTR) {
         Report("Failed to flush debug info in %s, errno=%u\n", filepath, errno);
         Die();
       } else {
@@ -213,7 +212,7 @@ void ThreadContext::flush_module() {
   char modulepath[TREC_DIR_PATH_LEN];
   char write_buff[2 * TREC_DIR_PATH_LEN];
   internal_snprintf(modulepath, TREC_DIR_PATH_LEN - 1,
-                    "%s/trec_%d/header/modules_%d.txt", ctx->trace_dir,
+                    "%s/trec_%lu/header/modules_%d.txt", ctx->trace_dir,
                     internal_getpid(), thr->tid);
   int fd_module_file =
       internal_open(modulepath, O_CREAT | O_WRONLY | O_TRUNC, 0700);
@@ -221,20 +220,19 @@ void ThreadContext::flush_module() {
   InternalMmapVector<LoadedModule> modules(/*initial_capacity*/ 64);
   memory_mapping.DumpListOfModules(&modules);
   Sort(modules.begin(), modules.size(), CompareBaseAddress);
-  uptr idx = 0;
   for (auto &item : modules) {
     if (item.full_name() && item.base_address() && item.max_address() &&
         internal_strstr(item.full_name(), "(deleted)") == nullptr) {
       internal_memset(write_buff, 0, sizeof(write_buff));
       int bufflen = internal_snprintf(write_buff, 2 * TREC_DIR_PATH_LEN - 1,
-                                      "%s %p-%p\n", item.full_name(),
+                                      "%s 0x%lx-0x%lx\n", item.full_name(),
                                       item.base_address(), item.max_address());
       uptr need_write_bytes = bufflen;
       char *buff_pos = (char *)write_buff;
       while (need_write_bytes > 0) {
         uptr write_bytes =
             internal_write(fd_module_file, buff_pos, need_write_bytes);
-        if (write_bytes == -1 && errno != EINTR) {
+        if (write_bytes == (uptr)-1 && errno != EINTR) {
           Report("Failed to flush module info in %s, errno=%u\n", modulepath,
                  errno);
           Die();
@@ -252,8 +250,8 @@ void ThreadContext::flush_header() {
   char filepath[TREC_DIR_PATH_LEN];
 
   struct stat _st = {0};
-  internal_snprintf(filepath, 2 * TREC_DIR_PATH_LEN - 1, "%s/trec_%llu/header",
-                    ctx->trace_dir, internal_getpid(), tid);
+  internal_snprintf(filepath, 2 * TREC_DIR_PATH_LEN - 1, "%s/trec_%lu/header",
+                    ctx->trace_dir, internal_getpid());
   uptr IS_EXIST = __sanitizer::internal_stat(filepath, &_st);
   if (IS_EXIST != 0) {
     ctx->ppid = ctx->pid;
@@ -261,7 +259,7 @@ void ThreadContext::flush_header() {
     ctx->open_directory(ctx->trace_dir);
   }
 
-  internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1, "%s/trec_%d/header/%d.bin",
+  internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1, "%s/trec_%lu/header/%d.bin",
                     ctx->trace_dir, internal_getpid(), thr->tid);
 
   int fd_header = internal_open(filepath, O_CREAT | O_WRONLY | O_TRUNC, 0700);
@@ -274,7 +272,7 @@ void ThreadContext::flush_header() {
     char *buff_pos = (char *)&header;
     while (need_write_bytes > 0) {
       uptr write_bytes = internal_write(fd_header, buff_pos, need_write_bytes);
-      if (write_bytes == -1 && errno != EINTR) {
+      if (write_bytes == (uptr)-1 && errno != EINTR) {
         Report("Failed to flush header in %s, errno=%u\n", filepath, errno);
         Die();
       } else {
