@@ -694,7 +694,6 @@ ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr, bool &should_record) {
           sizeof(__trec_debug_info::InstDebugInfo);
       thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
                                 thr->tctx->dbg_temp_buffer_size);
-      Printf("bbl enter line : %ld,  col: %d", debug_info.line, debug_info.column);
 
       thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
       thr->tctx->header.StateInc(__trec_header::RecordType::BBLEnter);
@@ -734,7 +733,6 @@ ALWAYS_INLINE USED void RecordBBLExit(ThreadState *thr, bool &should_record) {
           sizeof(__trec_debug_info::InstDebugInfo);
       thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
                                 thr->tctx->dbg_temp_buffer_size);
-      Printf("bbl exit line : %ld,  col: %d", debug_info.line, debug_info.column);
 
       thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
       thr->tctx->header.StateInc(__trec_header::RecordType::BBLExit);
