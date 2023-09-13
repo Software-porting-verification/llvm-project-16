@@ -822,6 +822,8 @@ TREC_INTERCEPTOR(int, fork, int fake) {
     // child
     ForkChildAfter(thr, pc);
   } else if (pid > 0) {
+    tctx->before_fork_time.tv_sec -= current_time.tv_sec;
+    tctx->before_fork_time.tv_nsec -= current_time.tv_nsec;
     // parent
     ForkParentAfter(thr, pc);
   } else {
