@@ -600,8 +600,8 @@ ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
             (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
         timespec current_time;
         clock_gettime(CLOCK_THREAD_CPUTIME_ID, &current_time);
-        u64 sec = current_time.tv_sec;
-        u64 nsec = current_time.tv_nsec;
+        u64 sec = current_time.tv_sec + thr->tctx->before_fork_time.tv_sec;
+        u64 nsec = current_time.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
         debug_info.time = (sec * 1000000000 + nsec);
         thr->tctx->dbg_temp_buffer_size =
             sizeof(__trec_debug_info::InstDebugInfo);
@@ -634,8 +634,8 @@ ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
           thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
       __trec_debug_info::InstDebugInfo &debug_info =
           (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
-      u64 sec = current_time.tv_sec;
-      u64 nsec = current_time.tv_nsec;
+      u64 sec = current_time.tv_sec + thr->tctx->before_fork_time.tv_sec;
+      u64 nsec = current_time.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
       debug_info.time = (sec * 1000000000 + nsec);
       thr->tctx->dbg_temp_buffer_size =
           sizeof(__trec_debug_info::InstDebugInfo);
@@ -691,8 +691,8 @@ ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr, bool &should_record) {
       thr->tctx->dbg_temp_buffer_size = 0;
       timespec current_time;
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &current_time);
-      u64 sec = current_time.tv_sec;
-      u64 nsec = current_time.tv_nsec;
+      u64 sec = current_time.tv_sec + thr->tctx->before_fork_time.tv_sec;
+      u64 nsec = current_time.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
       debug_info.time = (sec * 1000000000 + nsec);
       thr->tctx->dbg_temp_buffer_size =
           sizeof(__trec_debug_info::InstDebugInfo);
@@ -722,8 +722,8 @@ ALWAYS_INLINE USED void RecordBBLExit(ThreadState *thr, bool &should_record) {
           __trec_trace::EventType::BBLExit, thr->tid,
           atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
           thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
-      u64 sec = current_time.tv_sec;
-      u64 nsec = current_time.tv_nsec;
+      u64 sec = current_time.tv_sec + thr->tctx->before_fork_time.tv_sec;
+      u64 nsec = current_time.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
       debug_info.time = (sec * 1000000000 + nsec);
 
       thr->tctx->dbg_temp_buffer_size =

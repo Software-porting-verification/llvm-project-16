@@ -38,7 +38,9 @@ ThreadContext::ThreadContext(int tid)
       header(tid),
       isFuncEnterMetaVaild(false),
       dbg_temp_buffer_size(0),
-      isFuncExitMetaVaild(false) {}
+      isFuncExitMetaVaild(false) {
+  before_fork_time.tv_sec = before_fork_time.tv_nsec = 0;
+}
 
 #if !SANITIZER_GO
 ThreadContext::~ThreadContext() {}
@@ -126,8 +128,8 @@ void ThreadContext::flush_metadata() {
   char filepath[TREC_DIR_PATH_LEN];
 
   struct stat _st = {0};
-  internal_snprintf(filepath, 2 * TREC_DIR_PATH_LEN - 1,
-                    "%s/trec_%lu/metadata", ctx->trace_dir, internal_getpid());
+  internal_snprintf(filepath, 2 * TREC_DIR_PATH_LEN - 1, "%s/trec_%lu/metadata",
+                    ctx->trace_dir, internal_getpid());
   uptr IS_EXIST = __sanitizer::internal_stat(filepath, &_st);
   if (IS_EXIST != 0) {
     ctx->ppid = ctx->pid;
@@ -259,8 +261,9 @@ void ThreadContext::flush_header() {
     ctx->open_directory(ctx->trace_dir);
   }
 
-  internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1, "%s/trec_%lu/header/%d.bin",
-                    ctx->trace_dir, internal_getpid(), thr->tid);
+  internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1,
+                    "%s/trec_%lu/header/%d.bin", ctx->trace_dir,
+                    internal_getpid(), thr->tid);
 
   int fd_header = internal_open(filepath, O_CREAT | O_WRONLY | O_TRUNC, 0700);
 

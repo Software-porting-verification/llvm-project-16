@@ -202,6 +202,7 @@ class ThreadContext final : public ThreadContextBase {
   __trec_metadata::FuncExitMeta exit_meta;
   char dbg_temp_buffer[sizeof(__trec_debug_info::InstDebugInfo) + 512];
   __sanitizer::u64 dbg_temp_buffer_size;
+  timespec before_fork_time;
 
   // Override superclass callbacks.
   void OnDead() override;
@@ -325,7 +326,6 @@ const int kSizeLog1 = 0;
 const int kSizeLog2 = 1;
 const int kSizeLog4 = 2;
 const int kSizeLog8 = 3;
-
 
 void RecordFuncEntry(ThreadState *thr, bool &should_record,
                      __sanitizer::u64 pc);

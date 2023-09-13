@@ -14,6 +14,8 @@
 
 #include <dlfcn.h>
 #include <stdarg.h>
+#include <sys/time.h>
+#include <time.h>
 
 #include "interception/interception.h"
 #include "sanitizer_common/sanitizer_atomic.h"
@@ -672,7 +674,6 @@ void CondMutexUnlockCtx<Fn>::Unlock() const {
 }
 }  // namespace
 
-
 #if !SANITIZER_MAC
 TREC_INTERCEPTOR(int, pthread_barrier_init, void *b, void *a, unsigned count) {
   SCOPED_TREC_INTERCEPTOR(pthread_barrier_init, b, a, count);
@@ -785,7 +786,6 @@ void ProcessPendingSignals(ThreadState *thr) {
 
 }  // namespace __trec
 
-
 TREC_INTERCEPTOR(int, pthread_kill, void *tid, int sig) {
   SCOPED_TREC_INTERCEPTOR(pthread_kill, tid, sig);
   ThreadSignalContext *sctx = SigCtx(thr);
@@ -806,6 +806,11 @@ TREC_INTERCEPTOR(int, fork, int fake) {
   SCOPED_INTERCEPTOR_RAW(fork, fake);
   ForkBefore(thr, pc);
   int pid;
+  timespec current_time;
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &current_time);
+  ThreadContext *tctx = cur_thread()->tctx;
+  tctx->before_fork_time.tv_sec += current_time.tv_sec;
+  tctx->before_fork_time.tv_nsec += current_time.tv_nsec;
   {
     // On OS X, REAL(fork) can call intercepted functions (OSSpinLockLock), and
     // we'll assert in CheckNoLocks() unless we ignore interceptors.
@@ -1071,10 +1076,9 @@ void InitializeInterceptors() {
 #endif
 
   new (interceptor_ctx()) InterceptorContext();
-  //InitializeCommonInterceptors();
+  // InitializeCommonInterceptors();
   InitializeSignalInterceptors();
   InitializeLibdispatchInterceptors();
-
 
   TREC_INTERCEPT(pthread_create);
   TREC_INTERCEPT(pthread_join);
@@ -1093,13 +1097,12 @@ void InitializeInterceptors() {
 
   TREC_INTERCEPT(pthread_sigmask);
   TREC_INTERCEPT(pthread_kill);
-  
+
   TREC_INTERCEPT(fork);
   TREC_INTERCEPT(vfork);
   TREC_MAYBE_INTERCEPT_ON_EXIT;
   TREC_INTERCEPT(__cxa_atexit);
-  //TREC_INTERCEPT(_exit);
-
+  // TREC_INTERCEPT(_exit);
 
 #if !SANITIZER_MAC && !SANITIZER_ANDROID
   // Need to setup it, because interceptors check that the function is resolved.
@@ -1117,7 +1120,6 @@ void InitializeInterceptors() {
     Die();
   }
 #endif
-
 }
 
 }  // namespace __trec
