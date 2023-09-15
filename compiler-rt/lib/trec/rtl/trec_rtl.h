@@ -39,6 +39,8 @@
 #include "trec_defs.h"
 #include "trec_flags.h"
 #include "trec_platform.h"
+#include <sys/time.h>
+#include <time.h>
 using namespace __sanitizer;
 
 #if SANITIZER_WORDSIZE != 64 && !defined(__i386__) && !defined(__riscv)
