@@ -34,6 +34,17 @@ void __trec_inst_debug_info(u64 fid, u32 line, u16 col, u64 time, u32 nameID1,
       thr->tctx->dbg_temp_buffer_size = sizeof(info);
     }
 }
+void __trec_setjmp(void *jmpbuf) {
+  RecordSetLongJmp(cur_thread(), true,
+                   StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),
+                   (u64)jmpbuf);
+}
+
+void __trec_longjmp(void *jmpbuf) {
+  RecordSetLongJmp(cur_thread(), false,
+                   StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),
+                   (u64)jmpbuf);
+}
 
 void __trec_func_entry() {
   bool should_record = true;
@@ -50,7 +61,6 @@ void __trec_bbl_entry() {
   bool should_record = true;
   RecordBBLEntry(cur_thread(), should_record);
 }
-
 
 void __trec_bbl_exit() {
   bool should_record = true;

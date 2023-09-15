@@ -92,6 +92,8 @@ enum EventType : __sanitizer::u64 {
   EventTypeSize,
   BBLEnter,
   BBLExit,
+  SetJmp,
+  LongJmp
 };
 static_assert(EventType::EventTypeSize < 256,
               "ERROR: EventType::EventTypeSize >= 256");

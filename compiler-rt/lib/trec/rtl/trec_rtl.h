@@ -332,6 +332,8 @@ const int kSizeLog8 = 3;
 
 void RecordFuncEntry(ThreadState *thr, bool &should_record,
                      __sanitizer::u64 pc);
+void RecordSetLongJmp(ThreadState *thr, bool isSet, __sanitizer::u64 pc,
+                      __sanitizer::u64 buf);
 void RecordFuncExit(ThreadState *thr, bool &should_record);
 void RecordBBLEntry(ThreadState *thr, bool &should_record);
 bool IsTrecBBL(ThreadState *thr, bool &should_record);

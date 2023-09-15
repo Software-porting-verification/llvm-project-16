@@ -571,6 +571,23 @@ void ForkChildAfter(ThreadState *thr, uptr pc) {
 }
 #endif
 
+ALWAYS_INLINE USED void RecordSetLongJmp(ThreadState *thr, bool isSet,
+                                         __sanitizer::u64 pc,
+                                         __sanitizer::u64 buf) {
+  if (LIKELY(ctx->flags.output_trace) &&
+      LIKELY(ctx->flags.record_func_enter_exit) &&
+      LIKELY(thr->ignore_interceptors == 0)) {
+    if (ctx->flags.trace_mode == 3) {
+      __trec_trace::Event e(
+          isSet ? __trec_trace::EventType::SetJmp
+                : __trec_trace::EventType::LongJmp,
+          thr->tid, atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed),
+          buf, 0, pc);
+      thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
+    }
+  }
+}
+
 ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
                                         __sanitizer::u64 pc) {
   if (LIKELY(ctx->flags.output_trace) &&

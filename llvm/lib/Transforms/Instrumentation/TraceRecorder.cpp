@@ -266,6 +266,7 @@ private:
   FunctionCallee TrecBBLEntry;
   FunctionCallee TrecBBLExit;
   FunctionCallee IsTrecBBL;
+  FunctionCallee TrecSetjmp, TrecLongjmp;
 };
 
 void insertModuleCtor(Module &M) {
@@ -312,6 +313,10 @@ void TraceRecorder::initialize(Module &M) {
       M.getOrInsertFunction("__trec_bbl_entry", Attr, IRB.getVoidTy());
   TrecBBLExit = M.getOrInsertFunction("__trec_bbl_exit", Attr, IRB.getVoidTy());
   IsTrecBBL = M.getOrInsertFunction("__is_trec_bbl", Attr, IRB.getInt1Ty());
+  TrecSetjmp = M.getOrInsertFunction("__trec_setjmp", Attr, IRB.getVoidTy(),
+                                     IRB.getInt8PtrTy());
+  TrecLongjmp = M.getOrInsertFunction("__trec_longjmp", Attr, IRB.getVoidTy(),
+                                      IRB.getInt8PtrTy());
 }
 
 bool TraceRecorder::sanitizeFunction(Function &F,
@@ -342,18 +347,31 @@ bool TraceRecorder::sanitizeFunction(Function &F,
 
   for (auto &BB : F) {
     for (auto &Inst : BB) {
-      if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst) ||
-          isa<CallBrInst>(Inst)) {
-        FuncCalls.push_back(&Inst);
+      if (isa<CallBase>(&Inst) &&
+          dyn_cast<CallBase>(&Inst)->getCalledFunction()) {
+        if (dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().find(
+                "setjmp") != llvm::StringRef::npos) {
+          IRBuilder<> IRB(&Inst);
+          IRB.CreateCall(TrecSetjmp, {IRB.CreateBitOrPointerCast(
+                                         dyn_cast<CallBase>(&Inst)->getArgOperand(0), IRB.getInt8PtrTy())});
+        }
+        if (dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().find(
+                "longjmp") != llvm::StringRef::npos) {
+          IRBuilder<> IRB(&Inst);
+          IRB.CreateCall(TrecLongjmp,
+                         {IRB.CreateBitOrPointerCast(
+                             dyn_cast<CallBase>(&Inst)->getArgOperand(0),
+                             IRB.getInt8PtrTy())});
+        }
       }
     }
   }
 
   std::string sql = "BEGIN;";
   std::set<std::string> Names;
-  for (auto &Inst : FuncCalls) {
-    insertFuncNames(Inst, sql, Names);
-  }
+  // for (auto &Inst : FuncCalls) {
+  //   insertFuncNames(Inst, sql, Names);
+  // }
   sql += "COMMIT;";
   char *errmsg;
   int status = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &errmsg);
@@ -363,9 +381,9 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   };
   sqlite3_free(errmsg);
 
-  for (auto &Inst : FuncCalls) {
-    Res |= instrumentFunctionCall(Inst);
-  }
+  // for (auto &Inst : FuncCalls) {
+  //   Res |= instrumentFunctionCall(Inst);
+  // }
 
   BasicBlock *entry = &F.getEntryBlock();
   BasicBlock *newBlock =
@@ -418,9 +436,10 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
     }
 
-    if ( FirstI == TermI || enter_line == 0 || exit_line == 0) {
+    if (FirstI == TermI || enter_line == 0 || exit_line == 0) {
       continue;
-    } {
+    }
+    {
       EnterIRB.CreateCall(TrecInstDebugInfo,
                           {EnterIRB.getInt64(0), EnterIRB.getInt32(enter_line),
                            EnterIRB.getInt16(enter_col), EnterIRB.getInt64(0),
@@ -450,28 +469,30 @@ bool TraceRecorder::sanitizeFunction(Function &F,
           concatFileName(F.getSubprogram()->getFile()->getDirectory().str(),
                          F.getSubprogram()->getFile()->getFilename().str());
       FuncName = F.getSubprogram()->getName();
-      if (FuncName == "main") {
-        FuncID = getID("DEBUGVARNAME", FuncName.str().c_str());
-        FileID =
-            getID("DEBUGFILENAME", CurrentFileName.substr(0, 1023).c_str());
-        FileID = ((DBID & 0xff) << 24) | (FileID & ((1 << 24) - 1));
-        FuncID = ((DBID & 0xff) << 24) | (FuncID & ((1 << 24) - 1));
+      FuncID = getID("DEBUGVARNAME", FuncName.str().c_str());
+      FileID = getID("DEBUGFILENAME", CurrentFileName.substr(0, 1023).c_str());
+      FileID = ((DBID & 0xff) << 24) | (FileID & ((1 << 24) - 1));
+      FuncID = ((DBID & 0xff) << 24) | (FuncID & ((1 << 24) - 1));
 
-        IRB.CreateCall(TrecInstDebugInfo,
-                       {IRB.getInt64(fid),
-                        IRB.getInt32(F.getSubprogram()->getLine()),
-                        IRB.getInt16(0), IRB.getInt64(0), IRB.getInt32(FileID),
-                        IRB.getInt32(FuncID)});
+      IRB.CreateCall(TrecInstDebugInfo,
+                     {IRB.getInt64(fid),
+                      IRB.getInt32(F.getSubprogram()->getLine()),
+                      IRB.getInt16(0), IRB.getInt64(0), IRB.getInt32(FileID),
+                      IRB.getInt32(FuncID)});
+
+      IRB.CreateCall(TrecFuncEntry, {});
+      EscapeEnumerator EE(F);
+      while (IRBuilder<> *AtExit = EE.Next()) {
+        AtExit->CreateCall(TrecInstDebugInfo,
+                           {AtExit->getInt64(fid),
+                            AtExit->getInt32(F.getSubprogram()->getLine()),
+                            AtExit->getInt16(0), AtExit->getInt64(0),
+                            AtExit->getInt32(FileID),
+                            AtExit->getInt32(FuncID)});
+        AtExit->CreateCall(TrecFuncExit, {});
       }
+      Res |= true;
     }
-
-    IRB.CreateCall(TrecFuncEntry, {});
-
-    EscapeEnumerator EE(F);
-    while (IRBuilder<> *AtExit = EE.Next()) {
-      AtExit->CreateCall(TrecFuncExit, {});
-    }
-    Res |= true;
   }
 
   return Res;

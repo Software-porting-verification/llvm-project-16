@@ -43,6 +43,8 @@ SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_exit();
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_bbl_entry();
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_bbl_exit();
 SANITIZER_INTERFACE_ATTRIBUTE bool __is_trec_bbl();
+SANITIZER_INTERFACE_ATTRIBUTE void __trec_setjmp(void *jmpbuf);
+SANITIZER_INTERFACE_ATTRIBUTE void __trec_longjmp(void *jmpbuf);
 
 
 #endif  // SANITIZER_GO
