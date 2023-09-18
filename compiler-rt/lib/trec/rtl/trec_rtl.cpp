@@ -12,8 +12,6 @@
 // Main file (entry points) for the TRec run-time.
 //===----------------------------------------------------------------------===//
 
-#include "trec_rtl.h"
-
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
@@ -32,6 +30,7 @@
 #include "sanitizer_common/sanitizer_symbolizer.h"
 #include "trec_defs.h"
 #include "trec_platform.h"
+#include "trec_rtl.h"
 #include "ubsan/ubsan_init.h"
 
 #ifdef __SSE3__
@@ -594,6 +593,8 @@ ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
       LIKELY(ctx->flags.record_func_enter_exit) &&
       LIKELY(thr->ignore_interceptors == 0)) {
     if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
+      timespec time_start, time_end;
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
       should_record = should_record || thr->tctx->isFuncEnterMetaVaild ||
                       thr->tctx->dbg_temp_buffer_size != 0;
 
@@ -615,25 +616,33 @@ ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
             thr->tctx->parammetas.Size() ? thr->tctx->metadata_offset : 0, pc);
         __trec_debug_info::InstDebugInfo &debug_info =
             (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
-        timespec current_time;
-        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &current_time);
-        u64 sec = current_time.tv_sec + thr->tctx->before_fork_time.tv_sec;
-        u64 nsec = current_time.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
+
+        u64 sec = time_start.tv_sec + thr->tctx->before_fork_time.tv_sec;
+        u64 nsec = time_start.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
         debug_info.time = (sec * 1000000000 + nsec);
         thr->tctx->dbg_temp_buffer_size =
             sizeof(__trec_debug_info::InstDebugInfo);
-        thr->tctx->flush_debug_info();
         thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
                                   thr->tctx->dbg_temp_buffer_size);
+
         thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
         thr->tctx->header.StateInc(__trec_header::RecordType::FuncEnter);
+        thr->tctx->isFuncEnterMetaVaild = false;
+        thr->tctx->isFuncExitMetaVaild = false;
+        thr->tctx->parammetas.Resize(0);
+        thr->tctx->dbg_temp_buffer_size = 0;
+        thr->tctx->flush_trace();
+        thr->tctx->flush_metadata();
+        thr->tctx->flush_header();
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
+        thr->tctx->before_fork_time.tv_sec -=
+            time_end.tv_sec - time_start.tv_sec;
+        thr->tctx->before_fork_time.tv_nsec -=
+            time_end.tv_nsec - time_start.tv_nsec;
       }
-      thr->tctx->isFuncEnterMetaVaild = false;
-      thr->tctx->isFuncExitMetaVaild = false;
-      thr->tctx->parammetas.Resize(0);
-      thr->tctx->dbg_temp_buffer_size = 0;
     }
   }
+  return;
 }
 
 ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
@@ -641,8 +650,8 @@ ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
       LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
       thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
     if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
-      timespec current_time;
-      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &current_time);
+      timespec time_start, time_end;
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
       __sanitizer::u64 oid =
           (((((u64)1) << 48) - 1) & (thr->tctx->debug_offset));
       __trec_trace::Event e(
@@ -651,8 +660,8 @@ ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
           thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
       __trec_debug_info::InstDebugInfo &debug_info =
           (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
-      u64 sec = current_time.tv_sec + thr->tctx->before_fork_time.tv_sec;
-      u64 nsec = current_time.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
+      u64 sec = time_start.tv_sec + thr->tctx->before_fork_time.tv_sec;
+      u64 nsec = time_start.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
       debug_info.time = (sec * 1000000000 + nsec);
       thr->tctx->dbg_temp_buffer_size =
           sizeof(__trec_debug_info::InstDebugInfo);
@@ -665,8 +674,16 @@ ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
       thr->tctx->isFuncExitMetaVaild = false;
       thr->tctx->parammetas.Resize(0);
       thr->tctx->dbg_temp_buffer_size = 0;
+      thr->tctx->flush_trace();
+      thr->tctx->flush_metadata();
+      thr->tctx->flush_header();
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
+      thr->tctx->before_fork_time.tv_sec -= time_end.tv_sec - time_start.tv_sec;
+      thr->tctx->before_fork_time.tv_nsec -=
+          time_end.tv_nsec - time_start.tv_nsec;
     }
   }
+  return;
 }
 
 ALWAYS_INLINE USED bool IsTrecBBL(ThreadState *thr, bool &should_record) {
@@ -692,6 +709,8 @@ ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr, bool &should_record) {
       LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
       thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
     if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
+      timespec time_start, time_end;
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
       __trec_debug_info::InstDebugInfo &debug_info =
           (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
       __sanitizer::u64 oid =
@@ -700,25 +719,32 @@ ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr, bool &should_record) {
           __trec_trace::EventType::BBLEnter, thr->tid,
           atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
           thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
+
+      u64 sec = time_start.tv_sec + thr->tctx->before_fork_time.tv_sec;
+      u64 nsec = time_start.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
+      debug_info.time = (sec * 1000000000 + nsec);
+      thr->tctx->dbg_temp_buffer_size =
+          sizeof(__trec_debug_info::InstDebugInfo);
+
+      thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
+                                thr->tctx->dbg_temp_buffer_size);
       thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
       thr->tctx->header.StateInc(__trec_header::RecordType::BBLEnter);
       thr->tctx->isFuncEnterMetaVaild = false;
       thr->tctx->isFuncExitMetaVaild = false;
       thr->tctx->parammetas.Resize(0);
       thr->tctx->dbg_temp_buffer_size = 0;
-      timespec current_time;
-      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &current_time);
-      u64 sec = current_time.tv_sec + thr->tctx->before_fork_time.tv_sec;
-      u64 nsec = current_time.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
-      debug_info.time = (sec * 1000000000 + nsec);
-      thr->tctx->dbg_temp_buffer_size =
-          sizeof(__trec_debug_info::InstDebugInfo);
-      thr->tctx->flush_debug_info();
-      thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
-                                thr->tctx->dbg_temp_buffer_size);
-      return;
+
+      thr->tctx->flush_trace();
+      thr->tctx->flush_metadata();
+      thr->tctx->flush_header();
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
+      thr->tctx->before_fork_time.tv_sec -= time_end.tv_sec - time_start.tv_sec;
+      thr->tctx->before_fork_time.tv_nsec -=
+          time_end.tv_nsec - time_start.tv_nsec;
     }
   }
+  return;
 }
 
 ALWAYS_INLINE USED void RecordBBLExit(ThreadState *thr, bool &should_record) {
@@ -729,8 +755,8 @@ ALWAYS_INLINE USED void RecordBBLExit(ThreadState *thr, bool &should_record) {
       LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
       thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
     if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
-      timespec current_time;
-      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &current_time);
+      timespec time_start, time_end;
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
       __trec_debug_info::InstDebugInfo &debug_info =
           (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
       __sanitizer::u64 oid =
@@ -739,8 +765,8 @@ ALWAYS_INLINE USED void RecordBBLExit(ThreadState *thr, bool &should_record) {
           __trec_trace::EventType::BBLExit, thr->tid,
           atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
           thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
-      u64 sec = current_time.tv_sec + thr->tctx->before_fork_time.tv_sec;
-      u64 nsec = current_time.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
+      u64 sec = time_start.tv_sec + thr->tctx->before_fork_time.tv_sec;
+      u64 nsec = time_start.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
       debug_info.time = (sec * 1000000000 + nsec);
 
       thr->tctx->dbg_temp_buffer_size =
@@ -754,9 +780,16 @@ ALWAYS_INLINE USED void RecordBBLExit(ThreadState *thr, bool &should_record) {
       thr->tctx->isFuncExitMetaVaild = false;
       thr->tctx->parammetas.Resize(0);
       thr->tctx->dbg_temp_buffer_size = 0;
-      return;
+      thr->tctx->flush_trace();
+      thr->tctx->flush_metadata();
+      thr->tctx->flush_header();
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
+      thr->tctx->before_fork_time.tv_sec -= time_end.tv_sec - time_start.tv_sec;
+      thr->tctx->before_fork_time.tv_nsec -=
+          time_end.tv_nsec - time_start.tv_nsec;
     }
   }
+  return;
 }
 
 }  // namespace __trec
