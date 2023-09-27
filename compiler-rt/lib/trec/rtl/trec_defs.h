@@ -22,7 +22,7 @@
 #endif
 
 #ifndef TREC_BUFFER_SIZE
-#define TREC_BUFFER_SIZE (1 << 28)  // default buffer size: 256MB
+#define TREC_BUFFER_SIZE (1 << 12)  // default buffer size: 256MB
 #endif
 
 #ifndef SEQC_BUFFER_SIZE
@@ -308,6 +308,7 @@ enum RecordType : __sanitizer::u32 {
   EventTypeCnt,
   BBLEnter,
   BBLExit,
+  LongJmp,
 
   // trace information
   Tid,

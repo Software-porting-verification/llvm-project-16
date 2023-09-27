@@ -577,12 +577,36 @@ ALWAYS_INLINE USED void RecordSetLongJmp(ThreadState *thr, bool isSet,
       LIKELY(ctx->flags.record_func_enter_exit) &&
       LIKELY(thr->ignore_interceptors == 0)) {
     if (ctx->flags.trace_mode == 3) {
+      timespec time_start, time_end;
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
       __trec_trace::Event e(
           isSet ? __trec_trace::EventType::SetJmp
                 : __trec_trace::EventType::LongJmp,
-          thr->tid, atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed),
-          buf, 0, pc);
+          thr->tid, atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), 
+          buf, thr->tctx->debug_offset, pc);
+  
+      __trec_debug_info::InstDebugInfo &debug_info =
+          (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
+      u64 sec = time_start.tv_sec + thr->tctx->before_fork_time.tv_sec;
+      u64 nsec = time_start.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
+      debug_info.time = (sec * 1000000000 + nsec);
+
+      thr->tctx->dbg_temp_buffer_size =
+          sizeof(__trec_debug_info::InstDebugInfo);
+      thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
+                                thr->tctx->dbg_temp_buffer_size);
+
       thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
+      thr->tctx->header.StateInc(__trec_header::RecordType::LongJmp);
+      thr->tctx->isFuncEnterMetaVaild = false;
+      thr->tctx->isFuncExitMetaVaild = false;
+      thr->tctx->parammetas.Resize(0);
+      thr->tctx->dbg_temp_buffer_size = 0;
+
+      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
+      thr->tctx->before_fork_time.tv_sec -= time_end.tv_sec - time_start.tv_sec;
+      thr->tctx->before_fork_time.tv_nsec -=
+          time_end.tv_nsec - time_start.tv_nsec;
     }
   }
 }
@@ -631,9 +655,6 @@ ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
         thr->tctx->isFuncExitMetaVaild = false;
         thr->tctx->parammetas.Resize(0);
         thr->tctx->dbg_temp_buffer_size = 0;
-        thr->tctx->flush_trace();
-        thr->tctx->flush_metadata();
-        thr->tctx->flush_header();
         clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
         thr->tctx->before_fork_time.tv_sec -=
             time_end.tv_sec - time_start.tv_sec;
@@ -674,9 +695,7 @@ ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
       thr->tctx->isFuncExitMetaVaild = false;
       thr->tctx->parammetas.Resize(0);
       thr->tctx->dbg_temp_buffer_size = 0;
-      thr->tctx->flush_trace();
-      thr->tctx->flush_metadata();
-      thr->tctx->flush_header();
+
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
       thr->tctx->before_fork_time.tv_sec -= time_end.tv_sec - time_start.tv_sec;
       thr->tctx->before_fork_time.tv_nsec -=
@@ -735,9 +754,6 @@ ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr, bool &should_record) {
       thr->tctx->parammetas.Resize(0);
       thr->tctx->dbg_temp_buffer_size = 0;
 
-      thr->tctx->flush_trace();
-      thr->tctx->flush_metadata();
-      thr->tctx->flush_header();
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
       thr->tctx->before_fork_time.tv_sec -= time_end.tv_sec - time_start.tv_sec;
       thr->tctx->before_fork_time.tv_nsec -=
@@ -780,9 +796,7 @@ ALWAYS_INLINE USED void RecordBBLExit(ThreadState *thr, bool &should_record) {
       thr->tctx->isFuncExitMetaVaild = false;
       thr->tctx->parammetas.Resize(0);
       thr->tctx->dbg_temp_buffer_size = 0;
-      thr->tctx->flush_trace();
-      thr->tctx->flush_metadata();
-      thr->tctx->flush_header();
+
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
       thr->tctx->before_fork_time.tv_sec -= time_end.tv_sec - time_start.tv_sec;
       thr->tctx->before_fork_time.tv_nsec -=

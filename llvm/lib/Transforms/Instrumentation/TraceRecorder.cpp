@@ -18,7 +18,6 @@
 // The rest is handled by the run-time library.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Transforms/Instrumentation/TraceRecorder.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
@@ -45,6 +44,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Instrumentation.h"
+#include "llvm/Transforms/Instrumentation/TraceRecorder.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
@@ -345,28 +345,6 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   // Clone all the basic blocks and store them in a vector
   CopyBlocksInfo(F, CopyBlocks);
 
-  for (auto &BB : F) {
-    for (auto &Inst : BB) {
-      if (isa<CallBase>(&Inst) &&
-          dyn_cast<CallBase>(&Inst)->getCalledFunction()) {
-        if (dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().find(
-                "setjmp") != llvm::StringRef::npos) {
-          IRBuilder<> IRB(&Inst);
-          IRB.CreateCall(TrecSetjmp, {IRB.CreateBitOrPointerCast(
-                                         dyn_cast<CallBase>(&Inst)->getArgOperand(0), IRB.getInt8PtrTy())});
-        }
-        if (dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().find(
-                "longjmp") != llvm::StringRef::npos) {
-          IRBuilder<> IRB(&Inst);
-          IRB.CreateCall(TrecLongjmp,
-                         {IRB.CreateBitOrPointerCast(
-                             dyn_cast<CallBase>(&Inst)->getArgOperand(0),
-                             IRB.getInt8PtrTy())});
-        }
-      }
-    }
-  }
-
   std::string sql = "BEGIN;";
   std::set<std::string> Names;
   // for (auto &Inst : FuncCalls) {
@@ -402,6 +380,39 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   FileID = ((DBID & 0xff) << 24) | (FileID & ((1 << 24) - 1));
   FuncID = ((DBID & 0xff) << 24) | (FuncID & ((1 << 24) - 1));
 
+  for (auto &BB : F) {
+    for (auto &Inst : BB) {
+      if (isa<CallBase>(&Inst) &&
+          dyn_cast<CallBase>(&Inst)->getCalledFunction()) {
+        if (dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().find(
+                "setjmp") != llvm::StringRef::npos) {
+          IRBuilder<> IRB(&Inst);
+          IRB.CreateCall(TrecInstDebugInfo,
+                         {IRB.getInt64(0),
+                          IRB.getInt32(F.getSubprogram()->getLine()),
+                          IRB.getInt16(0), IRB.getInt64(0), IRB.getInt32(FileID),
+                          IRB.getInt32(FuncID)});
+          IRB.CreateCall(TrecSetjmp,
+                         {IRB.CreateBitOrPointerCast(
+                             dyn_cast<CallBase>(&Inst)->getArgOperand(0),
+                             IRB.getInt8PtrTy())});
+        }
+        if (dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().find(
+                "longjmp") != llvm::StringRef::npos) {
+          IRBuilder<> IRB(&Inst);
+          IRB.CreateCall(TrecInstDebugInfo,
+                         {IRB.getInt64(0),
+                          IRB.getInt32(F.getSubprogram()->getLine()),
+                          IRB.getInt16(0), IRB.getInt64(0), IRB.getInt32(0),
+                          IRB.getInt32(0)});
+          IRB.CreateCall(TrecLongjmp,
+                         {IRB.CreateBitOrPointerCast(
+                             dyn_cast<CallBase>(&Inst)->getArgOperand(0),
+                             IRB.getInt8PtrTy())});
+        }
+      }
+    }
+  }
   for (auto BB : CopyBlocks) {
     int32_t enter_line = 0, enter_col = 0, exit_line = 0, exit_col = 0;
     llvm::Instruction *FirstI = &(*BB->getFirstInsertionPt());
