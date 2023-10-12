@@ -403,7 +403,7 @@ static void OnStackUnwind(const SignalContext &sig, const void *,
 }
 
 static void TrecOnDeadlySignal(int signo, void *siginfo, void *context) {
-  HandleDeadlySignal(siginfo, context, GetTid(), &OnStackUnwind, nullptr);
+  //HandleDeadlySignal(siginfo, context, GetTid(), &OnStackUnwind, nullptr);
 }
 #endif
 
