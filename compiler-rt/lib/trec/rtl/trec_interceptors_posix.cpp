@@ -738,6 +738,19 @@ TREC_INTERCEPTOR(int, pthread_sigmask, int how, const __sanitizer_sigset_t *set,
   return REAL(pthread_sigmask)(how, set, oldset);
 }
 
+
+TREC_INTERCEPTOR(int, raise, int sig) {
+  SCOPED_TREC_INTERCEPTOR(raise, sig);
+  ThreadSignalContext *sctx = SigCtx(thr);
+  CHECK_NE(sctx, 0);
+  int prev = sctx->int_signal_send;
+  sctx->int_signal_send = sig;
+  int res = REAL(raise)(sig);
+  CHECK_EQ(sctx->int_signal_send, sig);
+  sctx->int_signal_send = prev;
+  return res;
+}
+
 namespace __trec {
 
 static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
@@ -1099,6 +1112,7 @@ void InitializeInterceptors() {
 
   TREC_INTERCEPT(pthread_sigmask);
   TREC_INTERCEPT(pthread_kill);
+  TREC_INTERCEPT(raise);
 
   TREC_INTERCEPT(fork);
   TREC_INTERCEPT(vfork);
