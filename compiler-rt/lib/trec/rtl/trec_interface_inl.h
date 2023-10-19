@@ -35,33 +35,36 @@ void __trec_inst_debug_info(u64 fid, u32 line, u16 col, u64 time, u32 nameID1,
     }
 }
 void __trec_setjmp(void *jmpbuf) {
-  if (!__is_trec_bbl()) {
-  RecordSetLongJmp(cur_thread(), true,
-                   StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),
-                   (u64)jmpbuf);
+  bool should_record = true;
+  if (!IsTrecBBL(cur_thread(), should_record)) {
+    RecordSetLongJmp(cur_thread(), should_record, true, 
+                     StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),
+                     (u64)jmpbuf);
   }
 }
 
 void __trec_longjmp(void *jmpbuf) {
-   if (!__is_trec_bbl()) {
-  RecordSetLongJmp(cur_thread(), false,
-                   StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),
-                   (u64)jmpbuf);
-   }
+  bool should_record = true;
+  if (!IsTrecBBL(cur_thread(), should_record)) {
+    RecordSetLongJmp(cur_thread(), should_record, false,
+                     StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),
+                     (u64)jmpbuf);
+  }
 }
 
 void __trec_func_entry() {
   bool should_record = true;
-  if (!__is_trec_bbl()) {
-  RecordFuncEntry(cur_thread(), should_record,
-                  StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()));
+  if (!IsTrecBBL(cur_thread(), should_record)) {
+    RecordFuncEntry(cur_thread(), should_record,
+                    StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()));
   }
 }
 
 void __trec_func_exit() {
   bool should_record = true;
-  if (!__is_trec_bbl()) {
-  RecordFuncExit(cur_thread(), should_record);
+  Printf("is_trace_bbl:%d", __is_trec_bbl());
+  if (!IsTrecBBL(cur_thread(), should_record)) {
+    RecordFuncExit(cur_thread(), should_record);
   }
 }
 
