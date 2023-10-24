@@ -37,7 +37,7 @@ void __trec_inst_debug_info(u64 fid, u32 line, u16 col, u64 time, u32 nameID1,
 void __trec_setjmp(void *jmpbuf) {
   bool should_record = true;
   if (!IsTrecBBL(cur_thread(), should_record)) {
-    RecordSetLongJmp(cur_thread(), should_record, true, 
+    RecordSetLongJmp(cur_thread(), should_record, true,
                      StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),
                      (u64)jmpbuf);
   }
@@ -62,7 +62,6 @@ void __trec_func_entry() {
 
 void __trec_func_exit() {
   bool should_record = true;
-  Printf("is_trace_bbl:%d", __is_trec_bbl());
   if (!IsTrecBBL(cur_thread(), should_record)) {
     RecordFuncExit(cur_thread(), should_record);
   }
