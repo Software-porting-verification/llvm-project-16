@@ -733,6 +733,7 @@ bool TraceRecorder::instrumentFunctionParamCall(Instruction *I) {
                   IRB.getInt16(arg_size),
                   IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getInt8PtrTy())});
   FuncCallOrders.insert(std::make_pair(I, FuncCallOrderCounter++));
+
   for (unsigned int i = 0; i < arg_size; i++) {
     ValSourceInfo VSI;
     getSource(CI->getArgOperand(i), I->getParent()->getParent(), VSI);
@@ -764,8 +765,9 @@ bool TraceRecorder::instrumentFunctionParamCall(Instruction *I) {
           (F->getSubprogram()) ? F->getSubprogram()->getName() : F->getName();
     if (FuncName == "pthread_create") {
       Function *called = dyn_cast<Function>(CI->getArgOperand(2));
-      FuncName = called ? called->getSubprogram()->getName()
-                        : CI->getArgOperand(2)->getName();
+      FuncName = (called && called->getSubprogram())
+                     ? called->getSubprogram()->getName()
+                     : "";
     }
     Value *func_name, *file_name;
     if (VarNames.count(FuncName.str())) {
