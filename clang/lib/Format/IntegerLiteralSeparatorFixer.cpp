@@ -93,9 +93,9 @@ IntegerLiteralSeparatorFixer::process(const Environment &Env,
     auto Location = Tok.getLocation();
     auto Text = StringRef(SourceMgr.getCharacterData(Location), Length);
     if (Tok.is(tok::comment)) {
-      if (Text == "// clang-format off" || Text == "/* clang-format off */")
+      if (isClangFormatOff(Text))
         Skip = true;
-      else if (Text == "// clang-format on" || Text == "/* clang-format on */")
+      else if (isClangFormatOn(Text))
         Skip = false;
       continue;
     }
@@ -113,7 +113,11 @@ IntegerLiteralSeparatorFixer::process(const Environment &Env,
       continue;
     }
     if (Style.isCpp()) {
-      if (const auto Pos = Text.find_first_of("_i"); Pos != StringRef::npos) {
+      // Hex alpha digits a-f/A-F must be at the end of the string literal.
+      StringRef Suffixes = "_himnsuyd";
+      if (const auto Pos =
+              Text.find_first_of(IsBase16 ? Suffixes.drop_back() : Suffixes);
+          Pos != StringRef::npos) {
         Text = Text.substr(0, Pos);
         Length = Pos;
       }

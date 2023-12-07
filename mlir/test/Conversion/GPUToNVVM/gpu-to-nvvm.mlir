@@ -1,5 +1,5 @@
-// RUN: mlir-opt %s -convert-gpu-to-nvvm='has-redux=1' -split-input-file | FileCheck %s
-// RUN: mlir-opt %s -convert-gpu-to-nvvm='has-redux=1 index-bitwidth=32' -split-input-file | FileCheck --check-prefix=CHECK32 %s
+// RUN: mlir-opt %s -convert-gpu-to-nvvm='has-redux=1 use-opaque-pointers=1' -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -convert-gpu-to-nvvm='has-redux=1 index-bitwidth=32 use-opaque-pointers=1' -split-input-file | FileCheck --check-prefix=CHECK32 %s
 
 gpu.module @test_module {
   // CHECK-LABEL: func @gpu_index_ops()
@@ -516,10 +516,16 @@ gpu.module @test_module {
   // CHECK-LABEL: func @gpu_unroll
   func.func @gpu_unroll(%arg0 : vector<4xf32>) -> vector<4xf32> {
     %result = math.exp %arg0 : vector<4xf32>
-    // CHECK: llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
-    // CHECK: llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
-    // CHECK: llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
-    // CHECK: llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
+    // CHECK: %[[V0:.+]] = llvm.mlir.undef : vector<4xf32>
+    // CHECK: %[[CL:.+]] = llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
+    // CHECK: %[[V1:.+]] = llvm.insertelement %[[CL]], %[[V0]]
+    // CHECK: %[[CL:.+]] = llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
+    // CHECK: %[[V2:.+]] = llvm.insertelement %[[CL]], %[[V1]]
+    // CHECK: %[[CL:.+]] = llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
+    // CHECK: %[[V3:.+]] = llvm.insertelement %[[CL]], %[[V2]]
+    // CHECK: %[[CL:.+]] = llvm.call @__nv_expf(%{{.*}}) : (f32) -> f32
+    // CHECK: %[[V4:.+]] = llvm.insertelement %[[CL]], %[[V3]]
+    // CHECK: return %[[V4]]
     func.return %result : vector<4xf32>
   }
 }

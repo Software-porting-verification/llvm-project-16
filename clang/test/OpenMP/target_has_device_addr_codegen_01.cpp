@@ -45,6 +45,7 @@ int main() {
 // CHECK-NEXT:    [[DOTOFFLOAD_BASEPTRS:%.*]] = alloca [6 x ptr], align 8
 // CHECK-NEXT:    [[DOTOFFLOAD_PTRS:%.*]] = alloca [6 x ptr], align 8
 // CHECK-NEXT:    [[DOTOFFLOAD_MAPPERS:%.*]] = alloca [6 x ptr], align 8
+// CHECK-NEXT:    [[KERNEL_ARGS:%.*]] = alloca [[STRUCT___TGT_KERNEL_ARGUMENTS:%.*]], align 8
 // CHECK-NEXT:    store i32 0, ptr [[RETVAL]], align 4
 // CHECK-NEXT:    store float 0.000000e+00, ptr [[A]], align 4
 // CHECK-NEXT:    store ptr [[A]], ptr [[PTR]], align 8
@@ -100,7 +101,6 @@ int main() {
 // CHECK-NEXT:    store ptr null, ptr [[TMP23]], align 8
 // CHECK-NEXT:    [[TMP24:%.*]] = getelementptr inbounds [6 x ptr], ptr [[DOTOFFLOAD_BASEPTRS]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP25:%.*]] = getelementptr inbounds [6 x ptr], ptr [[DOTOFFLOAD_PTRS]], i32 0, i32 0
-// CHECK-NEXT:    [[KERNEL_ARGS:%.*]] = alloca [[STRUCT___TGT_KERNEL_ARGUMENTS:%.*]], align 8
 // CHECK-NEXT:    [[TMP26:%.*]] = getelementptr inbounds [[STRUCT___TGT_KERNEL_ARGUMENTS]], ptr [[KERNEL_ARGS]], i32 0, i32 0
 // CHECK-NEXT:    store i32 2, ptr [[TMP26]], align 4
 // CHECK-NEXT:    [[TMP27:%.*]] = getelementptr inbounds [[STRUCT___TGT_KERNEL_ARGUMENTS]], ptr [[KERNEL_ARGS]], i32 0, i32 1
@@ -144,7 +144,7 @@ int main() {
 //
 //
 // CHECK-LABEL: define {{[^@]+}}@_ZN1SC1Ev
-// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2:[0-9]+]] comdat align 2 {
+// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2:[0-9]+]] comdat {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8
@@ -154,13 +154,14 @@ int main() {
 //
 //
 // CHECK-LABEL: define {{[^@]+}}@_ZN1S3fooEv
-// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) #[[ATTR3:[0-9]+]] comdat align 2 {
+// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) #[[ATTR3:[0-9]+]] comdat {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[DOTOFFLOAD_BASEPTRS:%.*]] = alloca [5 x ptr], align 8
 // CHECK-NEXT:    [[DOTOFFLOAD_PTRS:%.*]] = alloca [5 x ptr], align 8
 // CHECK-NEXT:    [[DOTOFFLOAD_MAPPERS:%.*]] = alloca [5 x ptr], align 8
 // CHECK-NEXT:    [[DOTOFFLOAD_SIZES:%.*]] = alloca [5 x i64], align 8
+// CHECK-NEXT:    [[KERNEL_ARGS:%.*]] = alloca [[STRUCT___TGT_KERNEL_ARGUMENTS:%.*]], align 8
 // CHECK-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8
 // CHECK-NEXT:    [[THIS1:%.*]] = load ptr, ptr [[THIS_ADDR]], align 8
 // CHECK-NEXT:    [[A:%.*]] = getelementptr inbounds [[STRUCT_S:%.*]], ptr [[THIS1]], i32 0, i32 0
@@ -209,7 +210,6 @@ int main() {
 // CHECK-NEXT:    [[TMP22:%.*]] = getelementptr inbounds [5 x ptr], ptr [[DOTOFFLOAD_BASEPTRS]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP23:%.*]] = getelementptr inbounds [5 x ptr], ptr [[DOTOFFLOAD_PTRS]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP24:%.*]] = getelementptr inbounds [5 x i64], ptr [[DOTOFFLOAD_SIZES]], i32 0, i32 0
-// CHECK-NEXT:    [[KERNEL_ARGS:%.*]] = alloca [[STRUCT___TGT_KERNEL_ARGUMENTS:%.*]], align 8
 // CHECK-NEXT:    [[TMP25:%.*]] = getelementptr inbounds [[STRUCT___TGT_KERNEL_ARGUMENTS]], ptr [[KERNEL_ARGS]], i32 0, i32 0
 // CHECK-NEXT:    store i32 2, ptr [[TMP25]], align 4
 // CHECK-NEXT:    [[TMP26:%.*]] = getelementptr inbounds [[STRUCT___TGT_KERNEL_ARGUMENTS]], ptr [[KERNEL_ARGS]], i32 0, i32 1
@@ -291,7 +291,7 @@ int main() {
 //
 //
 // CHECK-LABEL: define {{[^@]+}}@_ZN1SC2Ev
-// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2]] comdat align 2 {
+// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2]] comdat {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8
@@ -399,7 +399,7 @@ int main() {
 //
 //
 // SIMD-ONLY0-LABEL: define {{[^@]+}}@_ZN1SC1Ev
-// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2:[0-9]+]] comdat align 2 {
+// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2:[0-9]+]] comdat {
 // SIMD-ONLY0-NEXT:  entry:
 // SIMD-ONLY0-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // SIMD-ONLY0-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8
@@ -409,7 +409,7 @@ int main() {
 //
 //
 // SIMD-ONLY0-LABEL: define {{[^@]+}}@_ZN1S3fooEv
-// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) #[[ATTR3:[0-9]+]] comdat align 2 {
+// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) #[[ATTR3:[0-9]+]] comdat {
 // SIMD-ONLY0-NEXT:  entry:
 // SIMD-ONLY0-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // SIMD-ONLY0-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8
@@ -437,7 +437,7 @@ int main() {
 //
 //
 // SIMD-ONLY0-LABEL: define {{[^@]+}}@_ZN1SC2Ev
-// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2]] comdat align 2 {
+// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2]] comdat {
 // SIMD-ONLY0-NEXT:  entry:
 // SIMD-ONLY0-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // SIMD-ONLY0-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8

@@ -71,6 +71,8 @@ option(LLDB_NO_INSTALL_DEFAULT_RPATH "Disable default RPATH settings in binaries
 option(LLDB_USE_SYSTEM_DEBUGSERVER "Use the system's debugserver for testing (Darwin only)." OFF)
 option(LLDB_SKIP_STRIP "Whether to skip stripping of binaries when installing lldb." OFF)
 option(LLDB_SKIP_DSYM "Whether to skip generating a dSYM when installing lldb." OFF)
+option(LLDB_ENFORCE_STRICT_TEST_REQUIREMENTS
+  "Fail to configure if certain requirements are not met for testing." OFF)
 
 set(LLDB_GLOBAL_INIT_DIRECTORY "" CACHE STRING
   "Path to the global lldbinit directory. Relative paths are resolved relative to the
@@ -277,30 +279,6 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
   if (NOT CMAKE_CONFIGURATION_TYPES)
     add_llvm_install_targets(install-lldb-headers
                              COMPONENT lldb-headers)
-  endif()
-endif()
-
-
-# If LLDB is building against a prebuilt Clang, then the Clang resource
-# directory that LLDB is using for its embedded Clang instance needs to point
-# to the resource directory of the used Clang installation.
-if (NOT TARGET clang-resource-headers)
-  set(LLDB_CLANG_RESOURCE_DIR_NAME "${LLVM_VERSION_MAJOR}")
-  # Iterate over the possible places where the external resource directory
-  # could be and pick the first that exists.
-  foreach(CANDIDATE "${Clang_DIR}/../.." "${LLVM_DIR}" "${LLVM_LIBRARY_DIRS}"
-                    "${LLVM_BUILD_LIBRARY_DIR}"
-                    "${LLVM_LIBRARY_DIR}")
-    # Build the resource directory path by appending 'clang/<version number>'.
-    set(CANDIDATE_RESOURCE_DIR "${CANDIDATE}/clang/${LLDB_CLANG_RESOURCE_DIR_NAME}")
-    if (IS_DIRECTORY "${CANDIDATE_RESOURCE_DIR}")
-      set(LLDB_EXTERNAL_CLANG_RESOURCE_DIR "${CANDIDATE_RESOURCE_DIR}")
-      break()
-    endif()
-  endforeach()
-
-  if (NOT LLDB_EXTERNAL_CLANG_RESOURCE_DIR)
-    message(FATAL_ERROR "Expected directory for clang-resource headers not found: ${LLDB_EXTERNAL_CLANG_RESOURCE_DIR}")
   endif()
 endif()
 

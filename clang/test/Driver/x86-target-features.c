@@ -297,6 +297,13 @@
 // AMX-FP16: "-target-feature" "+amx-fp16"
 // NO-AMX-FP16: "-target-feature" "-amx-fp16"
 
+// RUN: %clang -target x86_64-unknown-linux-gnu -mamx-complex %s \
+// RUN: -### -o %t.o 2>&1 | FileCheck -check-prefix=AMX-COMPLEX %s
+// RUN: %clang -target x86_64-unknown-linux-gnu -mno-amx-complex %s \
+// RUN: -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-AMX-COMPLEX %s
+// AMX-COMPLEX: "-target-feature" "+amx-complex"
+// NO-AMX-COMPLEX: "-target-feature" "-amx-complex"
+
 // RUN: %clang --target=i386 -march=i386 -mhreset %s -### 2>&1 | FileCheck -check-prefix=HRESET %s
 // RUN: %clang --target=i386 -march=i386 -mno-hreset %s -### 2>&1 | FileCheck -check-prefix=NO-HRESET %s
 // HRESET: "-target-feature" "+hreset"
@@ -342,6 +349,26 @@
 // AVXNECONVERT: "-target-feature" "+avxneconvert"
 // NO-AVXNECONVERT: "-target-feature" "-avxneconvert"
 
+// RUN: %clang --target=i386 -msha512 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SHA512 %s
+// RUN: %clang --target=i386 -mno-sha512 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-SHA512 %s
+// SHA512: "-target-feature" "+sha512"
+// NO-SHA512: "-target-feature" "-sha512"
+
+// RUN: %clang --target=i386 -msm3 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SM3 %s
+// RUN: %clang --target=i386 -mno-sm3 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-SM3 %s
+// SM3: "-target-feature" "+sm3"
+// NO-SM3: "-target-feature" "-sm3"
+
+// RUN: %clang --target=i386 -msm4 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=SM4 %s
+// RUN: %clang --target=i386 -mno-sm4 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-SM4 %s
+// SM4: "-target-feature" "+sm4"
+// NO-SM4: "-target-feature" "-sm4"
+
+// RUN: %clang --target=i386 -mavxvnniint16 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=AVXVNNIINT16 %s
+// RUN: %clang --target=i386 -mno-avxvnniint16 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-AVXVNNIINT16 %s
+// AVXVNNIINT16: "-target-feature" "+avxvnniint16"
+// NO-AVXVNNIINT16: "-target-feature" "-avxvnniint16"
+
 // RUN: %clang --target=i386 -march=i386 -mcrc32 %s -### 2>&1 | FileCheck -check-prefix=CRC32 %s
 // RUN: %clang --target=i386 -march=i386 -mno-crc32 %s -### 2>&1 | FileCheck -check-prefix=NO-CRC32 %s
 // CRC32: "-target-feature" "+crc32"
@@ -357,3 +384,6 @@
 // SLS-IJMP-DAG: "-target-feature" "+harden-sls-ijmp"
 // NO-SLS-NOT: "+harden-sls-
 // BAD-SLS: unsupported argument '{{[^']+}}' to option '-mharden-sls='
+
+// RUN: touch %t.o
+// RUN: %clang -fdriver-only -Werror --target=x86_64-pc-linux-gnu -mharden-sls=all %t.o -o /dev/null 2>&1 | count 0

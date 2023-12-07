@@ -224,6 +224,13 @@ struct GenELF64DeviceTy : public GenericDeviceTy {
   /// Nothing to do when unlocking the buffer.
   Error dataUnlockImpl(void *HstPtr) override { return Plugin::success(); }
 
+  /// Indicate that the buffer is not pinned.
+  Expected<bool> isPinnedPtrImpl(void *HstPtr, void *&BaseHstPtr,
+                                 void *&BaseDevAccessiblePtr,
+                                 size_t &BaseSize) const override {
+    return false;
+  }
+
   /// Submit data to the device (host to device transfer).
   Error dataSubmitImpl(void *TgtPtr, const void *HstPtr, int64_t Size,
                        AsyncInfoWrapperTy &AsyncInfoWrapper) override {
@@ -287,8 +294,8 @@ struct GenELF64DeviceTy : public GenericDeviceTy {
   Error syncEventImpl(void *EventPtr) override { return Plugin::success(); }
 
   /// Print information about the device.
-  Error printInfoImpl() override {
-    printf("    This is a generic-elf-64bit device\n");
+  Error obtainInfoImpl(InfoQueueTy &Info) override {
+    Info.add("Device Type", "Generic-elf-64bit");
     return Plugin::success();
   }
 

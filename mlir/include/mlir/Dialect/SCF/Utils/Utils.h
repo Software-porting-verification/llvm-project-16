@@ -54,6 +54,18 @@ scf::ForOp replaceLoopWithNewYields(OpBuilder &builder, scf::ForOp loop,
                                     ValueRange newIterOperands,
                                     const NewYieldValueFn &newYieldValuesFn,
                                     bool replaceIterOperandsUsesInLoop = true);
+// Simpler API if the new yields are just a list of values that can be
+// determined ahead of time.
+inline scf::ForOp
+replaceLoopWithNewYields(OpBuilder &builder, scf::ForOp loop,
+                         ValueRange newIterOperands, ValueRange newYields,
+                         bool replaceIterOperandsUsesInLoop = true) {
+  auto fn = [&](OpBuilder &b, Location loc, ArrayRef<BlockArgument> newBBArgs) {
+    return SmallVector<Value>(newYields.begin(), newYields.end());
+  };
+  return replaceLoopWithNewYields(builder, loop, newIterOperands, fn,
+                                  replaceIterOperandsUsesInLoop);
+}
 
 /// Update a perfectly nested loop nest to yield new values from the innermost
 /// loop and propagating it up through the loop nest. This function
@@ -128,10 +140,6 @@ LogicalResult coalesceLoops(MutableArrayRef<scf::ForOp> loops);
 /// loops exactly once.
 void collapseParallelLoops(scf::ParallelOp loops,
                            ArrayRef<std::vector<unsigned>> combinedDimensions);
-
-/// Promotes the loop body of a scf::ForOp to its containing block if the loop
-/// was known to have a single iteration.
-LogicalResult promoteIfSingleIteration(scf::ForOp forOp);
 
 /// Unrolls this for operation by the specified unroll factor. Returns failure
 /// if the loop cannot be unrolled either due to restrictions or due to invalid

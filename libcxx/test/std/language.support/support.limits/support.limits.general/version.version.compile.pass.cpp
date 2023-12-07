@@ -15,174 +15,196 @@
 
 // Test the feature test macros defined by <version>
 
-/*  Constant                                       Value
-    __cpp_lib_adaptor_iterator_pair_constructor    202106L [C++2b]
-    __cpp_lib_addressof_constexpr                  201603L [C++17]
-    __cpp_lib_allocate_at_least                    202106L [C++2b]
-    __cpp_lib_allocator_traits_is_always_equal     201411L [C++17]
-    __cpp_lib_any                                  201606L [C++17]
-    __cpp_lib_apply                                201603L [C++17]
-    __cpp_lib_array_constexpr                      201603L [C++17]
-                                                   201811L [C++20]
-    __cpp_lib_as_const                             201510L [C++17]
-    __cpp_lib_associative_heterogeneous_erasure    202110L [C++2b]
-    __cpp_lib_assume_aligned                       201811L [C++20]
-    __cpp_lib_atomic_flag_test                     201907L [C++20]
-    __cpp_lib_atomic_float                         201711L [C++20]
-    __cpp_lib_atomic_is_always_lock_free           201603L [C++17]
-    __cpp_lib_atomic_lock_free_type_aliases        201907L [C++20]
-    __cpp_lib_atomic_ref                           201806L [C++20]
-    __cpp_lib_atomic_shared_ptr                    201711L [C++20]
-    __cpp_lib_atomic_value_initialization          201911L [C++20]
-    __cpp_lib_atomic_wait                          201907L [C++20]
-    __cpp_lib_barrier                              201907L [C++20]
-    __cpp_lib_bind_back                            202202L [C++2b]
-    __cpp_lib_bind_front                           201907L [C++20]
-    __cpp_lib_bit_cast                             201806L [C++20]
-    __cpp_lib_bitops                               201907L [C++20]
-    __cpp_lib_bool_constant                        201505L [C++17]
-    __cpp_lib_bounded_array_traits                 201902L [C++20]
-    __cpp_lib_boyer_moore_searcher                 201603L [C++17]
-    __cpp_lib_byte                                 201603L [C++17]
-    __cpp_lib_byteswap                             202110L [C++2b]
-    __cpp_lib_char8_t                              201907L [C++20]
-    __cpp_lib_chrono                               201611L [C++17]
-    __cpp_lib_chrono_udls                          201304L [C++14]
-    __cpp_lib_clamp                                201603L [C++17]
-    __cpp_lib_complex_udls                         201309L [C++14]
-    __cpp_lib_concepts                             202002L [C++20]
-    __cpp_lib_constexpr_algorithms                 201806L [C++20]
-    __cpp_lib_constexpr_bitset                     202207L [C++2b]
-    __cpp_lib_constexpr_charconv                   202207L [C++2b]
-    __cpp_lib_constexpr_cmath                      202202L [C++2b]
-    __cpp_lib_constexpr_complex                    201711L [C++20]
-    __cpp_lib_constexpr_dynamic_alloc              201907L [C++20]
-    __cpp_lib_constexpr_functional                 201907L [C++20]
-    __cpp_lib_constexpr_iterator                   201811L [C++20]
-    __cpp_lib_constexpr_memory                     201811L [C++20]
-                                                   202202L [C++2b]
-    __cpp_lib_constexpr_numeric                    201911L [C++20]
-    __cpp_lib_constexpr_string                     201907L [C++20]
-    __cpp_lib_constexpr_string_view                201811L [C++20]
-    __cpp_lib_constexpr_tuple                      201811L [C++20]
-    __cpp_lib_constexpr_typeinfo                   202106L [C++2b]
-    __cpp_lib_constexpr_utility                    201811L [C++20]
-    __cpp_lib_constexpr_vector                     201907L [C++20]
-    __cpp_lib_coroutine                            201902L [C++20]
-    __cpp_lib_destroying_delete                    201806L [C++20]
-    __cpp_lib_enable_shared_from_this              201603L [C++17]
-    __cpp_lib_endian                               201907L [C++20]
-    __cpp_lib_erase_if                             202002L [C++20]
-    __cpp_lib_exchange_function                    201304L [C++14]
-    __cpp_lib_execution                            201603L [C++17]
-                                                   201902L [C++20]
-    __cpp_lib_expected                             202202L [C++2b]
-    __cpp_lib_filesystem                           201703L [C++17]
-    __cpp_lib_format                               202106L [C++20]
-    __cpp_lib_forward_like                         202207L [C++2b]
-    __cpp_lib_gcd_lcm                              201606L [C++17]
-    __cpp_lib_generic_associative_lookup           201304L [C++14]
-    __cpp_lib_generic_unordered_lookup             201811L [C++20]
-    __cpp_lib_hardware_interference_size           201703L [C++17]
-    __cpp_lib_has_unique_object_representations    201606L [C++17]
-    __cpp_lib_hypot                                201603L [C++17]
-    __cpp_lib_incomplete_container_elements        201505L [C++17]
-    __cpp_lib_int_pow2                             202002L [C++20]
-    __cpp_lib_integer_comparison_functions         202002L [C++20]
-    __cpp_lib_integer_sequence                     201304L [C++14]
-    __cpp_lib_integral_constant_callable           201304L [C++14]
-    __cpp_lib_interpolate                          201902L [C++20]
-    __cpp_lib_invoke                               201411L [C++17]
-    __cpp_lib_invoke_r                             202106L [C++2b]
-    __cpp_lib_is_aggregate                         201703L [C++17]
-    __cpp_lib_is_constant_evaluated                201811L [C++20]
-    __cpp_lib_is_final                             201402L [C++14]
-    __cpp_lib_is_invocable                         201703L [C++17]
-    __cpp_lib_is_layout_compatible                 201907L [C++20]
-    __cpp_lib_is_nothrow_convertible               201806L [C++20]
-    __cpp_lib_is_null_pointer                      201309L [C++14]
-    __cpp_lib_is_pointer_interconvertible          201907L [C++20]
-    __cpp_lib_is_scoped_enum                       202011L [C++2b]
-    __cpp_lib_is_swappable                         201603L [C++17]
-    __cpp_lib_jthread                              201911L [C++20]
-    __cpp_lib_latch                                201907L [C++20]
-    __cpp_lib_launder                              201606L [C++17]
-    __cpp_lib_list_remove_return_type              201806L [C++20]
-    __cpp_lib_logical_traits                       201510L [C++17]
-    __cpp_lib_make_from_tuple                      201606L [C++17]
-    __cpp_lib_make_reverse_iterator                201402L [C++14]
-    __cpp_lib_make_unique                          201304L [C++14]
-    __cpp_lib_map_try_emplace                      201411L [C++17]
-    __cpp_lib_math_constants                       201907L [C++20]
-    __cpp_lib_math_special_functions               201603L [C++17]
-    __cpp_lib_memory_resource                      201603L [C++17]
-    __cpp_lib_move_only_function                   202110L [C++2b]
-    __cpp_lib_node_extract                         201606L [C++17]
-    __cpp_lib_nonmember_container_access           201411L [C++17]
-    __cpp_lib_not_fn                               201603L [C++17]
-    __cpp_lib_null_iterators                       201304L [C++14]
-    __cpp_lib_optional                             201606L [C++17]
-                                                   202110L [C++2b]
-    __cpp_lib_out_ptr                              202106L [C++2b]
-    __cpp_lib_parallel_algorithm                   201603L [C++17]
-    __cpp_lib_polymorphic_allocator                201902L [C++20]
-    __cpp_lib_quoted_string_io                     201304L [C++14]
-    __cpp_lib_ranges                               202106L [C++20]
-    __cpp_lib_ranges_as_rvalue                     202207L [C++2b]
-    __cpp_lib_ranges_chunk                         202202L [C++2b]
-    __cpp_lib_ranges_chunk_by                      202202L [C++2b]
-    __cpp_lib_ranges_iota                          202202L [C++2b]
-    __cpp_lib_ranges_join_with                     202202L [C++2b]
-    __cpp_lib_ranges_slide                         202202L [C++2b]
-    __cpp_lib_ranges_starts_ends_with              202106L [C++2b]
-    __cpp_lib_ranges_to_container                  202202L [C++2b]
-    __cpp_lib_ranges_zip                           202110L [C++2b]
-    __cpp_lib_raw_memory_algorithms                201606L [C++17]
-    __cpp_lib_reference_from_temporary             202202L [C++2b]
-    __cpp_lib_remove_cvref                         201711L [C++20]
-    __cpp_lib_result_of_sfinae                     201210L [C++14]
-    __cpp_lib_robust_nonmodifying_seq_ops          201304L [C++14]
-    __cpp_lib_sample                               201603L [C++17]
-    __cpp_lib_scoped_lock                          201703L [C++17]
-    __cpp_lib_semaphore                            201907L [C++20]
-    __cpp_lib_shared_mutex                         201505L [C++17]
-    __cpp_lib_shared_ptr_arrays                    201611L [C++17]
-                                                   201707L [C++20]
-    __cpp_lib_shared_ptr_weak_type                 201606L [C++17]
-    __cpp_lib_shared_timed_mutex                   201402L [C++14]
-    __cpp_lib_shift                                201806L [C++20]
-    __cpp_lib_smart_ptr_for_overwrite              202002L [C++20]
-    __cpp_lib_source_location                      201907L [C++20]
-    __cpp_lib_span                                 202002L [C++20]
-    __cpp_lib_spanstream                           202106L [C++2b]
-    __cpp_lib_ssize                                201902L [C++20]
-    __cpp_lib_stacktrace                           202011L [C++2b]
-    __cpp_lib_starts_ends_with                     201711L [C++20]
-    __cpp_lib_stdatomic_h                          202011L [C++2b]
-    __cpp_lib_string_contains                      202011L [C++2b]
-    __cpp_lib_string_resize_and_overwrite          202110L [C++2b]
-    __cpp_lib_string_udls                          201304L [C++14]
-    __cpp_lib_string_view                          201606L [C++17]
-                                                   201803L [C++20]
-    __cpp_lib_syncbuf                              201803L [C++20]
-    __cpp_lib_three_way_comparison                 201907L [C++20]
-    __cpp_lib_to_address                           201711L [C++20]
-    __cpp_lib_to_array                             201907L [C++20]
-    __cpp_lib_to_chars                             201611L [C++17]
-    __cpp_lib_to_underlying                        202102L [C++2b]
-    __cpp_lib_transformation_trait_aliases         201304L [C++14]
-    __cpp_lib_transparent_operators                201210L [C++14]
-                                                   201510L [C++17]
-    __cpp_lib_tuple_element_t                      201402L [C++14]
-    __cpp_lib_tuples_by_type                       201304L [C++14]
-    __cpp_lib_type_identity                        201806L [C++20]
-    __cpp_lib_type_trait_variable_templates        201510L [C++17]
-    __cpp_lib_uncaught_exceptions                  201411L [C++17]
-    __cpp_lib_unordered_map_try_emplace            201411L [C++17]
-    __cpp_lib_unreachable                          202202L [C++2b]
-    __cpp_lib_unwrap_ref                           201811L [C++20]
-    __cpp_lib_variant                              202102L [C++17]
-    __cpp_lib_void_t                               201411L [C++17]
+/*  Constant                                         Value
+    __cpp_lib_adaptor_iterator_pair_constructor      202106L [C++23]
+    __cpp_lib_addressof_constexpr                    201603L [C++17]
+    __cpp_lib_allocate_at_least                      202106L [C++23]
+    __cpp_lib_allocator_traits_is_always_equal       201411L [C++17]
+    __cpp_lib_any                                    201606L [C++17]
+    __cpp_lib_apply                                  201603L [C++17]
+    __cpp_lib_array_constexpr                        201603L [C++17]
+                                                     201811L [C++20]
+    __cpp_lib_as_const                               201510L [C++17]
+    __cpp_lib_associative_heterogeneous_erasure      202110L [C++23]
+    __cpp_lib_associative_heterogeneous_insertion    202306L [C++26]
+    __cpp_lib_assume_aligned                         201811L [C++20]
+    __cpp_lib_atomic_flag_test                       201907L [C++20]
+    __cpp_lib_atomic_float                           201711L [C++20]
+    __cpp_lib_atomic_is_always_lock_free             201603L [C++17]
+    __cpp_lib_atomic_lock_free_type_aliases          201907L [C++20]
+    __cpp_lib_atomic_ref                             201806L [C++20]
+    __cpp_lib_atomic_shared_ptr                      201711L [C++20]
+    __cpp_lib_atomic_value_initialization            201911L [C++20]
+    __cpp_lib_atomic_wait                            201907L [C++20]
+    __cpp_lib_barrier                                201907L [C++20]
+    __cpp_lib_bind_back                              202202L [C++23]
+                                                     202306L [C++26]
+    __cpp_lib_bind_front                             201907L [C++20]
+                                                     202306L [C++26]
+    __cpp_lib_bit_cast                               201806L [C++20]
+    __cpp_lib_bitops                                 201907L [C++20]
+    __cpp_lib_bitset                                 202306L [C++26]
+    __cpp_lib_bool_constant                          201505L [C++17]
+    __cpp_lib_bounded_array_traits                   201902L [C++20]
+    __cpp_lib_boyer_moore_searcher                   201603L [C++17]
+    __cpp_lib_byte                                   201603L [C++17]
+    __cpp_lib_byteswap                               202110L [C++23]
+    __cpp_lib_char8_t                                201907L [C++20]
+    __cpp_lib_chrono                                 201611L [C++17]
+    __cpp_lib_chrono_udls                            201304L [C++14]
+    __cpp_lib_clamp                                  201603L [C++17]
+    __cpp_lib_complex_udls                           201309L [C++14]
+    __cpp_lib_concepts                               202002L [C++20]
+    __cpp_lib_constexpr_algorithms                   201806L [C++20]
+    __cpp_lib_constexpr_bitset                       202207L [C++23]
+    __cpp_lib_constexpr_charconv                     202207L [C++23]
+    __cpp_lib_constexpr_cmath                        202202L [C++23]
+    __cpp_lib_constexpr_complex                      201711L [C++20]
+    __cpp_lib_constexpr_dynamic_alloc                201907L [C++20]
+    __cpp_lib_constexpr_functional                   201907L [C++20]
+    __cpp_lib_constexpr_iterator                     201811L [C++20]
+    __cpp_lib_constexpr_memory                       201811L [C++20]
+                                                     202202L [C++23]
+    __cpp_lib_constexpr_numeric                      201911L [C++20]
+    __cpp_lib_constexpr_string                       201907L [C++20]
+    __cpp_lib_constexpr_string_view                  201811L [C++20]
+    __cpp_lib_constexpr_tuple                        201811L [C++20]
+    __cpp_lib_constexpr_typeinfo                     202106L [C++23]
+    __cpp_lib_constexpr_utility                      201811L [C++20]
+    __cpp_lib_constexpr_vector                       201907L [C++20]
+    __cpp_lib_copyable_function                      202306L [C++26]
+    __cpp_lib_coroutine                              201902L [C++20]
+    __cpp_lib_destroying_delete                      201806L [C++20]
+    __cpp_lib_enable_shared_from_this                201603L [C++17]
+    __cpp_lib_endian                                 201907L [C++20]
+    __cpp_lib_erase_if                               202002L [C++20]
+    __cpp_lib_exchange_function                      201304L [C++14]
+    __cpp_lib_execution                              201603L [C++17]
+                                                     201902L [C++20]
+    __cpp_lib_expected                               202211L [C++23]
+    __cpp_lib_filesystem                             201703L [C++17]
+    __cpp_lib_format                                 202106L [C++20]
+    __cpp_lib_format_ranges                          202207L [C++23]
+    __cpp_lib_formatters                             202302L [C++23]
+    __cpp_lib_forward_like                           202207L [C++23]
+    __cpp_lib_fstream_native_handle                  202306L [C++26]
+    __cpp_lib_function_ref                           202306L [C++26]
+    __cpp_lib_gcd_lcm                                201606L [C++17]
+    __cpp_lib_generic_associative_lookup             201304L [C++14]
+    __cpp_lib_generic_unordered_lookup               201811L [C++20]
+    __cpp_lib_hardware_interference_size             201703L [C++17]
+    __cpp_lib_has_unique_object_representations      201606L [C++17]
+    __cpp_lib_hazard_pointer                         202306L [C++26]
+    __cpp_lib_hypot                                  201603L [C++17]
+    __cpp_lib_incomplete_container_elements          201505L [C++17]
+    __cpp_lib_int_pow2                               202002L [C++20]
+    __cpp_lib_integer_comparison_functions           202002L [C++20]
+    __cpp_lib_integer_sequence                       201304L [C++14]
+    __cpp_lib_integral_constant_callable             201304L [C++14]
+    __cpp_lib_interpolate                            201902L [C++20]
+    __cpp_lib_invoke                                 201411L [C++17]
+    __cpp_lib_invoke_r                               202106L [C++23]
+    __cpp_lib_is_aggregate                           201703L [C++17]
+    __cpp_lib_is_constant_evaluated                  201811L [C++20]
+    __cpp_lib_is_final                               201402L [C++14]
+    __cpp_lib_is_invocable                           201703L [C++17]
+    __cpp_lib_is_layout_compatible                   201907L [C++20]
+    __cpp_lib_is_nothrow_convertible                 201806L [C++20]
+    __cpp_lib_is_null_pointer                        201309L [C++14]
+    __cpp_lib_is_pointer_interconvertible            201907L [C++20]
+    __cpp_lib_is_scoped_enum                         202011L [C++23]
+    __cpp_lib_is_swappable                           201603L [C++17]
+    __cpp_lib_jthread                                201911L [C++20]
+    __cpp_lib_latch                                  201907L [C++20]
+    __cpp_lib_launder                                201606L [C++17]
+    __cpp_lib_list_remove_return_type                201806L [C++20]
+    __cpp_lib_logical_traits                         201510L [C++17]
+    __cpp_lib_make_from_tuple                        201606L [C++17]
+    __cpp_lib_make_reverse_iterator                  201402L [C++14]
+    __cpp_lib_make_unique                            201304L [C++14]
+    __cpp_lib_map_try_emplace                        201411L [C++17]
+    __cpp_lib_math_constants                         201907L [C++20]
+    __cpp_lib_math_special_functions                 201603L [C++17]
+    __cpp_lib_mdspan                                 202207L [C++23]
+    __cpp_lib_memory_resource                        201603L [C++17]
+    __cpp_lib_move_iterator_concept                  202207L [C++20]
+    __cpp_lib_move_only_function                     202110L [C++23]
+    __cpp_lib_node_extract                           201606L [C++17]
+    __cpp_lib_nonmember_container_access             201411L [C++17]
+    __cpp_lib_not_fn                                 201603L [C++17]
+    __cpp_lib_null_iterators                         201304L [C++14]
+    __cpp_lib_optional                               201606L [C++17]
+                                                     202110L [C++23]
+    __cpp_lib_out_ptr                                202106L [C++23]
+    __cpp_lib_parallel_algorithm                     201603L [C++17]
+    __cpp_lib_polymorphic_allocator                  201902L [C++20]
+    __cpp_lib_print                                  202207L [C++23]
+    __cpp_lib_quoted_string_io                       201304L [C++14]
+    __cpp_lib_ranges                                 202207L [C++20]
+    __cpp_lib_ranges_as_rvalue                       202207L [C++23]
+    __cpp_lib_ranges_chunk                           202202L [C++23]
+    __cpp_lib_ranges_chunk_by                        202202L [C++23]
+    __cpp_lib_ranges_iota                            202202L [C++23]
+    __cpp_lib_ranges_join_with                       202202L [C++23]
+    __cpp_lib_ranges_repeat                          202207L [C++23]
+    __cpp_lib_ranges_slide                           202202L [C++23]
+    __cpp_lib_ranges_starts_ends_with                202106L [C++23]
+    __cpp_lib_ranges_to_container                    202202L [C++23]
+    __cpp_lib_ranges_zip                             202110L [C++23]
+    __cpp_lib_ratio                                  202306L [C++26]
+    __cpp_lib_raw_memory_algorithms                  201606L [C++17]
+    __cpp_lib_rcu                                    202306L [C++26]
+    __cpp_lib_reference_from_temporary               202202L [C++23]
+    __cpp_lib_remove_cvref                           201711L [C++20]
+    __cpp_lib_result_of_sfinae                       201210L [C++14]
+    __cpp_lib_robust_nonmodifying_seq_ops            201304L [C++14]
+    __cpp_lib_sample                                 201603L [C++17]
+    __cpp_lib_scoped_lock                            201703L [C++17]
+    __cpp_lib_semaphore                              201907L [C++20]
+    __cpp_lib_shared_mutex                           201505L [C++17]
+    __cpp_lib_shared_ptr_arrays                      201611L [C++17]
+                                                     201707L [C++20]
+    __cpp_lib_shared_ptr_weak_type                   201606L [C++17]
+    __cpp_lib_shared_timed_mutex                     201402L [C++14]
+    __cpp_lib_shift                                  201806L [C++20]
+    __cpp_lib_smart_ptr_for_overwrite                202002L [C++20]
+    __cpp_lib_smart_ptr_owner_equality               202306L [C++26]
+    __cpp_lib_source_location                        201907L [C++20]
+    __cpp_lib_span                                   202002L [C++20]
+    __cpp_lib_spanstream                             202106L [C++23]
+    __cpp_lib_ssize                                  201902L [C++20]
+    __cpp_lib_sstream_from_string_view               202306L [C++26]
+    __cpp_lib_stacktrace                             202011L [C++23]
+    __cpp_lib_starts_ends_with                       201711L [C++20]
+    __cpp_lib_stdatomic_h                            202011L [C++23]
+    __cpp_lib_string_contains                        202011L [C++23]
+    __cpp_lib_string_resize_and_overwrite            202110L [C++23]
+    __cpp_lib_string_udls                            201304L [C++14]
+    __cpp_lib_string_view                            201606L [C++17]
+                                                     201803L [C++20]
+    __cpp_lib_submdspan                              202306L [C++26]
+    __cpp_lib_syncbuf                                201803L [C++20]
+    __cpp_lib_text_encoding                          202306L [C++26]
+    __cpp_lib_three_way_comparison                   201907L [C++20]
+    __cpp_lib_to_address                             201711L [C++20]
+    __cpp_lib_to_array                               201907L [C++20]
+    __cpp_lib_to_chars                               201611L [C++17]
+    __cpp_lib_to_string                              202306L [C++23]
+    __cpp_lib_to_underlying                          202102L [C++23]
+    __cpp_lib_transformation_trait_aliases           201304L [C++14]
+    __cpp_lib_transparent_operators                  201210L [C++14]
+                                                     201510L [C++17]
+    __cpp_lib_tuple_element_t                        201402L [C++14]
+    __cpp_lib_tuples_by_type                         201304L [C++14]
+    __cpp_lib_type_identity                          201806L [C++20]
+    __cpp_lib_type_trait_variable_templates          201510L [C++17]
+    __cpp_lib_uncaught_exceptions                    201411L [C++17]
+    __cpp_lib_unordered_map_try_emplace              201411L [C++17]
+    __cpp_lib_unreachable                            202202L [C++23]
+    __cpp_lib_unwrap_ref                             201811L [C++20]
+    __cpp_lib_variant                                202102L [C++17]
+    __cpp_lib_void_t                                 201411L [C++17]
+    __cpp_lib_within_lifetime                        202306L [C++26]
 */
 
 #include <version>
@@ -191,7 +213,7 @@
 #if TEST_STD_VER < 14
 
 # ifdef __cpp_lib_adaptor_iterator_pair_constructor
-#   error "__cpp_lib_adaptor_iterator_pair_constructor should not be defined before c++2b"
+#   error "__cpp_lib_adaptor_iterator_pair_constructor should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_addressof_constexpr
@@ -199,7 +221,7 @@
 # endif
 
 # ifdef __cpp_lib_allocate_at_least
-#   error "__cpp_lib_allocate_at_least should not be defined before c++2b"
+#   error "__cpp_lib_allocate_at_least should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_allocator_traits_is_always_equal
@@ -223,7 +245,11 @@
 # endif
 
 # ifdef __cpp_lib_associative_heterogeneous_erasure
-#   error "__cpp_lib_associative_heterogeneous_erasure should not be defined before c++2b"
+#   error "__cpp_lib_associative_heterogeneous_erasure should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_associative_heterogeneous_insertion
+#   error "__cpp_lib_associative_heterogeneous_insertion should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_assume_aligned
@@ -267,7 +293,7 @@
 # endif
 
 # ifdef __cpp_lib_bind_back
-#   error "__cpp_lib_bind_back should not be defined before c++2b"
+#   error "__cpp_lib_bind_back should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_bind_front
@@ -280,6 +306,10 @@
 
 # ifdef __cpp_lib_bitops
 #   error "__cpp_lib_bitops should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_bitset
+#   error "__cpp_lib_bitset should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_bool_constant
@@ -299,7 +329,7 @@
 # endif
 
 # ifdef __cpp_lib_byteswap
-#   error "__cpp_lib_byteswap should not be defined before c++2b"
+#   error "__cpp_lib_byteswap should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_char8_t
@@ -331,15 +361,15 @@
 # endif
 
 # ifdef __cpp_lib_constexpr_bitset
-#   error "__cpp_lib_constexpr_bitset should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_bitset should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_charconv
-#   error "__cpp_lib_constexpr_charconv should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_charconv should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_cmath
-#   error "__cpp_lib_constexpr_cmath should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_cmath should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_complex
@@ -379,7 +409,7 @@
 # endif
 
 # ifdef __cpp_lib_constexpr_typeinfo
-#   error "__cpp_lib_constexpr_typeinfo should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_typeinfo should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_utility
@@ -388,6 +418,10 @@
 
 # ifdef __cpp_lib_constexpr_vector
 #   error "__cpp_lib_constexpr_vector should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_copyable_function
+#   error "__cpp_lib_copyable_function should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_coroutine
@@ -419,7 +453,7 @@
 # endif
 
 # ifdef __cpp_lib_expected
-#   error "__cpp_lib_expected should not be defined before c++2b"
+#   error "__cpp_lib_expected should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_filesystem
@@ -430,8 +464,24 @@
 #   error "__cpp_lib_format should not be defined before c++20"
 # endif
 
+# ifdef __cpp_lib_format_ranges
+#   error "__cpp_lib_format_ranges should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_formatters
+#   error "__cpp_lib_formatters should not be defined before c++23"
+# endif
+
 # ifdef __cpp_lib_forward_like
-#   error "__cpp_lib_forward_like should not be defined before c++2b"
+#   error "__cpp_lib_forward_like should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_fstream_native_handle
+#   error "__cpp_lib_fstream_native_handle should not be defined before c++26"
+# endif
+
+# ifdef __cpp_lib_function_ref
+#   error "__cpp_lib_function_ref should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_gcd_lcm
@@ -452,6 +502,10 @@
 
 # ifdef __cpp_lib_has_unique_object_representations
 #   error "__cpp_lib_has_unique_object_representations should not be defined before c++17"
+# endif
+
+# ifdef __cpp_lib_hazard_pointer
+#   error "__cpp_lib_hazard_pointer should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_hypot
@@ -487,7 +541,7 @@
 # endif
 
 # ifdef __cpp_lib_invoke_r
-#   error "__cpp_lib_invoke_r should not be defined before c++2b"
+#   error "__cpp_lib_invoke_r should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_is_aggregate
@@ -523,7 +577,7 @@
 # endif
 
 # ifdef __cpp_lib_is_scoped_enum
-#   error "__cpp_lib_is_scoped_enum should not be defined before c++2b"
+#   error "__cpp_lib_is_scoped_enum should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_is_swappable
@@ -574,12 +628,20 @@
 #   error "__cpp_lib_math_special_functions should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_mdspan
+#   error "__cpp_lib_mdspan should not be defined before c++23"
+# endif
+
 # ifdef __cpp_lib_memory_resource
 #   error "__cpp_lib_memory_resource should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should not be defined before c++20"
+# endif
+
 # ifdef __cpp_lib_move_only_function
-#   error "__cpp_lib_move_only_function should not be defined before c++2b"
+#   error "__cpp_lib_move_only_function should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_node_extract
@@ -603,7 +665,7 @@
 # endif
 
 # ifdef __cpp_lib_out_ptr
-#   error "__cpp_lib_out_ptr should not be defined before c++2b"
+#   error "__cpp_lib_out_ptr should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_parallel_algorithm
@@ -612,6 +674,10 @@
 
 # ifdef __cpp_lib_polymorphic_allocator
 #   error "__cpp_lib_polymorphic_allocator should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_print
+#   error "__cpp_lib_print should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_quoted_string_io
@@ -623,47 +689,59 @@
 # endif
 
 # ifdef __cpp_lib_ranges_as_rvalue
-#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++2b"
+#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk
-#   error "__cpp_lib_ranges_chunk should not be defined before c++2b"
+#   error "__cpp_lib_ranges_chunk should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk_by
-#   error "__cpp_lib_ranges_chunk_by should not be defined before c++2b"
+#   error "__cpp_lib_ranges_chunk_by should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_iota
-#   error "__cpp_lib_ranges_iota should not be defined before c++2b"
+#   error "__cpp_lib_ranges_iota should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_join_with
-#   error "__cpp_lib_ranges_join_with should not be defined before c++2b"
+#   error "__cpp_lib_ranges_join_with should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_ranges_repeat
+#   error "__cpp_lib_ranges_repeat should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_slide
-#   error "__cpp_lib_ranges_slide should not be defined before c++2b"
+#   error "__cpp_lib_ranges_slide should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_starts_ends_with
-#   error "__cpp_lib_ranges_starts_ends_with should not be defined before c++2b"
+#   error "__cpp_lib_ranges_starts_ends_with should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_to_container
-#   error "__cpp_lib_ranges_to_container should not be defined before c++2b"
+#   error "__cpp_lib_ranges_to_container should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_zip
-#   error "__cpp_lib_ranges_zip should not be defined before c++2b"
+#   error "__cpp_lib_ranges_zip should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_ratio
+#   error "__cpp_lib_ratio should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_raw_memory_algorithms
 #   error "__cpp_lib_raw_memory_algorithms should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_rcu
+#   error "__cpp_lib_rcu should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_reference_from_temporary
-#   error "__cpp_lib_reference_from_temporary should not be defined before c++2b"
+#   error "__cpp_lib_reference_from_temporary should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_remove_cvref
@@ -714,6 +792,10 @@
 #   error "__cpp_lib_smart_ptr_for_overwrite should not be defined before c++20"
 # endif
 
+# ifdef __cpp_lib_smart_ptr_owner_equality
+#   error "__cpp_lib_smart_ptr_owner_equality should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_source_location
 #   error "__cpp_lib_source_location should not be defined before c++20"
 # endif
@@ -723,15 +805,19 @@
 # endif
 
 # ifdef __cpp_lib_spanstream
-#   error "__cpp_lib_spanstream should not be defined before c++2b"
+#   error "__cpp_lib_spanstream should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ssize
 #   error "__cpp_lib_ssize should not be defined before c++20"
 # endif
 
+# ifdef __cpp_lib_sstream_from_string_view
+#   error "__cpp_lib_sstream_from_string_view should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_stacktrace
-#   error "__cpp_lib_stacktrace should not be defined before c++2b"
+#   error "__cpp_lib_stacktrace should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_starts_ends_with
@@ -739,15 +825,15 @@
 # endif
 
 # ifdef __cpp_lib_stdatomic_h
-#   error "__cpp_lib_stdatomic_h should not be defined before c++2b"
+#   error "__cpp_lib_stdatomic_h should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_string_contains
-#   error "__cpp_lib_string_contains should not be defined before c++2b"
+#   error "__cpp_lib_string_contains should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_string_resize_and_overwrite
-#   error "__cpp_lib_string_resize_and_overwrite should not be defined before c++2b"
+#   error "__cpp_lib_string_resize_and_overwrite should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_string_udls
@@ -758,8 +844,16 @@
 #   error "__cpp_lib_string_view should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_submdspan
+#   error "__cpp_lib_submdspan should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_syncbuf
 #   error "__cpp_lib_syncbuf should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_text_encoding
+#   error "__cpp_lib_text_encoding should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_three_way_comparison
@@ -778,8 +872,12 @@
 #   error "__cpp_lib_to_chars should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_to_string
+#   error "__cpp_lib_to_string should not be defined before c++23"
+# endif
+
 # ifdef __cpp_lib_to_underlying
-#   error "__cpp_lib_to_underlying should not be defined before c++2b"
+#   error "__cpp_lib_to_underlying should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_transformation_trait_aliases
@@ -815,7 +913,7 @@
 # endif
 
 # ifdef __cpp_lib_unreachable
-#   error "__cpp_lib_unreachable should not be defined before c++2b"
+#   error "__cpp_lib_unreachable should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_unwrap_ref
@@ -830,10 +928,14 @@
 #   error "__cpp_lib_void_t should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_within_lifetime
+#   error "__cpp_lib_within_lifetime should not be defined before c++26"
+# endif
+
 #elif TEST_STD_VER == 14
 
 # ifdef __cpp_lib_adaptor_iterator_pair_constructor
-#   error "__cpp_lib_adaptor_iterator_pair_constructor should not be defined before c++2b"
+#   error "__cpp_lib_adaptor_iterator_pair_constructor should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_addressof_constexpr
@@ -841,7 +943,7 @@
 # endif
 
 # ifdef __cpp_lib_allocate_at_least
-#   error "__cpp_lib_allocate_at_least should not be defined before c++2b"
+#   error "__cpp_lib_allocate_at_least should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_allocator_traits_is_always_equal
@@ -865,7 +967,11 @@
 # endif
 
 # ifdef __cpp_lib_associative_heterogeneous_erasure
-#   error "__cpp_lib_associative_heterogeneous_erasure should not be defined before c++2b"
+#   error "__cpp_lib_associative_heterogeneous_erasure should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_associative_heterogeneous_insertion
+#   error "__cpp_lib_associative_heterogeneous_insertion should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_assume_aligned
@@ -909,7 +1015,7 @@
 # endif
 
 # ifdef __cpp_lib_bind_back
-#   error "__cpp_lib_bind_back should not be defined before c++2b"
+#   error "__cpp_lib_bind_back should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_bind_front
@@ -922,6 +1028,10 @@
 
 # ifdef __cpp_lib_bitops
 #   error "__cpp_lib_bitops should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_bitset
+#   error "__cpp_lib_bitset should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_bool_constant
@@ -941,7 +1051,7 @@
 # endif
 
 # ifdef __cpp_lib_byteswap
-#   error "__cpp_lib_byteswap should not be defined before c++2b"
+#   error "__cpp_lib_byteswap should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_char8_t
@@ -979,15 +1089,15 @@
 # endif
 
 # ifdef __cpp_lib_constexpr_bitset
-#   error "__cpp_lib_constexpr_bitset should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_bitset should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_charconv
-#   error "__cpp_lib_constexpr_charconv should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_charconv should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_cmath
-#   error "__cpp_lib_constexpr_cmath should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_cmath should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_complex
@@ -1027,7 +1137,7 @@
 # endif
 
 # ifdef __cpp_lib_constexpr_typeinfo
-#   error "__cpp_lib_constexpr_typeinfo should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_typeinfo should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_utility
@@ -1036,6 +1146,10 @@
 
 # ifdef __cpp_lib_constexpr_vector
 #   error "__cpp_lib_constexpr_vector should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_copyable_function
+#   error "__cpp_lib_copyable_function should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_coroutine
@@ -1070,7 +1184,7 @@
 # endif
 
 # ifdef __cpp_lib_expected
-#   error "__cpp_lib_expected should not be defined before c++2b"
+#   error "__cpp_lib_expected should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_filesystem
@@ -1081,8 +1195,24 @@
 #   error "__cpp_lib_format should not be defined before c++20"
 # endif
 
+# ifdef __cpp_lib_format_ranges
+#   error "__cpp_lib_format_ranges should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_formatters
+#   error "__cpp_lib_formatters should not be defined before c++23"
+# endif
+
 # ifdef __cpp_lib_forward_like
-#   error "__cpp_lib_forward_like should not be defined before c++2b"
+#   error "__cpp_lib_forward_like should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_fstream_native_handle
+#   error "__cpp_lib_fstream_native_handle should not be defined before c++26"
+# endif
+
+# ifdef __cpp_lib_function_ref
+#   error "__cpp_lib_function_ref should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_gcd_lcm
@@ -1106,6 +1236,10 @@
 
 # ifdef __cpp_lib_has_unique_object_representations
 #   error "__cpp_lib_has_unique_object_representations should not be defined before c++17"
+# endif
+
+# ifdef __cpp_lib_hazard_pointer
+#   error "__cpp_lib_hazard_pointer should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_hypot
@@ -1147,7 +1281,7 @@
 # endif
 
 # ifdef __cpp_lib_invoke_r
-#   error "__cpp_lib_invoke_r should not be defined before c++2b"
+#   error "__cpp_lib_invoke_r should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_is_aggregate
@@ -1189,7 +1323,7 @@
 # endif
 
 # ifdef __cpp_lib_is_scoped_enum
-#   error "__cpp_lib_is_scoped_enum should not be defined before c++2b"
+#   error "__cpp_lib_is_scoped_enum should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_is_swappable
@@ -1246,12 +1380,20 @@
 #   error "__cpp_lib_math_special_functions should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_mdspan
+#   error "__cpp_lib_mdspan should not be defined before c++23"
+# endif
+
 # ifdef __cpp_lib_memory_resource
 #   error "__cpp_lib_memory_resource should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should not be defined before c++20"
+# endif
+
 # ifdef __cpp_lib_move_only_function
-#   error "__cpp_lib_move_only_function should not be defined before c++2b"
+#   error "__cpp_lib_move_only_function should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_node_extract
@@ -1278,7 +1420,7 @@
 # endif
 
 # ifdef __cpp_lib_out_ptr
-#   error "__cpp_lib_out_ptr should not be defined before c++2b"
+#   error "__cpp_lib_out_ptr should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_parallel_algorithm
@@ -1287,6 +1429,10 @@
 
 # ifdef __cpp_lib_polymorphic_allocator
 #   error "__cpp_lib_polymorphic_allocator should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_print
+#   error "__cpp_lib_print should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_quoted_string_io
@@ -1301,47 +1447,59 @@
 # endif
 
 # ifdef __cpp_lib_ranges_as_rvalue
-#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++2b"
+#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk
-#   error "__cpp_lib_ranges_chunk should not be defined before c++2b"
+#   error "__cpp_lib_ranges_chunk should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk_by
-#   error "__cpp_lib_ranges_chunk_by should not be defined before c++2b"
+#   error "__cpp_lib_ranges_chunk_by should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_iota
-#   error "__cpp_lib_ranges_iota should not be defined before c++2b"
+#   error "__cpp_lib_ranges_iota should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_join_with
-#   error "__cpp_lib_ranges_join_with should not be defined before c++2b"
+#   error "__cpp_lib_ranges_join_with should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_ranges_repeat
+#   error "__cpp_lib_ranges_repeat should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_slide
-#   error "__cpp_lib_ranges_slide should not be defined before c++2b"
+#   error "__cpp_lib_ranges_slide should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_starts_ends_with
-#   error "__cpp_lib_ranges_starts_ends_with should not be defined before c++2b"
+#   error "__cpp_lib_ranges_starts_ends_with should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_to_container
-#   error "__cpp_lib_ranges_to_container should not be defined before c++2b"
+#   error "__cpp_lib_ranges_to_container should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_zip
-#   error "__cpp_lib_ranges_zip should not be defined before c++2b"
+#   error "__cpp_lib_ranges_zip should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_ratio
+#   error "__cpp_lib_ratio should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_raw_memory_algorithms
 #   error "__cpp_lib_raw_memory_algorithms should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_rcu
+#   error "__cpp_lib_rcu should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_reference_from_temporary
-#   error "__cpp_lib_reference_from_temporary should not be defined before c++2b"
+#   error "__cpp_lib_reference_from_temporary should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_remove_cvref
@@ -1386,7 +1544,7 @@
 #   error "__cpp_lib_shared_ptr_weak_type should not be defined before c++17"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_timed_mutex
 #     error "__cpp_lib_shared_timed_mutex should be defined in c++14"
 #   endif
@@ -1395,7 +1553,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_timed_mutex
-#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)' is not met!"
+#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -1407,6 +1565,10 @@
 #   error "__cpp_lib_smart_ptr_for_overwrite should not be defined before c++20"
 # endif
 
+# ifdef __cpp_lib_smart_ptr_owner_equality
+#   error "__cpp_lib_smart_ptr_owner_equality should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_source_location
 #   error "__cpp_lib_source_location should not be defined before c++20"
 # endif
@@ -1416,15 +1578,19 @@
 # endif
 
 # ifdef __cpp_lib_spanstream
-#   error "__cpp_lib_spanstream should not be defined before c++2b"
+#   error "__cpp_lib_spanstream should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ssize
 #   error "__cpp_lib_ssize should not be defined before c++20"
 # endif
 
+# ifdef __cpp_lib_sstream_from_string_view
+#   error "__cpp_lib_sstream_from_string_view should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_stacktrace
-#   error "__cpp_lib_stacktrace should not be defined before c++2b"
+#   error "__cpp_lib_stacktrace should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_starts_ends_with
@@ -1432,15 +1598,15 @@
 # endif
 
 # ifdef __cpp_lib_stdatomic_h
-#   error "__cpp_lib_stdatomic_h should not be defined before c++2b"
+#   error "__cpp_lib_stdatomic_h should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_string_contains
-#   error "__cpp_lib_string_contains should not be defined before c++2b"
+#   error "__cpp_lib_string_contains should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_string_resize_and_overwrite
-#   error "__cpp_lib_string_resize_and_overwrite should not be defined before c++2b"
+#   error "__cpp_lib_string_resize_and_overwrite should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_string_udls
@@ -1454,8 +1620,16 @@
 #   error "__cpp_lib_string_view should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_submdspan
+#   error "__cpp_lib_submdspan should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_syncbuf
 #   error "__cpp_lib_syncbuf should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_text_encoding
+#   error "__cpp_lib_text_encoding should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_three_way_comparison
@@ -1474,8 +1648,12 @@
 #   error "__cpp_lib_to_chars should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_to_string
+#   error "__cpp_lib_to_string should not be defined before c++23"
+# endif
+
 # ifdef __cpp_lib_to_underlying
-#   error "__cpp_lib_to_underlying should not be defined before c++2b"
+#   error "__cpp_lib_to_underlying should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_transformation_trait_aliases
@@ -1523,7 +1701,7 @@
 # endif
 
 # ifdef __cpp_lib_unreachable
-#   error "__cpp_lib_unreachable should not be defined before c++2b"
+#   error "__cpp_lib_unreachable should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_unwrap_ref
@@ -1538,10 +1716,14 @@
 #   error "__cpp_lib_void_t should not be defined before c++17"
 # endif
 
+# ifdef __cpp_lib_within_lifetime
+#   error "__cpp_lib_within_lifetime should not be defined before c++26"
+# endif
+
 #elif TEST_STD_VER == 17
 
 # ifdef __cpp_lib_adaptor_iterator_pair_constructor
-#   error "__cpp_lib_adaptor_iterator_pair_constructor should not be defined before c++2b"
+#   error "__cpp_lib_adaptor_iterator_pair_constructor should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_addressof_constexpr
@@ -1552,7 +1734,7 @@
 # endif
 
 # ifdef __cpp_lib_allocate_at_least
-#   error "__cpp_lib_allocate_at_least should not be defined before c++2b"
+#   error "__cpp_lib_allocate_at_least should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_allocator_traits_is_always_equal
@@ -1591,7 +1773,11 @@
 # endif
 
 # ifdef __cpp_lib_associative_heterogeneous_erasure
-#   error "__cpp_lib_associative_heterogeneous_erasure should not be defined before c++2b"
+#   error "__cpp_lib_associative_heterogeneous_erasure should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_associative_heterogeneous_insertion
+#   error "__cpp_lib_associative_heterogeneous_insertion should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_assume_aligned
@@ -1638,7 +1824,7 @@
 # endif
 
 # ifdef __cpp_lib_bind_back
-#   error "__cpp_lib_bind_back should not be defined before c++2b"
+#   error "__cpp_lib_bind_back should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_bind_front
@@ -1651,6 +1837,10 @@
 
 # ifdef __cpp_lib_bitops
 #   error "__cpp_lib_bitops should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_bitset
+#   error "__cpp_lib_bitset should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_bool_constant
@@ -1679,7 +1869,7 @@
 # endif
 
 # ifdef __cpp_lib_byteswap
-#   error "__cpp_lib_byteswap should not be defined before c++2b"
+#   error "__cpp_lib_byteswap should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_char8_t
@@ -1723,15 +1913,15 @@
 # endif
 
 # ifdef __cpp_lib_constexpr_bitset
-#   error "__cpp_lib_constexpr_bitset should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_bitset should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_charconv
-#   error "__cpp_lib_constexpr_charconv should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_charconv should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_cmath
-#   error "__cpp_lib_constexpr_cmath should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_cmath should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_complex
@@ -1771,7 +1961,7 @@
 # endif
 
 # ifdef __cpp_lib_constexpr_typeinfo
-#   error "__cpp_lib_constexpr_typeinfo should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_typeinfo should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_utility
@@ -1780,6 +1970,10 @@
 
 # ifdef __cpp_lib_constexpr_vector
 #   error "__cpp_lib_constexpr_vector should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_copyable_function
+#   error "__cpp_lib_copyable_function should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_coroutine
@@ -1826,10 +2020,10 @@
 # endif
 
 # ifdef __cpp_lib_expected
-#   error "__cpp_lib_expected should not be defined before c++2b"
+#   error "__cpp_lib_expected should not be defined before c++23"
 # endif
 
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM_LIBRARY)
 #   ifndef __cpp_lib_filesystem
 #     error "__cpp_lib_filesystem should be defined in c++17"
 #   endif
@@ -1838,7 +2032,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_filesystem
-#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)' is not met!"
+#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM_LIBRARY)' is not met!"
 #   endif
 # endif
 
@@ -1846,8 +2040,24 @@
 #   error "__cpp_lib_format should not be defined before c++20"
 # endif
 
+# ifdef __cpp_lib_format_ranges
+#   error "__cpp_lib_format_ranges should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_formatters
+#   error "__cpp_lib_formatters should not be defined before c++23"
+# endif
+
 # ifdef __cpp_lib_forward_like
-#   error "__cpp_lib_forward_like should not be defined before c++2b"
+#   error "__cpp_lib_forward_like should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_fstream_native_handle
+#   error "__cpp_lib_fstream_native_handle should not be defined before c++26"
+# endif
+
+# ifdef __cpp_lib_function_ref
+#   error "__cpp_lib_function_ref should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_gcd_lcm
@@ -1886,6 +2096,10 @@
 # endif
 # if __cpp_lib_has_unique_object_representations != 201606L
 #   error "__cpp_lib_has_unique_object_representations should have the value 201606L in c++17"
+# endif
+
+# ifdef __cpp_lib_hazard_pointer
+#   error "__cpp_lib_hazard_pointer should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_hypot
@@ -1936,7 +2150,7 @@
 # endif
 
 # ifdef __cpp_lib_invoke_r
-#   error "__cpp_lib_invoke_r should not be defined before c++2b"
+#   error "__cpp_lib_invoke_r should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_is_aggregate
@@ -1984,7 +2198,7 @@
 # endif
 
 # ifdef __cpp_lib_is_scoped_enum
-#   error "__cpp_lib_is_scoped_enum should not be defined before c++2b"
+#   error "__cpp_lib_is_scoped_enum should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_is_swappable
@@ -2065,15 +2279,29 @@
 #   endif
 # endif
 
-# ifndef __cpp_lib_memory_resource
-#   error "__cpp_lib_memory_resource should be defined in c++17"
+# ifdef __cpp_lib_mdspan
+#   error "__cpp_lib_mdspan should not be defined before c++23"
 # endif
-# if __cpp_lib_memory_resource != 201603L
-#   error "__cpp_lib_memory_resource should have the value 201603L in c++17"
+
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)
+#   ifndef __cpp_lib_memory_resource
+#     error "__cpp_lib_memory_resource should be defined in c++17"
+#   endif
+#   if __cpp_lib_memory_resource != 201603L
+#     error "__cpp_lib_memory_resource should have the value 201603L in c++17"
+#   endif
+# else
+#   ifdef __cpp_lib_memory_resource
+#     error "__cpp_lib_memory_resource should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)' is not met!"
+#   endif
+# endif
+
+# ifdef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should not be defined before c++20"
 # endif
 
 # ifdef __cpp_lib_move_only_function
-#   error "__cpp_lib_move_only_function should not be defined before c++2b"
+#   error "__cpp_lib_move_only_function should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_node_extract
@@ -2112,7 +2340,7 @@
 # endif
 
 # ifdef __cpp_lib_out_ptr
-#   error "__cpp_lib_out_ptr should not be defined before c++2b"
+#   error "__cpp_lib_out_ptr should not be defined before c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -2132,6 +2360,10 @@
 #   error "__cpp_lib_polymorphic_allocator should not be defined before c++20"
 # endif
 
+# ifdef __cpp_lib_print
+#   error "__cpp_lib_print should not be defined before c++23"
+# endif
+
 # ifndef __cpp_lib_quoted_string_io
 #   error "__cpp_lib_quoted_string_io should be defined in c++17"
 # endif
@@ -2144,39 +2376,47 @@
 # endif
 
 # ifdef __cpp_lib_ranges_as_rvalue
-#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++2b"
+#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk
-#   error "__cpp_lib_ranges_chunk should not be defined before c++2b"
+#   error "__cpp_lib_ranges_chunk should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk_by
-#   error "__cpp_lib_ranges_chunk_by should not be defined before c++2b"
+#   error "__cpp_lib_ranges_chunk_by should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_iota
-#   error "__cpp_lib_ranges_iota should not be defined before c++2b"
+#   error "__cpp_lib_ranges_iota should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_join_with
-#   error "__cpp_lib_ranges_join_with should not be defined before c++2b"
+#   error "__cpp_lib_ranges_join_with should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_ranges_repeat
+#   error "__cpp_lib_ranges_repeat should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_slide
-#   error "__cpp_lib_ranges_slide should not be defined before c++2b"
+#   error "__cpp_lib_ranges_slide should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_starts_ends_with
-#   error "__cpp_lib_ranges_starts_ends_with should not be defined before c++2b"
+#   error "__cpp_lib_ranges_starts_ends_with should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_to_container
-#   error "__cpp_lib_ranges_to_container should not be defined before c++2b"
+#   error "__cpp_lib_ranges_to_container should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_zip
-#   error "__cpp_lib_ranges_zip should not be defined before c++2b"
+#   error "__cpp_lib_ranges_zip should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_ratio
+#   error "__cpp_lib_ratio should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_raw_memory_algorithms
@@ -2186,8 +2426,12 @@
 #   error "__cpp_lib_raw_memory_algorithms should have the value 201606L in c++17"
 # endif
 
+# ifdef __cpp_lib_rcu
+#   error "__cpp_lib_rcu should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_reference_from_temporary
-#   error "__cpp_lib_reference_from_temporary should not be defined before c++2b"
+#   error "__cpp_lib_reference_from_temporary should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_remove_cvref
@@ -2226,7 +2470,7 @@
 #   error "__cpp_lib_semaphore should not be defined before c++20"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_mutex
 #     error "__cpp_lib_shared_mutex should be defined in c++17"
 #   endif
@@ -2235,7 +2479,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_mutex
-#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)' is not met!"
+#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -2253,7 +2497,7 @@
 #   error "__cpp_lib_shared_ptr_weak_type should have the value 201606L in c++17"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_timed_mutex
 #     error "__cpp_lib_shared_timed_mutex should be defined in c++17"
 #   endif
@@ -2262,7 +2506,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_timed_mutex
-#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)' is not met!"
+#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -2274,6 +2518,10 @@
 #   error "__cpp_lib_smart_ptr_for_overwrite should not be defined before c++20"
 # endif
 
+# ifdef __cpp_lib_smart_ptr_owner_equality
+#   error "__cpp_lib_smart_ptr_owner_equality should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_source_location
 #   error "__cpp_lib_source_location should not be defined before c++20"
 # endif
@@ -2283,15 +2531,19 @@
 # endif
 
 # ifdef __cpp_lib_spanstream
-#   error "__cpp_lib_spanstream should not be defined before c++2b"
+#   error "__cpp_lib_spanstream should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ssize
 #   error "__cpp_lib_ssize should not be defined before c++20"
 # endif
 
+# ifdef __cpp_lib_sstream_from_string_view
+#   error "__cpp_lib_sstream_from_string_view should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_stacktrace
-#   error "__cpp_lib_stacktrace should not be defined before c++2b"
+#   error "__cpp_lib_stacktrace should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_starts_ends_with
@@ -2299,15 +2551,15 @@
 # endif
 
 # ifdef __cpp_lib_stdatomic_h
-#   error "__cpp_lib_stdatomic_h should not be defined before c++2b"
+#   error "__cpp_lib_stdatomic_h should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_string_contains
-#   error "__cpp_lib_string_contains should not be defined before c++2b"
+#   error "__cpp_lib_string_contains should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_string_resize_and_overwrite
-#   error "__cpp_lib_string_resize_and_overwrite should not be defined before c++2b"
+#   error "__cpp_lib_string_resize_and_overwrite should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_string_udls
@@ -2324,8 +2576,16 @@
 #   error "__cpp_lib_string_view should have the value 201606L in c++17"
 # endif
 
+# ifdef __cpp_lib_submdspan
+#   error "__cpp_lib_submdspan should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_syncbuf
 #   error "__cpp_lib_syncbuf should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_text_encoding
+#   error "__cpp_lib_text_encoding should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_three_way_comparison
@@ -2353,8 +2613,12 @@
 #   endif
 # endif
 
+# ifdef __cpp_lib_to_string
+#   error "__cpp_lib_to_string should not be defined before c++23"
+# endif
+
 # ifdef __cpp_lib_to_underlying
-#   error "__cpp_lib_to_underlying should not be defined before c++2b"
+#   error "__cpp_lib_to_underlying should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_transformation_trait_aliases
@@ -2411,7 +2675,7 @@
 # endif
 
 # ifdef __cpp_lib_unreachable
-#   error "__cpp_lib_unreachable should not be defined before c++2b"
+#   error "__cpp_lib_unreachable should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_unwrap_ref
@@ -2432,10 +2696,14 @@
 #   error "__cpp_lib_void_t should have the value 201411L in c++17"
 # endif
 
+# ifdef __cpp_lib_within_lifetime
+#   error "__cpp_lib_within_lifetime should not be defined before c++26"
+# endif
+
 #elif TEST_STD_VER == 20
 
 # ifdef __cpp_lib_adaptor_iterator_pair_constructor
-#   error "__cpp_lib_adaptor_iterator_pair_constructor should not be defined before c++2b"
+#   error "__cpp_lib_adaptor_iterator_pair_constructor should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_addressof_constexpr
@@ -2446,7 +2714,7 @@
 # endif
 
 # ifdef __cpp_lib_allocate_at_least
-#   error "__cpp_lib_allocate_at_least should not be defined before c++2b"
+#   error "__cpp_lib_allocate_at_least should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_allocator_traits_is_always_equal
@@ -2485,7 +2753,11 @@
 # endif
 
 # ifdef __cpp_lib_associative_heterogeneous_erasure
-#   error "__cpp_lib_associative_heterogeneous_erasure should not be defined before c++2b"
+#   error "__cpp_lib_associative_heterogeneous_erasure should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_associative_heterogeneous_insertion
+#   error "__cpp_lib_associative_heterogeneous_insertion should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_assume_aligned
@@ -2562,7 +2834,7 @@
 #   error "__cpp_lib_atomic_value_initialization should have the value 201911L in c++20"
 # endif
 
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_atomic_wait
 #     error "__cpp_lib_atomic_wait should be defined in c++20"
 #   endif
@@ -2571,11 +2843,11 @@
 #   endif
 # else
 #   ifdef __cpp_lib_atomic_wait
-#     error "__cpp_lib_atomic_wait should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)' is not met!"
+#     error "__cpp_lib_atomic_wait should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_barrier)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_barrier
 #     error "__cpp_lib_barrier should be defined in c++20"
 #   endif
@@ -2584,12 +2856,12 @@
 #   endif
 # else
 #   ifdef __cpp_lib_barrier
-#     error "__cpp_lib_barrier should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_barrier)' is not met!"
+#     error "__cpp_lib_barrier should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
 # ifdef __cpp_lib_bind_back
-#   error "__cpp_lib_bind_back should not be defined before c++2b"
+#   error "__cpp_lib_bind_back should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_bind_front
@@ -2606,17 +2878,15 @@
 #   error "__cpp_lib_bit_cast should have the value 201806L in c++20"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_bitops
-#     error "__cpp_lib_bitops should be defined in c++20"
-#   endif
-#   if __cpp_lib_bitops != 201907L
-#     error "__cpp_lib_bitops should have the value 201907L in c++20"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_bitops
-#     error "__cpp_lib_bitops should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_bitops
+#   error "__cpp_lib_bitops should be defined in c++20"
+# endif
+# if __cpp_lib_bitops != 201907L
+#   error "__cpp_lib_bitops should have the value 201907L in c++20"
+# endif
+
+# ifdef __cpp_lib_bitset
+#   error "__cpp_lib_bitset should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_bool_constant
@@ -2648,7 +2918,7 @@
 # endif
 
 # ifdef __cpp_lib_byteswap
-#   error "__cpp_lib_byteswap should not be defined before c++2b"
+#   error "__cpp_lib_byteswap should not be defined before c++23"
 # endif
 
 # if defined(__cpp_char8_t)
@@ -2707,15 +2977,15 @@
 # endif
 
 # ifdef __cpp_lib_constexpr_bitset
-#   error "__cpp_lib_constexpr_bitset should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_bitset should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_charconv
-#   error "__cpp_lib_constexpr_charconv should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_charconv should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_constexpr_cmath
-#   error "__cpp_lib_constexpr_cmath should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_cmath should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_complex
@@ -2782,7 +3052,7 @@
 # endif
 
 # ifdef __cpp_lib_constexpr_typeinfo
-#   error "__cpp_lib_constexpr_typeinfo should not be defined before c++2b"
+#   error "__cpp_lib_constexpr_typeinfo should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_utility
@@ -2797,6 +3067,10 @@
 # endif
 # if __cpp_lib_constexpr_vector != 201907L
 #   error "__cpp_lib_constexpr_vector should have the value 201907L in c++20"
+# endif
+
+# ifdef __cpp_lib_copyable_function
+#   error "__cpp_lib_copyable_function should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_coroutine
@@ -2861,10 +3135,10 @@
 # endif
 
 # ifdef __cpp_lib_expected
-#   error "__cpp_lib_expected should not be defined before c++2b"
+#   error "__cpp_lib_expected should not be defined before c++23"
 # endif
 
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM_LIBRARY)
 #   ifndef __cpp_lib_filesystem
 #     error "__cpp_lib_filesystem should be defined in c++20"
 #   endif
@@ -2873,7 +3147,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_filesystem
-#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)' is not met!"
+#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM_LIBRARY)' is not met!"
 #   endif
 # endif
 
@@ -2890,8 +3164,24 @@
 #   endif
 # endif
 
+# ifdef __cpp_lib_format_ranges
+#   error "__cpp_lib_format_ranges should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_formatters
+#   error "__cpp_lib_formatters should not be defined before c++23"
+# endif
+
 # ifdef __cpp_lib_forward_like
-#   error "__cpp_lib_forward_like should not be defined before c++2b"
+#   error "__cpp_lib_forward_like should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_fstream_native_handle
+#   error "__cpp_lib_fstream_native_handle should not be defined before c++26"
+# endif
+
+# ifdef __cpp_lib_function_ref
+#   error "__cpp_lib_function_ref should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_gcd_lcm
@@ -2933,6 +3223,10 @@
 # endif
 # if __cpp_lib_has_unique_object_representations != 201606L
 #   error "__cpp_lib_has_unique_object_representations should have the value 201606L in c++20"
+# endif
+
+# ifdef __cpp_lib_hazard_pointer
+#   error "__cpp_lib_hazard_pointer should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_hypot
@@ -2992,7 +3286,7 @@
 # endif
 
 # ifdef __cpp_lib_invoke_r
-#   error "__cpp_lib_invoke_r should not be defined before c++2b"
+#   error "__cpp_lib_invoke_r should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_is_aggregate
@@ -3064,7 +3358,7 @@
 # endif
 
 # ifdef __cpp_lib_is_scoped_enum
-#   error "__cpp_lib_is_scoped_enum should not be defined before c++2b"
+#   error "__cpp_lib_is_scoped_enum should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_is_swappable
@@ -3087,7 +3381,7 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_latch)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_latch
 #     error "__cpp_lib_latch should be defined in c++20"
 #   endif
@@ -3096,7 +3390,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_latch
-#     error "__cpp_lib_latch should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_latch)' is not met!"
+#     error "__cpp_lib_latch should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
@@ -3169,15 +3463,32 @@
 #   endif
 # endif
 
-# ifndef __cpp_lib_memory_resource
-#   error "__cpp_lib_memory_resource should be defined in c++20"
+# ifdef __cpp_lib_mdspan
+#   error "__cpp_lib_mdspan should not be defined before c++23"
 # endif
-# if __cpp_lib_memory_resource != 201603L
-#   error "__cpp_lib_memory_resource should have the value 201603L in c++20"
+
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)
+#   ifndef __cpp_lib_memory_resource
+#     error "__cpp_lib_memory_resource should be defined in c++20"
+#   endif
+#   if __cpp_lib_memory_resource != 201603L
+#     error "__cpp_lib_memory_resource should have the value 201603L in c++20"
+#   endif
+# else
+#   ifdef __cpp_lib_memory_resource
+#     error "__cpp_lib_memory_resource should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)' is not met!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should be defined in c++20"
+# endif
+# if __cpp_lib_move_iterator_concept != 202207L
+#   error "__cpp_lib_move_iterator_concept should have the value 202207L in c++20"
 # endif
 
 # ifdef __cpp_lib_move_only_function
-#   error "__cpp_lib_move_only_function should not be defined before c++2b"
+#   error "__cpp_lib_move_only_function should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_node_extract
@@ -3216,7 +3527,7 @@
 # endif
 
 # ifdef __cpp_lib_out_ptr
-#   error "__cpp_lib_out_ptr should not be defined before c++2b"
+#   error "__cpp_lib_out_ptr should not be defined before c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -3232,11 +3543,21 @@
 #   endif
 # endif
 
-# ifndef __cpp_lib_polymorphic_allocator
-#   error "__cpp_lib_polymorphic_allocator should be defined in c++20"
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)
+#   ifndef __cpp_lib_polymorphic_allocator
+#     error "__cpp_lib_polymorphic_allocator should be defined in c++20"
+#   endif
+#   if __cpp_lib_polymorphic_allocator != 201902L
+#     error "__cpp_lib_polymorphic_allocator should have the value 201902L in c++20"
+#   endif
+# else
+#   ifdef __cpp_lib_polymorphic_allocator
+#     error "__cpp_lib_polymorphic_allocator should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)' is not met!"
+#   endif
 # endif
-# if __cpp_lib_polymorphic_allocator != 201902L
-#   error "__cpp_lib_polymorphic_allocator should have the value 201902L in c++20"
+
+# ifdef __cpp_lib_print
+#   error "__cpp_lib_print should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_quoted_string_io
@@ -3249,44 +3570,52 @@
 # ifndef __cpp_lib_ranges
 #   error "__cpp_lib_ranges should be defined in c++20"
 # endif
-# if __cpp_lib_ranges != 202106L
-#   error "__cpp_lib_ranges should have the value 202106L in c++20"
+# if __cpp_lib_ranges != 202207L
+#   error "__cpp_lib_ranges should have the value 202207L in c++20"
 # endif
 
 # ifdef __cpp_lib_ranges_as_rvalue
-#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++2b"
+#   error "__cpp_lib_ranges_as_rvalue should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk
-#   error "__cpp_lib_ranges_chunk should not be defined before c++2b"
+#   error "__cpp_lib_ranges_chunk should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_chunk_by
-#   error "__cpp_lib_ranges_chunk_by should not be defined before c++2b"
+#   error "__cpp_lib_ranges_chunk_by should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_iota
-#   error "__cpp_lib_ranges_iota should not be defined before c++2b"
+#   error "__cpp_lib_ranges_iota should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_join_with
-#   error "__cpp_lib_ranges_join_with should not be defined before c++2b"
+#   error "__cpp_lib_ranges_join_with should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_ranges_repeat
+#   error "__cpp_lib_ranges_repeat should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_slide
-#   error "__cpp_lib_ranges_slide should not be defined before c++2b"
+#   error "__cpp_lib_ranges_slide should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_starts_ends_with
-#   error "__cpp_lib_ranges_starts_ends_with should not be defined before c++2b"
+#   error "__cpp_lib_ranges_starts_ends_with should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_to_container
-#   error "__cpp_lib_ranges_to_container should not be defined before c++2b"
+#   error "__cpp_lib_ranges_to_container should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_ranges_zip
-#   error "__cpp_lib_ranges_zip should not be defined before c++2b"
+#   error "__cpp_lib_ranges_zip should not be defined before c++23"
+# endif
+
+# ifdef __cpp_lib_ratio
+#   error "__cpp_lib_ratio should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_raw_memory_algorithms
@@ -3296,8 +3625,12 @@
 #   error "__cpp_lib_raw_memory_algorithms should have the value 201606L in c++20"
 # endif
 
+# ifdef __cpp_lib_rcu
+#   error "__cpp_lib_rcu should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_reference_from_temporary
-#   error "__cpp_lib_reference_from_temporary should not be defined before c++2b"
+#   error "__cpp_lib_reference_from_temporary should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_remove_cvref
@@ -3335,7 +3668,7 @@
 #   error "__cpp_lib_scoped_lock should have the value 201703L in c++20"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_semaphore
 #     error "__cpp_lib_semaphore should be defined in c++20"
 #   endif
@@ -3344,11 +3677,11 @@
 #   endif
 # else
 #   ifdef __cpp_lib_semaphore
-#     error "__cpp_lib_semaphore should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore)' is not met!"
+#     error "__cpp_lib_semaphore should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_mutex
 #     error "__cpp_lib_shared_mutex should be defined in c++20"
 #   endif
@@ -3357,7 +3690,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_mutex
-#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)' is not met!"
+#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -3375,7 +3708,7 @@
 #   error "__cpp_lib_shared_ptr_weak_type should have the value 201606L in c++20"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_timed_mutex
 #     error "__cpp_lib_shared_timed_mutex should be defined in c++20"
 #   endif
@@ -3384,7 +3717,7 @@
 #   endif
 # else
 #   ifdef __cpp_lib_shared_timed_mutex
-#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)' is not met!"
+#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
@@ -3408,6 +3741,10 @@
 #   endif
 # endif
 
+# ifdef __cpp_lib_smart_ptr_owner_equality
+#   error "__cpp_lib_smart_ptr_owner_equality should not be defined before c++26"
+# endif
+
 # if __has_builtin(__builtin_source_location) && !(defined(TEST_APPLE_CLANG_VER) && TEST_APPLE_CLANG_VER <= 1403)
 #   ifndef __cpp_lib_source_location
 #     error "__cpp_lib_source_location should be defined in c++20"
@@ -3429,7 +3766,7 @@
 # endif
 
 # ifdef __cpp_lib_spanstream
-#   error "__cpp_lib_spanstream should not be defined before c++2b"
+#   error "__cpp_lib_spanstream should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_ssize
@@ -3439,8 +3776,12 @@
 #   error "__cpp_lib_ssize should have the value 201902L in c++20"
 # endif
 
+# ifdef __cpp_lib_sstream_from_string_view
+#   error "__cpp_lib_sstream_from_string_view should not be defined before c++26"
+# endif
+
 # ifdef __cpp_lib_stacktrace
-#   error "__cpp_lib_stacktrace should not be defined before c++2b"
+#   error "__cpp_lib_stacktrace should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_starts_ends_with
@@ -3451,15 +3792,15 @@
 # endif
 
 # ifdef __cpp_lib_stdatomic_h
-#   error "__cpp_lib_stdatomic_h should not be defined before c++2b"
+#   error "__cpp_lib_stdatomic_h should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_string_contains
-#   error "__cpp_lib_string_contains should not be defined before c++2b"
+#   error "__cpp_lib_string_contains should not be defined before c++23"
 # endif
 
 # ifdef __cpp_lib_string_resize_and_overwrite
-#   error "__cpp_lib_string_resize_and_overwrite should not be defined before c++2b"
+#   error "__cpp_lib_string_resize_and_overwrite should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_string_udls
@@ -3476,6 +3817,10 @@
 #   error "__cpp_lib_string_view should have the value 201803L in c++20"
 # endif
 
+# ifdef __cpp_lib_submdspan
+#   error "__cpp_lib_submdspan should not be defined before c++26"
+# endif
+
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_syncbuf
 #     error "__cpp_lib_syncbuf should be defined in c++20"
@@ -3487,6 +3832,10 @@
 #   ifdef __cpp_lib_syncbuf
 #     error "__cpp_lib_syncbuf should not be defined because it is unimplemented in libc++!"
 #   endif
+# endif
+
+# ifdef __cpp_lib_text_encoding
+#   error "__cpp_lib_text_encoding should not be defined before c++26"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -3529,8 +3878,12 @@
 #   endif
 # endif
 
+# ifdef __cpp_lib_to_string
+#   error "__cpp_lib_to_string should not be defined before c++23"
+# endif
+
 # ifdef __cpp_lib_to_underlying
-#   error "__cpp_lib_to_underlying should not be defined before c++2b"
+#   error "__cpp_lib_to_underlying should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_transformation_trait_aliases
@@ -3590,7 +3943,7 @@
 # endif
 
 # ifdef __cpp_lib_unreachable
-#   error "__cpp_lib_unreachable should not be defined before c++2b"
+#   error "__cpp_lib_unreachable should not be defined before c++23"
 # endif
 
 # ifndef __cpp_lib_unwrap_ref
@@ -3614,70 +3967,74 @@
 #   error "__cpp_lib_void_t should have the value 201411L in c++20"
 # endif
 
-#elif TEST_STD_VER > 20
+# ifdef __cpp_lib_within_lifetime
+#   error "__cpp_lib_within_lifetime should not be defined before c++26"
+# endif
+
+#elif TEST_STD_VER == 23
 
 # ifndef __cpp_lib_adaptor_iterator_pair_constructor
-#   error "__cpp_lib_adaptor_iterator_pair_constructor should be defined in c++2b"
+#   error "__cpp_lib_adaptor_iterator_pair_constructor should be defined in c++23"
 # endif
 # if __cpp_lib_adaptor_iterator_pair_constructor != 202106L
-#   error "__cpp_lib_adaptor_iterator_pair_constructor should have the value 202106L in c++2b"
+#   error "__cpp_lib_adaptor_iterator_pair_constructor should have the value 202106L in c++23"
 # endif
 
 # ifndef __cpp_lib_addressof_constexpr
-#   error "__cpp_lib_addressof_constexpr should be defined in c++2b"
+#   error "__cpp_lib_addressof_constexpr should be defined in c++23"
 # endif
 # if __cpp_lib_addressof_constexpr != 201603L
-#   error "__cpp_lib_addressof_constexpr should have the value 201603L in c++2b"
+#   error "__cpp_lib_addressof_constexpr should have the value 201603L in c++23"
 # endif
 
 # ifndef __cpp_lib_allocate_at_least
-#   error "__cpp_lib_allocate_at_least should be defined in c++2b"
+#   error "__cpp_lib_allocate_at_least should be defined in c++23"
 # endif
 # if __cpp_lib_allocate_at_least != 202106L
-#   error "__cpp_lib_allocate_at_least should have the value 202106L in c++2b"
+#   error "__cpp_lib_allocate_at_least should have the value 202106L in c++23"
 # endif
 
 # ifndef __cpp_lib_allocator_traits_is_always_equal
-#   error "__cpp_lib_allocator_traits_is_always_equal should be defined in c++2b"
+#   error "__cpp_lib_allocator_traits_is_always_equal should be defined in c++23"
 # endif
 # if __cpp_lib_allocator_traits_is_always_equal != 201411L
-#   error "__cpp_lib_allocator_traits_is_always_equal should have the value 201411L in c++2b"
+#   error "__cpp_lib_allocator_traits_is_always_equal should have the value 201411L in c++23"
 # endif
 
 # ifndef __cpp_lib_any
-#   error "__cpp_lib_any should be defined in c++2b"
+#   error "__cpp_lib_any should be defined in c++23"
 # endif
 # if __cpp_lib_any != 201606L
-#   error "__cpp_lib_any should have the value 201606L in c++2b"
+#   error "__cpp_lib_any should have the value 201606L in c++23"
 # endif
 
 # ifndef __cpp_lib_apply
-#   error "__cpp_lib_apply should be defined in c++2b"
+#   error "__cpp_lib_apply should be defined in c++23"
 # endif
 # if __cpp_lib_apply != 201603L
-#   error "__cpp_lib_apply should have the value 201603L in c++2b"
+#   error "__cpp_lib_apply should have the value 201603L in c++23"
 # endif
 
 # ifndef __cpp_lib_array_constexpr
-#   error "__cpp_lib_array_constexpr should be defined in c++2b"
+#   error "__cpp_lib_array_constexpr should be defined in c++23"
 # endif
 # if __cpp_lib_array_constexpr != 201811L
-#   error "__cpp_lib_array_constexpr should have the value 201811L in c++2b"
+#   error "__cpp_lib_array_constexpr should have the value 201811L in c++23"
 # endif
 
 # ifndef __cpp_lib_as_const
-#   error "__cpp_lib_as_const should be defined in c++2b"
+#   error "__cpp_lib_as_const should be defined in c++23"
 # endif
 # if __cpp_lib_as_const != 201510L
-#   error "__cpp_lib_as_const should have the value 201510L in c++2b"
+#   error "__cpp_lib_as_const should have the value 201510L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_associative_heterogeneous_erasure
-#     error "__cpp_lib_associative_heterogeneous_erasure should be defined in c++2b"
+#     error "__cpp_lib_associative_heterogeneous_erasure should be defined in c++23"
 #   endif
 #   if __cpp_lib_associative_heterogeneous_erasure != 202110L
-#     error "__cpp_lib_associative_heterogeneous_erasure should have the value 202110L in c++2b"
+#     error "__cpp_lib_associative_heterogeneous_erasure should have the value 202110L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_associative_heterogeneous_erasure
@@ -3685,26 +4042,30 @@
 #   endif
 # endif
 
+# ifdef __cpp_lib_associative_heterogeneous_insertion
+#   error "__cpp_lib_associative_heterogeneous_insertion should not be defined before c++26"
+# endif
+
 # ifndef __cpp_lib_assume_aligned
-#   error "__cpp_lib_assume_aligned should be defined in c++2b"
+#   error "__cpp_lib_assume_aligned should be defined in c++23"
 # endif
 # if __cpp_lib_assume_aligned != 201811L
-#   error "__cpp_lib_assume_aligned should have the value 201811L in c++2b"
+#   error "__cpp_lib_assume_aligned should have the value 201811L in c++23"
 # endif
 
 # ifndef __cpp_lib_atomic_flag_test
-#   error "__cpp_lib_atomic_flag_test should be defined in c++2b"
+#   error "__cpp_lib_atomic_flag_test should be defined in c++23"
 # endif
 # if __cpp_lib_atomic_flag_test != 201907L
-#   error "__cpp_lib_atomic_flag_test should have the value 201907L in c++2b"
+#   error "__cpp_lib_atomic_flag_test should have the value 201907L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_atomic_float
-#     error "__cpp_lib_atomic_float should be defined in c++2b"
+#     error "__cpp_lib_atomic_float should be defined in c++23"
 #   endif
 #   if __cpp_lib_atomic_float != 201711L
-#     error "__cpp_lib_atomic_float should have the value 201711L in c++2b"
+#     error "__cpp_lib_atomic_float should have the value 201711L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_atomic_float
@@ -3713,25 +4074,25 @@
 # endif
 
 # ifndef __cpp_lib_atomic_is_always_lock_free
-#   error "__cpp_lib_atomic_is_always_lock_free should be defined in c++2b"
+#   error "__cpp_lib_atomic_is_always_lock_free should be defined in c++23"
 # endif
 # if __cpp_lib_atomic_is_always_lock_free != 201603L
-#   error "__cpp_lib_atomic_is_always_lock_free should have the value 201603L in c++2b"
+#   error "__cpp_lib_atomic_is_always_lock_free should have the value 201603L in c++23"
 # endif
 
 # ifndef __cpp_lib_atomic_lock_free_type_aliases
-#   error "__cpp_lib_atomic_lock_free_type_aliases should be defined in c++2b"
+#   error "__cpp_lib_atomic_lock_free_type_aliases should be defined in c++23"
 # endif
 # if __cpp_lib_atomic_lock_free_type_aliases != 201907L
-#   error "__cpp_lib_atomic_lock_free_type_aliases should have the value 201907L in c++2b"
+#   error "__cpp_lib_atomic_lock_free_type_aliases should have the value 201907L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_atomic_ref
-#     error "__cpp_lib_atomic_ref should be defined in c++2b"
+#     error "__cpp_lib_atomic_ref should be defined in c++23"
 #   endif
 #   if __cpp_lib_atomic_ref != 201806L
-#     error "__cpp_lib_atomic_ref should have the value 201806L in c++2b"
+#     error "__cpp_lib_atomic_ref should have the value 201806L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_atomic_ref
@@ -3741,10 +4102,10 @@
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_atomic_shared_ptr
-#     error "__cpp_lib_atomic_shared_ptr should be defined in c++2b"
+#     error "__cpp_lib_atomic_shared_ptr should be defined in c++23"
 #   endif
 #   if __cpp_lib_atomic_shared_ptr != 201711L
-#     error "__cpp_lib_atomic_shared_ptr should have the value 201711L in c++2b"
+#     error "__cpp_lib_atomic_shared_ptr should have the value 201711L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_atomic_shared_ptr
@@ -3753,44 +4114,44 @@
 # endif
 
 # ifndef __cpp_lib_atomic_value_initialization
-#   error "__cpp_lib_atomic_value_initialization should be defined in c++2b"
+#   error "__cpp_lib_atomic_value_initialization should be defined in c++23"
 # endif
 # if __cpp_lib_atomic_value_initialization != 201911L
-#   error "__cpp_lib_atomic_value_initialization should have the value 201911L in c++2b"
+#   error "__cpp_lib_atomic_value_initialization should have the value 201911L in c++23"
 # endif
 
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_atomic_wait
-#     error "__cpp_lib_atomic_wait should be defined in c++2b"
+#     error "__cpp_lib_atomic_wait should be defined in c++23"
 #   endif
 #   if __cpp_lib_atomic_wait != 201907L
-#     error "__cpp_lib_atomic_wait should have the value 201907L in c++2b"
+#     error "__cpp_lib_atomic_wait should have the value 201907L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_atomic_wait
-#     error "__cpp_lib_atomic_wait should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_atomic_wait)' is not met!"
+#     error "__cpp_lib_atomic_wait should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_barrier)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_barrier
-#     error "__cpp_lib_barrier should be defined in c++2b"
+#     error "__cpp_lib_barrier should be defined in c++23"
 #   endif
 #   if __cpp_lib_barrier != 201907L
-#     error "__cpp_lib_barrier should have the value 201907L in c++2b"
+#     error "__cpp_lib_barrier should have the value 201907L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_barrier
-#     error "__cpp_lib_barrier should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_barrier)' is not met!"
+#     error "__cpp_lib_barrier should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_bind_back
-#     error "__cpp_lib_bind_back should be defined in c++2b"
+#     error "__cpp_lib_bind_back should be defined in c++23"
 #   endif
 #   if __cpp_lib_bind_back != 202202L
-#     error "__cpp_lib_bind_back should have the value 202202L in c++2b"
+#     error "__cpp_lib_bind_back should have the value 202202L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_bind_back
@@ -3799,73 +4160,71 @@
 # endif
 
 # ifndef __cpp_lib_bind_front
-#   error "__cpp_lib_bind_front should be defined in c++2b"
+#   error "__cpp_lib_bind_front should be defined in c++23"
 # endif
 # if __cpp_lib_bind_front != 201907L
-#   error "__cpp_lib_bind_front should have the value 201907L in c++2b"
+#   error "__cpp_lib_bind_front should have the value 201907L in c++23"
 # endif
 
 # ifndef __cpp_lib_bit_cast
-#   error "__cpp_lib_bit_cast should be defined in c++2b"
+#   error "__cpp_lib_bit_cast should be defined in c++23"
 # endif
 # if __cpp_lib_bit_cast != 201806L
-#   error "__cpp_lib_bit_cast should have the value 201806L in c++2b"
+#   error "__cpp_lib_bit_cast should have the value 201806L in c++23"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_bitops
-#     error "__cpp_lib_bitops should be defined in c++2b"
-#   endif
-#   if __cpp_lib_bitops != 201907L
-#     error "__cpp_lib_bitops should have the value 201907L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_bitops
-#     error "__cpp_lib_bitops should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_bitops
+#   error "__cpp_lib_bitops should be defined in c++23"
+# endif
+# if __cpp_lib_bitops != 201907L
+#   error "__cpp_lib_bitops should have the value 201907L in c++23"
+# endif
+
+# ifdef __cpp_lib_bitset
+#   error "__cpp_lib_bitset should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_bool_constant
-#   error "__cpp_lib_bool_constant should be defined in c++2b"
+#   error "__cpp_lib_bool_constant should be defined in c++23"
 # endif
 # if __cpp_lib_bool_constant != 201505L
-#   error "__cpp_lib_bool_constant should have the value 201505L in c++2b"
+#   error "__cpp_lib_bool_constant should have the value 201505L in c++23"
 # endif
 
 # ifndef __cpp_lib_bounded_array_traits
-#   error "__cpp_lib_bounded_array_traits should be defined in c++2b"
+#   error "__cpp_lib_bounded_array_traits should be defined in c++23"
 # endif
 # if __cpp_lib_bounded_array_traits != 201902L
-#   error "__cpp_lib_bounded_array_traits should have the value 201902L in c++2b"
+#   error "__cpp_lib_bounded_array_traits should have the value 201902L in c++23"
 # endif
 
 # ifndef __cpp_lib_boyer_moore_searcher
-#   error "__cpp_lib_boyer_moore_searcher should be defined in c++2b"
+#   error "__cpp_lib_boyer_moore_searcher should be defined in c++23"
 # endif
 # if __cpp_lib_boyer_moore_searcher != 201603L
-#   error "__cpp_lib_boyer_moore_searcher should have the value 201603L in c++2b"
+#   error "__cpp_lib_boyer_moore_searcher should have the value 201603L in c++23"
 # endif
 
 # ifndef __cpp_lib_byte
-#   error "__cpp_lib_byte should be defined in c++2b"
+#   error "__cpp_lib_byte should be defined in c++23"
 # endif
 # if __cpp_lib_byte != 201603L
-#   error "__cpp_lib_byte should have the value 201603L in c++2b"
+#   error "__cpp_lib_byte should have the value 201603L in c++23"
 # endif
 
 # ifndef __cpp_lib_byteswap
-#   error "__cpp_lib_byteswap should be defined in c++2b"
+#   error "__cpp_lib_byteswap should be defined in c++23"
 # endif
 # if __cpp_lib_byteswap != 202110L
-#   error "__cpp_lib_byteswap should have the value 202110L in c++2b"
+#   error "__cpp_lib_byteswap should have the value 202110L in c++23"
 # endif
 
 # if defined(__cpp_char8_t)
 #   ifndef __cpp_lib_char8_t
-#     error "__cpp_lib_char8_t should be defined in c++2b"
+#     error "__cpp_lib_char8_t should be defined in c++23"
 #   endif
 #   if __cpp_lib_char8_t != 201907L
-#     error "__cpp_lib_char8_t should have the value 201907L in c++2b"
+#     error "__cpp_lib_char8_t should have the value 201907L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_char8_t
@@ -3874,67 +4233,67 @@
 # endif
 
 # ifndef __cpp_lib_chrono
-#   error "__cpp_lib_chrono should be defined in c++2b"
+#   error "__cpp_lib_chrono should be defined in c++23"
 # endif
 # if __cpp_lib_chrono != 201611L
-#   error "__cpp_lib_chrono should have the value 201611L in c++2b"
+#   error "__cpp_lib_chrono should have the value 201611L in c++23"
 # endif
 
 # ifndef __cpp_lib_chrono_udls
-#   error "__cpp_lib_chrono_udls should be defined in c++2b"
+#   error "__cpp_lib_chrono_udls should be defined in c++23"
 # endif
 # if __cpp_lib_chrono_udls != 201304L
-#   error "__cpp_lib_chrono_udls should have the value 201304L in c++2b"
+#   error "__cpp_lib_chrono_udls should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_clamp
-#   error "__cpp_lib_clamp should be defined in c++2b"
+#   error "__cpp_lib_clamp should be defined in c++23"
 # endif
 # if __cpp_lib_clamp != 201603L
-#   error "__cpp_lib_clamp should have the value 201603L in c++2b"
+#   error "__cpp_lib_clamp should have the value 201603L in c++23"
 # endif
 
 # ifndef __cpp_lib_complex_udls
-#   error "__cpp_lib_complex_udls should be defined in c++2b"
+#   error "__cpp_lib_complex_udls should be defined in c++23"
 # endif
 # if __cpp_lib_complex_udls != 201309L
-#   error "__cpp_lib_complex_udls should have the value 201309L in c++2b"
+#   error "__cpp_lib_complex_udls should have the value 201309L in c++23"
 # endif
 
 # ifndef __cpp_lib_concepts
-#   error "__cpp_lib_concepts should be defined in c++2b"
+#   error "__cpp_lib_concepts should be defined in c++23"
 # endif
 # if __cpp_lib_concepts != 202002L
-#   error "__cpp_lib_concepts should have the value 202002L in c++2b"
+#   error "__cpp_lib_concepts should have the value 202002L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_algorithms
-#   error "__cpp_lib_constexpr_algorithms should be defined in c++2b"
+#   error "__cpp_lib_constexpr_algorithms should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_algorithms != 201806L
-#   error "__cpp_lib_constexpr_algorithms should have the value 201806L in c++2b"
+#   error "__cpp_lib_constexpr_algorithms should have the value 201806L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_bitset
-#   error "__cpp_lib_constexpr_bitset should be defined in c++2b"
+#   error "__cpp_lib_constexpr_bitset should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_bitset != 202207L
-#   error "__cpp_lib_constexpr_bitset should have the value 202207L in c++2b"
+#   error "__cpp_lib_constexpr_bitset should have the value 202207L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_charconv
-#   error "__cpp_lib_constexpr_charconv should be defined in c++2b"
+#   error "__cpp_lib_constexpr_charconv should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_charconv != 202207L
-#   error "__cpp_lib_constexpr_charconv should have the value 202207L in c++2b"
+#   error "__cpp_lib_constexpr_charconv should have the value 202207L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_constexpr_cmath
-#     error "__cpp_lib_constexpr_cmath should be defined in c++2b"
+#     error "__cpp_lib_constexpr_cmath should be defined in c++23"
 #   endif
 #   if __cpp_lib_constexpr_cmath != 202202L
-#     error "__cpp_lib_constexpr_cmath should have the value 202202L in c++2b"
+#     error "__cpp_lib_constexpr_cmath should have the value 202202L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_constexpr_cmath
@@ -3943,108 +4302,106 @@
 # endif
 
 # ifndef __cpp_lib_constexpr_complex
-#   error "__cpp_lib_constexpr_complex should be defined in c++2b"
+#   error "__cpp_lib_constexpr_complex should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_complex != 201711L
-#   error "__cpp_lib_constexpr_complex should have the value 201711L in c++2b"
+#   error "__cpp_lib_constexpr_complex should have the value 201711L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_dynamic_alloc
-#   error "__cpp_lib_constexpr_dynamic_alloc should be defined in c++2b"
+#   error "__cpp_lib_constexpr_dynamic_alloc should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_dynamic_alloc != 201907L
-#   error "__cpp_lib_constexpr_dynamic_alloc should have the value 201907L in c++2b"
+#   error "__cpp_lib_constexpr_dynamic_alloc should have the value 201907L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_functional
-#   error "__cpp_lib_constexpr_functional should be defined in c++2b"
+#   error "__cpp_lib_constexpr_functional should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_functional != 201907L
-#   error "__cpp_lib_constexpr_functional should have the value 201907L in c++2b"
+#   error "__cpp_lib_constexpr_functional should have the value 201907L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_iterator
-#   error "__cpp_lib_constexpr_iterator should be defined in c++2b"
+#   error "__cpp_lib_constexpr_iterator should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_iterator != 201811L
-#   error "__cpp_lib_constexpr_iterator should have the value 201811L in c++2b"
+#   error "__cpp_lib_constexpr_iterator should have the value 201811L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_memory
-#   error "__cpp_lib_constexpr_memory should be defined in c++2b"
+#   error "__cpp_lib_constexpr_memory should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_memory != 202202L
-#   error "__cpp_lib_constexpr_memory should have the value 202202L in c++2b"
+#   error "__cpp_lib_constexpr_memory should have the value 202202L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_numeric
-#   error "__cpp_lib_constexpr_numeric should be defined in c++2b"
+#   error "__cpp_lib_constexpr_numeric should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_numeric != 201911L
-#   error "__cpp_lib_constexpr_numeric should have the value 201911L in c++2b"
+#   error "__cpp_lib_constexpr_numeric should have the value 201911L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_string
-#   error "__cpp_lib_constexpr_string should be defined in c++2b"
+#   error "__cpp_lib_constexpr_string should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_string != 201907L
-#   error "__cpp_lib_constexpr_string should have the value 201907L in c++2b"
+#   error "__cpp_lib_constexpr_string should have the value 201907L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_string_view
-#   error "__cpp_lib_constexpr_string_view should be defined in c++2b"
+#   error "__cpp_lib_constexpr_string_view should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_string_view != 201811L
-#   error "__cpp_lib_constexpr_string_view should have the value 201811L in c++2b"
+#   error "__cpp_lib_constexpr_string_view should have the value 201811L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_tuple
-#   error "__cpp_lib_constexpr_tuple should be defined in c++2b"
+#   error "__cpp_lib_constexpr_tuple should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_tuple != 201811L
-#   error "__cpp_lib_constexpr_tuple should have the value 201811L in c++2b"
+#   error "__cpp_lib_constexpr_tuple should have the value 201811L in c++23"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_constexpr_typeinfo
-#     error "__cpp_lib_constexpr_typeinfo should be defined in c++2b"
-#   endif
-#   if __cpp_lib_constexpr_typeinfo != 202106L
-#     error "__cpp_lib_constexpr_typeinfo should have the value 202106L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_constexpr_typeinfo
-#     error "__cpp_lib_constexpr_typeinfo should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_constexpr_typeinfo
+#   error "__cpp_lib_constexpr_typeinfo should be defined in c++23"
+# endif
+# if __cpp_lib_constexpr_typeinfo != 202106L
+#   error "__cpp_lib_constexpr_typeinfo should have the value 202106L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_utility
-#   error "__cpp_lib_constexpr_utility should be defined in c++2b"
+#   error "__cpp_lib_constexpr_utility should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_utility != 201811L
-#   error "__cpp_lib_constexpr_utility should have the value 201811L in c++2b"
+#   error "__cpp_lib_constexpr_utility should have the value 201811L in c++23"
 # endif
 
 # ifndef __cpp_lib_constexpr_vector
-#   error "__cpp_lib_constexpr_vector should be defined in c++2b"
+#   error "__cpp_lib_constexpr_vector should be defined in c++23"
 # endif
 # if __cpp_lib_constexpr_vector != 201907L
-#   error "__cpp_lib_constexpr_vector should have the value 201907L in c++2b"
+#   error "__cpp_lib_constexpr_vector should have the value 201907L in c++23"
+# endif
+
+# ifdef __cpp_lib_copyable_function
+#   error "__cpp_lib_copyable_function should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_coroutine
-#   error "__cpp_lib_coroutine should be defined in c++2b"
+#   error "__cpp_lib_coroutine should be defined in c++23"
 # endif
 # if __cpp_lib_coroutine != 201902L
-#   error "__cpp_lib_coroutine should have the value 201902L in c++2b"
+#   error "__cpp_lib_coroutine should have the value 201902L in c++23"
 # endif
 
 # if TEST_STD_VER > 17 && defined(__cpp_impl_destroying_delete) && __cpp_impl_destroying_delete >= 201806L
 #   ifndef __cpp_lib_destroying_delete
-#     error "__cpp_lib_destroying_delete should be defined in c++2b"
+#     error "__cpp_lib_destroying_delete should be defined in c++23"
 #   endif
 #   if __cpp_lib_destroying_delete != 201806L
-#     error "__cpp_lib_destroying_delete should have the value 201806L in c++2b"
+#     error "__cpp_lib_destroying_delete should have the value 201806L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_destroying_delete
@@ -4053,39 +4410,39 @@
 # endif
 
 # ifndef __cpp_lib_enable_shared_from_this
-#   error "__cpp_lib_enable_shared_from_this should be defined in c++2b"
+#   error "__cpp_lib_enable_shared_from_this should be defined in c++23"
 # endif
 # if __cpp_lib_enable_shared_from_this != 201603L
-#   error "__cpp_lib_enable_shared_from_this should have the value 201603L in c++2b"
+#   error "__cpp_lib_enable_shared_from_this should have the value 201603L in c++23"
 # endif
 
 # ifndef __cpp_lib_endian
-#   error "__cpp_lib_endian should be defined in c++2b"
+#   error "__cpp_lib_endian should be defined in c++23"
 # endif
 # if __cpp_lib_endian != 201907L
-#   error "__cpp_lib_endian should have the value 201907L in c++2b"
+#   error "__cpp_lib_endian should have the value 201907L in c++23"
 # endif
 
 # ifndef __cpp_lib_erase_if
-#   error "__cpp_lib_erase_if should be defined in c++2b"
+#   error "__cpp_lib_erase_if should be defined in c++23"
 # endif
 # if __cpp_lib_erase_if != 202002L
-#   error "__cpp_lib_erase_if should have the value 202002L in c++2b"
+#   error "__cpp_lib_erase_if should have the value 202002L in c++23"
 # endif
 
 # ifndef __cpp_lib_exchange_function
-#   error "__cpp_lib_exchange_function should be defined in c++2b"
+#   error "__cpp_lib_exchange_function should be defined in c++23"
 # endif
 # if __cpp_lib_exchange_function != 201304L
-#   error "__cpp_lib_exchange_function should have the value 201304L in c++2b"
+#   error "__cpp_lib_exchange_function should have the value 201304L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_execution
-#     error "__cpp_lib_execution should be defined in c++2b"
+#     error "__cpp_lib_execution should be defined in c++23"
 #   endif
 #   if __cpp_lib_execution != 201902L
-#     error "__cpp_lib_execution should have the value 201902L in c++2b"
+#     error "__cpp_lib_execution should have the value 201902L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_execution
@@ -4094,31 +4451,31 @@
 # endif
 
 # ifndef __cpp_lib_expected
-#   error "__cpp_lib_expected should be defined in c++2b"
+#   error "__cpp_lib_expected should be defined in c++23"
 # endif
-# if __cpp_lib_expected != 202202L
-#   error "__cpp_lib_expected should have the value 202202L in c++2b"
+# if __cpp_lib_expected != 202211L
+#   error "__cpp_lib_expected should have the value 202211L in c++23"
 # endif
 
-# if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM_LIBRARY)
 #   ifndef __cpp_lib_filesystem
-#     error "__cpp_lib_filesystem should be defined in c++2b"
+#     error "__cpp_lib_filesystem should be defined in c++23"
 #   endif
 #   if __cpp_lib_filesystem != 201703L
-#     error "__cpp_lib_filesystem should have the value 201703L in c++2b"
+#     error "__cpp_lib_filesystem should have the value 201703L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_filesystem
-#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)' is not met!"
+#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM_LIBRARY)' is not met!"
 #   endif
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_format
-#     error "__cpp_lib_format should be defined in c++2b"
+#     error "__cpp_lib_format should be defined in c++23"
 #   endif
 #   if __cpp_lib_format != 202106L
-#     error "__cpp_lib_format should have the value 202106L in c++2b"
+#     error "__cpp_lib_format should have the value 202106L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_format
@@ -4126,40 +4483,68 @@
 #   endif
 # endif
 
+# ifndef __cpp_lib_format_ranges
+#   error "__cpp_lib_format_ranges should be defined in c++23"
+# endif
+# if __cpp_lib_format_ranges != 202207L
+#   error "__cpp_lib_format_ranges should have the value 202207L in c++23"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_formatters
+#     error "__cpp_lib_formatters should be defined in c++23"
+#   endif
+#   if __cpp_lib_formatters != 202302L
+#     error "__cpp_lib_formatters should have the value 202302L in c++23"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_formatters
+#     error "__cpp_lib_formatters should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
 # ifndef __cpp_lib_forward_like
-#   error "__cpp_lib_forward_like should be defined in c++2b"
+#   error "__cpp_lib_forward_like should be defined in c++23"
 # endif
 # if __cpp_lib_forward_like != 202207L
-#   error "__cpp_lib_forward_like should have the value 202207L in c++2b"
+#   error "__cpp_lib_forward_like should have the value 202207L in c++23"
+# endif
+
+# ifdef __cpp_lib_fstream_native_handle
+#   error "__cpp_lib_fstream_native_handle should not be defined before c++26"
+# endif
+
+# ifdef __cpp_lib_function_ref
+#   error "__cpp_lib_function_ref should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_gcd_lcm
-#   error "__cpp_lib_gcd_lcm should be defined in c++2b"
+#   error "__cpp_lib_gcd_lcm should be defined in c++23"
 # endif
 # if __cpp_lib_gcd_lcm != 201606L
-#   error "__cpp_lib_gcd_lcm should have the value 201606L in c++2b"
+#   error "__cpp_lib_gcd_lcm should have the value 201606L in c++23"
 # endif
 
 # ifndef __cpp_lib_generic_associative_lookup
-#   error "__cpp_lib_generic_associative_lookup should be defined in c++2b"
+#   error "__cpp_lib_generic_associative_lookup should be defined in c++23"
 # endif
 # if __cpp_lib_generic_associative_lookup != 201304L
-#   error "__cpp_lib_generic_associative_lookup should have the value 201304L in c++2b"
+#   error "__cpp_lib_generic_associative_lookup should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_generic_unordered_lookup
-#   error "__cpp_lib_generic_unordered_lookup should be defined in c++2b"
+#   error "__cpp_lib_generic_unordered_lookup should be defined in c++23"
 # endif
 # if __cpp_lib_generic_unordered_lookup != 201811L
-#   error "__cpp_lib_generic_unordered_lookup should have the value 201811L in c++2b"
+#   error "__cpp_lib_generic_unordered_lookup should have the value 201811L in c++23"
 # endif
 
 # if defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)
 #   ifndef __cpp_lib_hardware_interference_size
-#     error "__cpp_lib_hardware_interference_size should be defined in c++2b"
+#     error "__cpp_lib_hardware_interference_size should be defined in c++23"
 #   endif
 #   if __cpp_lib_hardware_interference_size != 201703L
-#     error "__cpp_lib_hardware_interference_size should have the value 201703L in c++2b"
+#     error "__cpp_lib_hardware_interference_size should have the value 201703L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_hardware_interference_size
@@ -4168,115 +4553,113 @@
 # endif
 
 # ifndef __cpp_lib_has_unique_object_representations
-#   error "__cpp_lib_has_unique_object_representations should be defined in c++2b"
+#   error "__cpp_lib_has_unique_object_representations should be defined in c++23"
 # endif
 # if __cpp_lib_has_unique_object_representations != 201606L
-#   error "__cpp_lib_has_unique_object_representations should have the value 201606L in c++2b"
+#   error "__cpp_lib_has_unique_object_representations should have the value 201606L in c++23"
+# endif
+
+# ifdef __cpp_lib_hazard_pointer
+#   error "__cpp_lib_hazard_pointer should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_hypot
-#   error "__cpp_lib_hypot should be defined in c++2b"
+#   error "__cpp_lib_hypot should be defined in c++23"
 # endif
 # if __cpp_lib_hypot != 201603L
-#   error "__cpp_lib_hypot should have the value 201603L in c++2b"
+#   error "__cpp_lib_hypot should have the value 201603L in c++23"
 # endif
 
 # ifndef __cpp_lib_incomplete_container_elements
-#   error "__cpp_lib_incomplete_container_elements should be defined in c++2b"
+#   error "__cpp_lib_incomplete_container_elements should be defined in c++23"
 # endif
 # if __cpp_lib_incomplete_container_elements != 201505L
-#   error "__cpp_lib_incomplete_container_elements should have the value 201505L in c++2b"
+#   error "__cpp_lib_incomplete_container_elements should have the value 201505L in c++23"
 # endif
 
 # ifndef __cpp_lib_int_pow2
-#   error "__cpp_lib_int_pow2 should be defined in c++2b"
+#   error "__cpp_lib_int_pow2 should be defined in c++23"
 # endif
 # if __cpp_lib_int_pow2 != 202002L
-#   error "__cpp_lib_int_pow2 should have the value 202002L in c++2b"
+#   error "__cpp_lib_int_pow2 should have the value 202002L in c++23"
 # endif
 
 # ifndef __cpp_lib_integer_comparison_functions
-#   error "__cpp_lib_integer_comparison_functions should be defined in c++2b"
+#   error "__cpp_lib_integer_comparison_functions should be defined in c++23"
 # endif
 # if __cpp_lib_integer_comparison_functions != 202002L
-#   error "__cpp_lib_integer_comparison_functions should have the value 202002L in c++2b"
+#   error "__cpp_lib_integer_comparison_functions should have the value 202002L in c++23"
 # endif
 
 # ifndef __cpp_lib_integer_sequence
-#   error "__cpp_lib_integer_sequence should be defined in c++2b"
+#   error "__cpp_lib_integer_sequence should be defined in c++23"
 # endif
 # if __cpp_lib_integer_sequence != 201304L
-#   error "__cpp_lib_integer_sequence should have the value 201304L in c++2b"
+#   error "__cpp_lib_integer_sequence should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_integral_constant_callable
-#   error "__cpp_lib_integral_constant_callable should be defined in c++2b"
+#   error "__cpp_lib_integral_constant_callable should be defined in c++23"
 # endif
 # if __cpp_lib_integral_constant_callable != 201304L
-#   error "__cpp_lib_integral_constant_callable should have the value 201304L in c++2b"
+#   error "__cpp_lib_integral_constant_callable should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_interpolate
-#   error "__cpp_lib_interpolate should be defined in c++2b"
+#   error "__cpp_lib_interpolate should be defined in c++23"
 # endif
 # if __cpp_lib_interpolate != 201902L
-#   error "__cpp_lib_interpolate should have the value 201902L in c++2b"
+#   error "__cpp_lib_interpolate should have the value 201902L in c++23"
 # endif
 
 # ifndef __cpp_lib_invoke
-#   error "__cpp_lib_invoke should be defined in c++2b"
+#   error "__cpp_lib_invoke should be defined in c++23"
 # endif
 # if __cpp_lib_invoke != 201411L
-#   error "__cpp_lib_invoke should have the value 201411L in c++2b"
+#   error "__cpp_lib_invoke should have the value 201411L in c++23"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_invoke_r
-#     error "__cpp_lib_invoke_r should be defined in c++2b"
-#   endif
-#   if __cpp_lib_invoke_r != 202106L
-#     error "__cpp_lib_invoke_r should have the value 202106L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_invoke_r
-#     error "__cpp_lib_invoke_r should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_invoke_r
+#   error "__cpp_lib_invoke_r should be defined in c++23"
+# endif
+# if __cpp_lib_invoke_r != 202106L
+#   error "__cpp_lib_invoke_r should have the value 202106L in c++23"
 # endif
 
 # ifndef __cpp_lib_is_aggregate
-#   error "__cpp_lib_is_aggregate should be defined in c++2b"
+#   error "__cpp_lib_is_aggregate should be defined in c++23"
 # endif
 # if __cpp_lib_is_aggregate != 201703L
-#   error "__cpp_lib_is_aggregate should have the value 201703L in c++2b"
+#   error "__cpp_lib_is_aggregate should have the value 201703L in c++23"
 # endif
 
 # ifndef __cpp_lib_is_constant_evaluated
-#   error "__cpp_lib_is_constant_evaluated should be defined in c++2b"
+#   error "__cpp_lib_is_constant_evaluated should be defined in c++23"
 # endif
 # if __cpp_lib_is_constant_evaluated != 201811L
-#   error "__cpp_lib_is_constant_evaluated should have the value 201811L in c++2b"
+#   error "__cpp_lib_is_constant_evaluated should have the value 201811L in c++23"
 # endif
 
 # ifndef __cpp_lib_is_final
-#   error "__cpp_lib_is_final should be defined in c++2b"
+#   error "__cpp_lib_is_final should be defined in c++23"
 # endif
 # if __cpp_lib_is_final != 201402L
-#   error "__cpp_lib_is_final should have the value 201402L in c++2b"
+#   error "__cpp_lib_is_final should have the value 201402L in c++23"
 # endif
 
 # ifndef __cpp_lib_is_invocable
-#   error "__cpp_lib_is_invocable should be defined in c++2b"
+#   error "__cpp_lib_is_invocable should be defined in c++23"
 # endif
 # if __cpp_lib_is_invocable != 201703L
-#   error "__cpp_lib_is_invocable should have the value 201703L in c++2b"
+#   error "__cpp_lib_is_invocable should have the value 201703L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_is_layout_compatible
-#     error "__cpp_lib_is_layout_compatible should be defined in c++2b"
+#     error "__cpp_lib_is_layout_compatible should be defined in c++23"
 #   endif
 #   if __cpp_lib_is_layout_compatible != 201907L
-#     error "__cpp_lib_is_layout_compatible should have the value 201907L in c++2b"
+#     error "__cpp_lib_is_layout_compatible should have the value 201907L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_is_layout_compatible
@@ -4285,25 +4668,25 @@
 # endif
 
 # ifndef __cpp_lib_is_nothrow_convertible
-#   error "__cpp_lib_is_nothrow_convertible should be defined in c++2b"
+#   error "__cpp_lib_is_nothrow_convertible should be defined in c++23"
 # endif
 # if __cpp_lib_is_nothrow_convertible != 201806L
-#   error "__cpp_lib_is_nothrow_convertible should have the value 201806L in c++2b"
+#   error "__cpp_lib_is_nothrow_convertible should have the value 201806L in c++23"
 # endif
 
 # ifndef __cpp_lib_is_null_pointer
-#   error "__cpp_lib_is_null_pointer should be defined in c++2b"
+#   error "__cpp_lib_is_null_pointer should be defined in c++23"
 # endif
 # if __cpp_lib_is_null_pointer != 201309L
-#   error "__cpp_lib_is_null_pointer should have the value 201309L in c++2b"
+#   error "__cpp_lib_is_null_pointer should have the value 201309L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_is_pointer_interconvertible
-#     error "__cpp_lib_is_pointer_interconvertible should be defined in c++2b"
+#     error "__cpp_lib_is_pointer_interconvertible should be defined in c++23"
 #   endif
 #   if __cpp_lib_is_pointer_interconvertible != 201907L
-#     error "__cpp_lib_is_pointer_interconvertible should have the value 201907L in c++2b"
+#     error "__cpp_lib_is_pointer_interconvertible should have the value 201907L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_is_pointer_interconvertible
@@ -4312,25 +4695,25 @@
 # endif
 
 # ifndef __cpp_lib_is_scoped_enum
-#   error "__cpp_lib_is_scoped_enum should be defined in c++2b"
+#   error "__cpp_lib_is_scoped_enum should be defined in c++23"
 # endif
 # if __cpp_lib_is_scoped_enum != 202011L
-#   error "__cpp_lib_is_scoped_enum should have the value 202011L in c++2b"
+#   error "__cpp_lib_is_scoped_enum should have the value 202011L in c++23"
 # endif
 
 # ifndef __cpp_lib_is_swappable
-#   error "__cpp_lib_is_swappable should be defined in c++2b"
+#   error "__cpp_lib_is_swappable should be defined in c++23"
 # endif
 # if __cpp_lib_is_swappable != 201603L
-#   error "__cpp_lib_is_swappable should have the value 201603L in c++2b"
+#   error "__cpp_lib_is_swappable should have the value 201603L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_jthread
-#     error "__cpp_lib_jthread should be defined in c++2b"
+#     error "__cpp_lib_jthread should be defined in c++23"
 #   endif
 #   if __cpp_lib_jthread != 201911L
-#     error "__cpp_lib_jthread should have the value 201911L in c++2b"
+#     error "__cpp_lib_jthread should have the value 201911L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_jthread
@@ -4338,81 +4721,81 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_latch)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_latch
-#     error "__cpp_lib_latch should be defined in c++2b"
+#     error "__cpp_lib_latch should be defined in c++23"
 #   endif
 #   if __cpp_lib_latch != 201907L
-#     error "__cpp_lib_latch should have the value 201907L in c++2b"
+#     error "__cpp_lib_latch should have the value 201907L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_latch
-#     error "__cpp_lib_latch should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_latch)' is not met!"
+#     error "__cpp_lib_latch should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
 # ifndef __cpp_lib_launder
-#   error "__cpp_lib_launder should be defined in c++2b"
+#   error "__cpp_lib_launder should be defined in c++23"
 # endif
 # if __cpp_lib_launder != 201606L
-#   error "__cpp_lib_launder should have the value 201606L in c++2b"
+#   error "__cpp_lib_launder should have the value 201606L in c++23"
 # endif
 
 # ifndef __cpp_lib_list_remove_return_type
-#   error "__cpp_lib_list_remove_return_type should be defined in c++2b"
+#   error "__cpp_lib_list_remove_return_type should be defined in c++23"
 # endif
 # if __cpp_lib_list_remove_return_type != 201806L
-#   error "__cpp_lib_list_remove_return_type should have the value 201806L in c++2b"
+#   error "__cpp_lib_list_remove_return_type should have the value 201806L in c++23"
 # endif
 
 # ifndef __cpp_lib_logical_traits
-#   error "__cpp_lib_logical_traits should be defined in c++2b"
+#   error "__cpp_lib_logical_traits should be defined in c++23"
 # endif
 # if __cpp_lib_logical_traits != 201510L
-#   error "__cpp_lib_logical_traits should have the value 201510L in c++2b"
+#   error "__cpp_lib_logical_traits should have the value 201510L in c++23"
 # endif
 
 # ifndef __cpp_lib_make_from_tuple
-#   error "__cpp_lib_make_from_tuple should be defined in c++2b"
+#   error "__cpp_lib_make_from_tuple should be defined in c++23"
 # endif
 # if __cpp_lib_make_from_tuple != 201606L
-#   error "__cpp_lib_make_from_tuple should have the value 201606L in c++2b"
+#   error "__cpp_lib_make_from_tuple should have the value 201606L in c++23"
 # endif
 
 # ifndef __cpp_lib_make_reverse_iterator
-#   error "__cpp_lib_make_reverse_iterator should be defined in c++2b"
+#   error "__cpp_lib_make_reverse_iterator should be defined in c++23"
 # endif
 # if __cpp_lib_make_reverse_iterator != 201402L
-#   error "__cpp_lib_make_reverse_iterator should have the value 201402L in c++2b"
+#   error "__cpp_lib_make_reverse_iterator should have the value 201402L in c++23"
 # endif
 
 # ifndef __cpp_lib_make_unique
-#   error "__cpp_lib_make_unique should be defined in c++2b"
+#   error "__cpp_lib_make_unique should be defined in c++23"
 # endif
 # if __cpp_lib_make_unique != 201304L
-#   error "__cpp_lib_make_unique should have the value 201304L in c++2b"
+#   error "__cpp_lib_make_unique should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_map_try_emplace
-#   error "__cpp_lib_map_try_emplace should be defined in c++2b"
+#   error "__cpp_lib_map_try_emplace should be defined in c++23"
 # endif
 # if __cpp_lib_map_try_emplace != 201411L
-#   error "__cpp_lib_map_try_emplace should have the value 201411L in c++2b"
+#   error "__cpp_lib_map_try_emplace should have the value 201411L in c++23"
 # endif
 
 # ifndef __cpp_lib_math_constants
-#   error "__cpp_lib_math_constants should be defined in c++2b"
+#   error "__cpp_lib_math_constants should be defined in c++23"
 # endif
 # if __cpp_lib_math_constants != 201907L
-#   error "__cpp_lib_math_constants should have the value 201907L in c++2b"
+#   error "__cpp_lib_math_constants should have the value 201907L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_math_special_functions
-#     error "__cpp_lib_math_special_functions should be defined in c++2b"
+#     error "__cpp_lib_math_special_functions should be defined in c++23"
 #   endif
 #   if __cpp_lib_math_special_functions != 201603L
-#     error "__cpp_lib_math_special_functions should have the value 201603L in c++2b"
+#     error "__cpp_lib_math_special_functions should have the value 201603L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_math_special_functions
@@ -4420,19 +4803,45 @@
 #   endif
 # endif
 
-# ifndef __cpp_lib_memory_resource
-#   error "__cpp_lib_memory_resource should be defined in c++2b"
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_mdspan
+#     error "__cpp_lib_mdspan should be defined in c++23"
+#   endif
+#   if __cpp_lib_mdspan != 202207L
+#     error "__cpp_lib_mdspan should have the value 202207L in c++23"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_mdspan
+#     error "__cpp_lib_mdspan should not be defined because it is unimplemented in libc++!"
+#   endif
 # endif
-# if __cpp_lib_memory_resource != 201603L
-#   error "__cpp_lib_memory_resource should have the value 201603L in c++2b"
+
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)
+#   ifndef __cpp_lib_memory_resource
+#     error "__cpp_lib_memory_resource should be defined in c++23"
+#   endif
+#   if __cpp_lib_memory_resource != 201603L
+#     error "__cpp_lib_memory_resource should have the value 201603L in c++23"
+#   endif
+# else
+#   ifdef __cpp_lib_memory_resource
+#     error "__cpp_lib_memory_resource should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)' is not met!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should be defined in c++23"
+# endif
+# if __cpp_lib_move_iterator_concept != 202207L
+#   error "__cpp_lib_move_iterator_concept should have the value 202207L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_move_only_function
-#     error "__cpp_lib_move_only_function should be defined in c++2b"
+#     error "__cpp_lib_move_only_function should be defined in c++23"
 #   endif
 #   if __cpp_lib_move_only_function != 202110L
-#     error "__cpp_lib_move_only_function should have the value 202110L in c++2b"
+#     error "__cpp_lib_move_only_function should have the value 202110L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_move_only_function
@@ -4441,46 +4850,46 @@
 # endif
 
 # ifndef __cpp_lib_node_extract
-#   error "__cpp_lib_node_extract should be defined in c++2b"
+#   error "__cpp_lib_node_extract should be defined in c++23"
 # endif
 # if __cpp_lib_node_extract != 201606L
-#   error "__cpp_lib_node_extract should have the value 201606L in c++2b"
+#   error "__cpp_lib_node_extract should have the value 201606L in c++23"
 # endif
 
 # ifndef __cpp_lib_nonmember_container_access
-#   error "__cpp_lib_nonmember_container_access should be defined in c++2b"
+#   error "__cpp_lib_nonmember_container_access should be defined in c++23"
 # endif
 # if __cpp_lib_nonmember_container_access != 201411L
-#   error "__cpp_lib_nonmember_container_access should have the value 201411L in c++2b"
+#   error "__cpp_lib_nonmember_container_access should have the value 201411L in c++23"
 # endif
 
 # ifndef __cpp_lib_not_fn
-#   error "__cpp_lib_not_fn should be defined in c++2b"
+#   error "__cpp_lib_not_fn should be defined in c++23"
 # endif
 # if __cpp_lib_not_fn != 201603L
-#   error "__cpp_lib_not_fn should have the value 201603L in c++2b"
+#   error "__cpp_lib_not_fn should have the value 201603L in c++23"
 # endif
 
 # ifndef __cpp_lib_null_iterators
-#   error "__cpp_lib_null_iterators should be defined in c++2b"
+#   error "__cpp_lib_null_iterators should be defined in c++23"
 # endif
 # if __cpp_lib_null_iterators != 201304L
-#   error "__cpp_lib_null_iterators should have the value 201304L in c++2b"
+#   error "__cpp_lib_null_iterators should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_optional
-#   error "__cpp_lib_optional should be defined in c++2b"
+#   error "__cpp_lib_optional should be defined in c++23"
 # endif
 # if __cpp_lib_optional != 202110L
-#   error "__cpp_lib_optional should have the value 202110L in c++2b"
+#   error "__cpp_lib_optional should have the value 202110L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_out_ptr
-#     error "__cpp_lib_out_ptr should be defined in c++2b"
+#     error "__cpp_lib_out_ptr should be defined in c++23"
 #   endif
 #   if __cpp_lib_out_ptr != 202106L
-#     error "__cpp_lib_out_ptr should have the value 202106L in c++2b"
+#     error "__cpp_lib_out_ptr should have the value 202106L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_out_ptr
@@ -4490,10 +4899,10 @@
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_parallel_algorithm
-#     error "__cpp_lib_parallel_algorithm should be defined in c++2b"
+#     error "__cpp_lib_parallel_algorithm should be defined in c++23"
 #   endif
 #   if __cpp_lib_parallel_algorithm != 201603L
-#     error "__cpp_lib_parallel_algorithm should have the value 201603L in c++2b"
+#     error "__cpp_lib_parallel_algorithm should have the value 201603L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_parallel_algorithm
@@ -4501,40 +4910,59 @@
 #   endif
 # endif
 
-# ifndef __cpp_lib_polymorphic_allocator
-#   error "__cpp_lib_polymorphic_allocator should be defined in c++2b"
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)
+#   ifndef __cpp_lib_polymorphic_allocator
+#     error "__cpp_lib_polymorphic_allocator should be defined in c++23"
+#   endif
+#   if __cpp_lib_polymorphic_allocator != 201902L
+#     error "__cpp_lib_polymorphic_allocator should have the value 201902L in c++23"
+#   endif
+# else
+#   ifdef __cpp_lib_polymorphic_allocator
+#     error "__cpp_lib_polymorphic_allocator should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)' is not met!"
+#   endif
 # endif
-# if __cpp_lib_polymorphic_allocator != 201902L
-#   error "__cpp_lib_polymorphic_allocator should have the value 201902L in c++2b"
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_print
+#     error "__cpp_lib_print should be defined in c++23"
+#   endif
+#   if __cpp_lib_print != 202207L
+#     error "__cpp_lib_print should have the value 202207L in c++23"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_print
+#     error "__cpp_lib_print should not be defined because it is unimplemented in libc++!"
+#   endif
 # endif
 
 # ifndef __cpp_lib_quoted_string_io
-#   error "__cpp_lib_quoted_string_io should be defined in c++2b"
+#   error "__cpp_lib_quoted_string_io should be defined in c++23"
 # endif
 # if __cpp_lib_quoted_string_io != 201304L
-#   error "__cpp_lib_quoted_string_io should have the value 201304L in c++2b"
+#   error "__cpp_lib_quoted_string_io should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_ranges
-#   error "__cpp_lib_ranges should be defined in c++2b"
+#   error "__cpp_lib_ranges should be defined in c++23"
 # endif
-# if __cpp_lib_ranges != 202106L
-#   error "__cpp_lib_ranges should have the value 202106L in c++2b"
+# if __cpp_lib_ranges != 202207L
+#   error "__cpp_lib_ranges should have the value 202207L in c++23"
 # endif
 
 # ifndef __cpp_lib_ranges_as_rvalue
-#   error "__cpp_lib_ranges_as_rvalue should be defined in c++2b"
+#   error "__cpp_lib_ranges_as_rvalue should be defined in c++23"
 # endif
 # if __cpp_lib_ranges_as_rvalue != 202207L
-#   error "__cpp_lib_ranges_as_rvalue should have the value 202207L in c++2b"
+#   error "__cpp_lib_ranges_as_rvalue should have the value 202207L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_ranges_chunk
-#     error "__cpp_lib_ranges_chunk should be defined in c++2b"
+#     error "__cpp_lib_ranges_chunk should be defined in c++23"
 #   endif
 #   if __cpp_lib_ranges_chunk != 202202L
-#     error "__cpp_lib_ranges_chunk should have the value 202202L in c++2b"
+#     error "__cpp_lib_ranges_chunk should have the value 202202L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_ranges_chunk
@@ -4544,10 +4972,10 @@
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_ranges_chunk_by
-#     error "__cpp_lib_ranges_chunk_by should be defined in c++2b"
+#     error "__cpp_lib_ranges_chunk_by should be defined in c++23"
 #   endif
 #   if __cpp_lib_ranges_chunk_by != 202202L
-#     error "__cpp_lib_ranges_chunk_by should have the value 202202L in c++2b"
+#     error "__cpp_lib_ranges_chunk_by should have the value 202202L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_ranges_chunk_by
@@ -4557,10 +4985,10 @@
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_ranges_iota
-#     error "__cpp_lib_ranges_iota should be defined in c++2b"
+#     error "__cpp_lib_ranges_iota should be defined in c++23"
 #   endif
 #   if __cpp_lib_ranges_iota != 202202L
-#     error "__cpp_lib_ranges_iota should have the value 202202L in c++2b"
+#     error "__cpp_lib_ranges_iota should have the value 202202L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_ranges_iota
@@ -4570,10 +4998,10 @@
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_ranges_join_with
-#     error "__cpp_lib_ranges_join_with should be defined in c++2b"
+#     error "__cpp_lib_ranges_join_with should be defined in c++23"
 #   endif
 #   if __cpp_lib_ranges_join_with != 202202L
-#     error "__cpp_lib_ranges_join_with should have the value 202202L in c++2b"
+#     error "__cpp_lib_ranges_join_with should have the value 202202L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_ranges_join_with
@@ -4581,12 +5009,19 @@
 #   endif
 # endif
 
+# ifndef __cpp_lib_ranges_repeat
+#   error "__cpp_lib_ranges_repeat should be defined in c++23"
+# endif
+# if __cpp_lib_ranges_repeat != 202207L
+#   error "__cpp_lib_ranges_repeat should have the value 202207L in c++23"
+# endif
+
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_ranges_slide
-#     error "__cpp_lib_ranges_slide should be defined in c++2b"
+#     error "__cpp_lib_ranges_slide should be defined in c++23"
 #   endif
 #   if __cpp_lib_ranges_slide != 202202L
-#     error "__cpp_lib_ranges_slide should have the value 202202L in c++2b"
+#     error "__cpp_lib_ranges_slide should have the value 202202L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_ranges_slide
@@ -4596,10 +5031,10 @@
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_ranges_starts_ends_with
-#     error "__cpp_lib_ranges_starts_ends_with should be defined in c++2b"
+#     error "__cpp_lib_ranges_starts_ends_with should be defined in c++23"
 #   endif
 #   if __cpp_lib_ranges_starts_ends_with != 202106L
-#     error "__cpp_lib_ranges_starts_ends_with should have the value 202106L in c++2b"
+#     error "__cpp_lib_ranges_starts_ends_with should have the value 202106L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_ranges_starts_ends_with
@@ -4607,25 +5042,19 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_ranges_to_container
-#     error "__cpp_lib_ranges_to_container should be defined in c++2b"
-#   endif
-#   if __cpp_lib_ranges_to_container != 202202L
-#     error "__cpp_lib_ranges_to_container should have the value 202202L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_ranges_to_container
-#     error "__cpp_lib_ranges_to_container should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_ranges_to_container
+#   error "__cpp_lib_ranges_to_container should be defined in c++23"
+# endif
+# if __cpp_lib_ranges_to_container != 202202L
+#   error "__cpp_lib_ranges_to_container should have the value 202202L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_ranges_zip
-#     error "__cpp_lib_ranges_zip should be defined in c++2b"
+#     error "__cpp_lib_ranges_zip should be defined in c++23"
 #   endif
 #   if __cpp_lib_ranges_zip != 202110L
-#     error "__cpp_lib_ranges_zip should have the value 202110L in c++2b"
+#     error "__cpp_lib_ranges_zip should have the value 202110L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_ranges_zip
@@ -4633,19 +5062,27 @@
 #   endif
 # endif
 
+# ifdef __cpp_lib_ratio
+#   error "__cpp_lib_ratio should not be defined before c++26"
+# endif
+
 # ifndef __cpp_lib_raw_memory_algorithms
-#   error "__cpp_lib_raw_memory_algorithms should be defined in c++2b"
+#   error "__cpp_lib_raw_memory_algorithms should be defined in c++23"
 # endif
 # if __cpp_lib_raw_memory_algorithms != 201606L
-#   error "__cpp_lib_raw_memory_algorithms should have the value 201606L in c++2b"
+#   error "__cpp_lib_raw_memory_algorithms should have the value 201606L in c++23"
+# endif
+
+# ifdef __cpp_lib_rcu
+#   error "__cpp_lib_rcu should not be defined before c++26"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_reference_from_temporary
-#     error "__cpp_lib_reference_from_temporary should be defined in c++2b"
+#     error "__cpp_lib_reference_from_temporary should be defined in c++23"
 #   endif
 #   if __cpp_lib_reference_from_temporary != 202202L
-#     error "__cpp_lib_reference_from_temporary should have the value 202202L in c++2b"
+#     error "__cpp_lib_reference_from_temporary should have the value 202202L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_reference_from_temporary
@@ -4654,106 +5091,106 @@
 # endif
 
 # ifndef __cpp_lib_remove_cvref
-#   error "__cpp_lib_remove_cvref should be defined in c++2b"
+#   error "__cpp_lib_remove_cvref should be defined in c++23"
 # endif
 # if __cpp_lib_remove_cvref != 201711L
-#   error "__cpp_lib_remove_cvref should have the value 201711L in c++2b"
+#   error "__cpp_lib_remove_cvref should have the value 201711L in c++23"
 # endif
 
 # ifndef __cpp_lib_result_of_sfinae
-#   error "__cpp_lib_result_of_sfinae should be defined in c++2b"
+#   error "__cpp_lib_result_of_sfinae should be defined in c++23"
 # endif
 # if __cpp_lib_result_of_sfinae != 201210L
-#   error "__cpp_lib_result_of_sfinae should have the value 201210L in c++2b"
+#   error "__cpp_lib_result_of_sfinae should have the value 201210L in c++23"
 # endif
 
 # ifndef __cpp_lib_robust_nonmodifying_seq_ops
-#   error "__cpp_lib_robust_nonmodifying_seq_ops should be defined in c++2b"
+#   error "__cpp_lib_robust_nonmodifying_seq_ops should be defined in c++23"
 # endif
 # if __cpp_lib_robust_nonmodifying_seq_ops != 201304L
-#   error "__cpp_lib_robust_nonmodifying_seq_ops should have the value 201304L in c++2b"
+#   error "__cpp_lib_robust_nonmodifying_seq_ops should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_sample
-#   error "__cpp_lib_sample should be defined in c++2b"
+#   error "__cpp_lib_sample should be defined in c++23"
 # endif
 # if __cpp_lib_sample != 201603L
-#   error "__cpp_lib_sample should have the value 201603L in c++2b"
+#   error "__cpp_lib_sample should have the value 201603L in c++23"
 # endif
 
 # ifndef __cpp_lib_scoped_lock
-#   error "__cpp_lib_scoped_lock should be defined in c++2b"
+#   error "__cpp_lib_scoped_lock should be defined in c++23"
 # endif
 # if __cpp_lib_scoped_lock != 201703L
-#   error "__cpp_lib_scoped_lock should have the value 201703L in c++2b"
+#   error "__cpp_lib_scoped_lock should have the value 201703L in c++23"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
 #   ifndef __cpp_lib_semaphore
-#     error "__cpp_lib_semaphore should be defined in c++2b"
+#     error "__cpp_lib_semaphore should be defined in c++23"
 #   endif
 #   if __cpp_lib_semaphore != 201907L
-#     error "__cpp_lib_semaphore should have the value 201907L in c++2b"
+#     error "__cpp_lib_semaphore should have the value 201907L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_semaphore
-#     error "__cpp_lib_semaphore should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_semaphore)' is not met!"
+#     error "__cpp_lib_semaphore should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
 #   endif
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_mutex
-#     error "__cpp_lib_shared_mutex should be defined in c++2b"
+#     error "__cpp_lib_shared_mutex should be defined in c++23"
 #   endif
 #   if __cpp_lib_shared_mutex != 201505L
-#     error "__cpp_lib_shared_mutex should have the value 201505L in c++2b"
+#     error "__cpp_lib_shared_mutex should have the value 201505L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_shared_mutex
-#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_mutex)' is not met!"
+#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
 # ifndef __cpp_lib_shared_ptr_arrays
-#   error "__cpp_lib_shared_ptr_arrays should be defined in c++2b"
+#   error "__cpp_lib_shared_ptr_arrays should be defined in c++23"
 # endif
 # if __cpp_lib_shared_ptr_arrays != 201707L
-#   error "__cpp_lib_shared_ptr_arrays should have the value 201707L in c++2b"
+#   error "__cpp_lib_shared_ptr_arrays should have the value 201707L in c++23"
 # endif
 
 # ifndef __cpp_lib_shared_ptr_weak_type
-#   error "__cpp_lib_shared_ptr_weak_type should be defined in c++2b"
+#   error "__cpp_lib_shared_ptr_weak_type should be defined in c++23"
 # endif
 # if __cpp_lib_shared_ptr_weak_type != 201606L
-#   error "__cpp_lib_shared_ptr_weak_type should have the value 201606L in c++2b"
+#   error "__cpp_lib_shared_ptr_weak_type should have the value 201606L in c++23"
 # endif
 
-# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
 #   ifndef __cpp_lib_shared_timed_mutex
-#     error "__cpp_lib_shared_timed_mutex should be defined in c++2b"
+#     error "__cpp_lib_shared_timed_mutex should be defined in c++23"
 #   endif
 #   if __cpp_lib_shared_timed_mutex != 201402L
-#     error "__cpp_lib_shared_timed_mutex should have the value 201402L in c++2b"
+#     error "__cpp_lib_shared_timed_mutex should have the value 201402L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_shared_timed_mutex
-#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_shared_timed_mutex)' is not met!"
+#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
 #   endif
 # endif
 
 # ifndef __cpp_lib_shift
-#   error "__cpp_lib_shift should be defined in c++2b"
+#   error "__cpp_lib_shift should be defined in c++23"
 # endif
 # if __cpp_lib_shift != 201806L
-#   error "__cpp_lib_shift should have the value 201806L in c++2b"
+#   error "__cpp_lib_shift should have the value 201806L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_smart_ptr_for_overwrite
-#     error "__cpp_lib_smart_ptr_for_overwrite should be defined in c++2b"
+#     error "__cpp_lib_smart_ptr_for_overwrite should be defined in c++23"
 #   endif
 #   if __cpp_lib_smart_ptr_for_overwrite != 202002L
-#     error "__cpp_lib_smart_ptr_for_overwrite should have the value 202002L in c++2b"
+#     error "__cpp_lib_smart_ptr_for_overwrite should have the value 202002L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_smart_ptr_for_overwrite
@@ -4761,12 +5198,16 @@
 #   endif
 # endif
 
+# ifdef __cpp_lib_smart_ptr_owner_equality
+#   error "__cpp_lib_smart_ptr_owner_equality should not be defined before c++26"
+# endif
+
 # if __has_builtin(__builtin_source_location) && !(defined(TEST_APPLE_CLANG_VER) && TEST_APPLE_CLANG_VER <= 1403)
 #   ifndef __cpp_lib_source_location
-#     error "__cpp_lib_source_location should be defined in c++2b"
+#     error "__cpp_lib_source_location should be defined in c++23"
 #   endif
 #   if __cpp_lib_source_location != 201907L
-#     error "__cpp_lib_source_location should have the value 201907L in c++2b"
+#     error "__cpp_lib_source_location should have the value 201907L in c++23"
 #   endif
 # else
 #   ifdef __cpp_lib_source_location
@@ -4775,18 +5216,18 @@
 # endif
 
 # ifndef __cpp_lib_span
-#   error "__cpp_lib_span should be defined in c++2b"
+#   error "__cpp_lib_span should be defined in c++23"
 # endif
 # if __cpp_lib_span != 202002L
-#   error "__cpp_lib_span should have the value 202002L in c++2b"
+#   error "__cpp_lib_span should have the value 202002L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_spanstream
-#     error "__cpp_lib_spanstream should be defined in c++2b"
+#     error "__cpp_lib_spanstream should be defined in c++23"
 #   endif
 #   if __cpp_lib_spanstream != 202106L
-#     error "__cpp_lib_spanstream should have the value 202106L in c++2b"
+#     error "__cpp_lib_spanstream should have the value 202106L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_spanstream
@@ -4795,18 +5236,22 @@
 # endif
 
 # ifndef __cpp_lib_ssize
-#   error "__cpp_lib_ssize should be defined in c++2b"
+#   error "__cpp_lib_ssize should be defined in c++23"
 # endif
 # if __cpp_lib_ssize != 201902L
-#   error "__cpp_lib_ssize should have the value 201902L in c++2b"
+#   error "__cpp_lib_ssize should have the value 201902L in c++23"
+# endif
+
+# ifdef __cpp_lib_sstream_from_string_view
+#   error "__cpp_lib_sstream_from_string_view should not be defined before c++26"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_stacktrace
-#     error "__cpp_lib_stacktrace should be defined in c++2b"
+#     error "__cpp_lib_stacktrace should be defined in c++23"
 #   endif
 #   if __cpp_lib_stacktrace != 202011L
-#     error "__cpp_lib_stacktrace should have the value 202011L in c++2b"
+#     error "__cpp_lib_stacktrace should have the value 202011L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_stacktrace
@@ -4815,53 +5260,57 @@
 # endif
 
 # ifndef __cpp_lib_starts_ends_with
-#   error "__cpp_lib_starts_ends_with should be defined in c++2b"
+#   error "__cpp_lib_starts_ends_with should be defined in c++23"
 # endif
 # if __cpp_lib_starts_ends_with != 201711L
-#   error "__cpp_lib_starts_ends_with should have the value 201711L in c++2b"
+#   error "__cpp_lib_starts_ends_with should have the value 201711L in c++23"
 # endif
 
 # ifndef __cpp_lib_stdatomic_h
-#   error "__cpp_lib_stdatomic_h should be defined in c++2b"
+#   error "__cpp_lib_stdatomic_h should be defined in c++23"
 # endif
 # if __cpp_lib_stdatomic_h != 202011L
-#   error "__cpp_lib_stdatomic_h should have the value 202011L in c++2b"
+#   error "__cpp_lib_stdatomic_h should have the value 202011L in c++23"
 # endif
 
 # ifndef __cpp_lib_string_contains
-#   error "__cpp_lib_string_contains should be defined in c++2b"
+#   error "__cpp_lib_string_contains should be defined in c++23"
 # endif
 # if __cpp_lib_string_contains != 202011L
-#   error "__cpp_lib_string_contains should have the value 202011L in c++2b"
+#   error "__cpp_lib_string_contains should have the value 202011L in c++23"
 # endif
 
 # ifndef __cpp_lib_string_resize_and_overwrite
-#   error "__cpp_lib_string_resize_and_overwrite should be defined in c++2b"
+#   error "__cpp_lib_string_resize_and_overwrite should be defined in c++23"
 # endif
 # if __cpp_lib_string_resize_and_overwrite != 202110L
-#   error "__cpp_lib_string_resize_and_overwrite should have the value 202110L in c++2b"
+#   error "__cpp_lib_string_resize_and_overwrite should have the value 202110L in c++23"
 # endif
 
 # ifndef __cpp_lib_string_udls
-#   error "__cpp_lib_string_udls should be defined in c++2b"
+#   error "__cpp_lib_string_udls should be defined in c++23"
 # endif
 # if __cpp_lib_string_udls != 201304L
-#   error "__cpp_lib_string_udls should have the value 201304L in c++2b"
+#   error "__cpp_lib_string_udls should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_string_view
-#   error "__cpp_lib_string_view should be defined in c++2b"
+#   error "__cpp_lib_string_view should be defined in c++23"
 # endif
 # if __cpp_lib_string_view != 201803L
-#   error "__cpp_lib_string_view should have the value 201803L in c++2b"
+#   error "__cpp_lib_string_view should have the value 201803L in c++23"
+# endif
+
+# ifdef __cpp_lib_submdspan
+#   error "__cpp_lib_submdspan should not be defined before c++26"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_syncbuf
-#     error "__cpp_lib_syncbuf should be defined in c++2b"
+#     error "__cpp_lib_syncbuf should be defined in c++23"
 #   endif
 #   if __cpp_lib_syncbuf != 201803L
-#     error "__cpp_lib_syncbuf should have the value 201803L in c++2b"
+#     error "__cpp_lib_syncbuf should have the value 201803L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_syncbuf
@@ -4869,12 +5318,16 @@
 #   endif
 # endif
 
+# ifdef __cpp_lib_text_encoding
+#   error "__cpp_lib_text_encoding should not be defined before c++26"
+# endif
+
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_three_way_comparison
-#     error "__cpp_lib_three_way_comparison should be defined in c++2b"
+#     error "__cpp_lib_three_way_comparison should be defined in c++23"
 #   endif
 #   if __cpp_lib_three_way_comparison != 201907L
-#     error "__cpp_lib_three_way_comparison should have the value 201907L in c++2b"
+#     error "__cpp_lib_three_way_comparison should have the value 201907L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_three_way_comparison
@@ -4883,25 +5336,25 @@
 # endif
 
 # ifndef __cpp_lib_to_address
-#   error "__cpp_lib_to_address should be defined in c++2b"
+#   error "__cpp_lib_to_address should be defined in c++23"
 # endif
 # if __cpp_lib_to_address != 201711L
-#   error "__cpp_lib_to_address should have the value 201711L in c++2b"
+#   error "__cpp_lib_to_address should have the value 201711L in c++23"
 # endif
 
 # ifndef __cpp_lib_to_array
-#   error "__cpp_lib_to_array should be defined in c++2b"
+#   error "__cpp_lib_to_array should be defined in c++23"
 # endif
 # if __cpp_lib_to_array != 201907L
-#   error "__cpp_lib_to_array should have the value 201907L in c++2b"
+#   error "__cpp_lib_to_array should have the value 201907L in c++23"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_to_chars
-#     error "__cpp_lib_to_chars should be defined in c++2b"
+#     error "__cpp_lib_to_chars should be defined in c++23"
 #   endif
 #   if __cpp_lib_to_chars != 201611L
-#     error "__cpp_lib_to_chars should have the value 201611L in c++2b"
+#     error "__cpp_lib_to_chars should have the value 201611L in c++23"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_to_chars
@@ -4909,96 +5362,1723 @@
 #   endif
 # endif
 
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_to_string
+#     error "__cpp_lib_to_string should be defined in c++23"
+#   endif
+#   if __cpp_lib_to_string != 202306L
+#     error "__cpp_lib_to_string should have the value 202306L in c++23"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_to_string
+#     error "__cpp_lib_to_string should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
 # ifndef __cpp_lib_to_underlying
-#   error "__cpp_lib_to_underlying should be defined in c++2b"
+#   error "__cpp_lib_to_underlying should be defined in c++23"
 # endif
 # if __cpp_lib_to_underlying != 202102L
-#   error "__cpp_lib_to_underlying should have the value 202102L in c++2b"
+#   error "__cpp_lib_to_underlying should have the value 202102L in c++23"
 # endif
 
 # ifndef __cpp_lib_transformation_trait_aliases
-#   error "__cpp_lib_transformation_trait_aliases should be defined in c++2b"
+#   error "__cpp_lib_transformation_trait_aliases should be defined in c++23"
 # endif
 # if __cpp_lib_transformation_trait_aliases != 201304L
-#   error "__cpp_lib_transformation_trait_aliases should have the value 201304L in c++2b"
+#   error "__cpp_lib_transformation_trait_aliases should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_transparent_operators
-#   error "__cpp_lib_transparent_operators should be defined in c++2b"
+#   error "__cpp_lib_transparent_operators should be defined in c++23"
 # endif
 # if __cpp_lib_transparent_operators != 201510L
-#   error "__cpp_lib_transparent_operators should have the value 201510L in c++2b"
+#   error "__cpp_lib_transparent_operators should have the value 201510L in c++23"
 # endif
 
 # ifndef __cpp_lib_tuple_element_t
-#   error "__cpp_lib_tuple_element_t should be defined in c++2b"
+#   error "__cpp_lib_tuple_element_t should be defined in c++23"
 # endif
 # if __cpp_lib_tuple_element_t != 201402L
-#   error "__cpp_lib_tuple_element_t should have the value 201402L in c++2b"
+#   error "__cpp_lib_tuple_element_t should have the value 201402L in c++23"
 # endif
 
 # ifndef __cpp_lib_tuples_by_type
-#   error "__cpp_lib_tuples_by_type should be defined in c++2b"
+#   error "__cpp_lib_tuples_by_type should be defined in c++23"
 # endif
 # if __cpp_lib_tuples_by_type != 201304L
-#   error "__cpp_lib_tuples_by_type should have the value 201304L in c++2b"
+#   error "__cpp_lib_tuples_by_type should have the value 201304L in c++23"
 # endif
 
 # ifndef __cpp_lib_type_identity
-#   error "__cpp_lib_type_identity should be defined in c++2b"
+#   error "__cpp_lib_type_identity should be defined in c++23"
 # endif
 # if __cpp_lib_type_identity != 201806L
-#   error "__cpp_lib_type_identity should have the value 201806L in c++2b"
+#   error "__cpp_lib_type_identity should have the value 201806L in c++23"
 # endif
 
 # ifndef __cpp_lib_type_trait_variable_templates
-#   error "__cpp_lib_type_trait_variable_templates should be defined in c++2b"
+#   error "__cpp_lib_type_trait_variable_templates should be defined in c++23"
 # endif
 # if __cpp_lib_type_trait_variable_templates != 201510L
-#   error "__cpp_lib_type_trait_variable_templates should have the value 201510L in c++2b"
+#   error "__cpp_lib_type_trait_variable_templates should have the value 201510L in c++23"
 # endif
 
 # ifndef __cpp_lib_uncaught_exceptions
-#   error "__cpp_lib_uncaught_exceptions should be defined in c++2b"
+#   error "__cpp_lib_uncaught_exceptions should be defined in c++23"
 # endif
 # if __cpp_lib_uncaught_exceptions != 201411L
-#   error "__cpp_lib_uncaught_exceptions should have the value 201411L in c++2b"
+#   error "__cpp_lib_uncaught_exceptions should have the value 201411L in c++23"
 # endif
 
 # ifndef __cpp_lib_unordered_map_try_emplace
-#   error "__cpp_lib_unordered_map_try_emplace should be defined in c++2b"
+#   error "__cpp_lib_unordered_map_try_emplace should be defined in c++23"
 # endif
 # if __cpp_lib_unordered_map_try_emplace != 201411L
-#   error "__cpp_lib_unordered_map_try_emplace should have the value 201411L in c++2b"
+#   error "__cpp_lib_unordered_map_try_emplace should have the value 201411L in c++23"
 # endif
 
 # ifndef __cpp_lib_unreachable
-#   error "__cpp_lib_unreachable should be defined in c++2b"
+#   error "__cpp_lib_unreachable should be defined in c++23"
 # endif
 # if __cpp_lib_unreachable != 202202L
-#   error "__cpp_lib_unreachable should have the value 202202L in c++2b"
+#   error "__cpp_lib_unreachable should have the value 202202L in c++23"
 # endif
 
 # ifndef __cpp_lib_unwrap_ref
-#   error "__cpp_lib_unwrap_ref should be defined in c++2b"
+#   error "__cpp_lib_unwrap_ref should be defined in c++23"
 # endif
 # if __cpp_lib_unwrap_ref != 201811L
-#   error "__cpp_lib_unwrap_ref should have the value 201811L in c++2b"
+#   error "__cpp_lib_unwrap_ref should have the value 201811L in c++23"
 # endif
 
 # ifndef __cpp_lib_variant
-#   error "__cpp_lib_variant should be defined in c++2b"
+#   error "__cpp_lib_variant should be defined in c++23"
 # endif
 # if __cpp_lib_variant != 202102L
-#   error "__cpp_lib_variant should have the value 202102L in c++2b"
+#   error "__cpp_lib_variant should have the value 202102L in c++23"
 # endif
 
 # ifndef __cpp_lib_void_t
-#   error "__cpp_lib_void_t should be defined in c++2b"
+#   error "__cpp_lib_void_t should be defined in c++23"
 # endif
 # if __cpp_lib_void_t != 201411L
-#   error "__cpp_lib_void_t should have the value 201411L in c++2b"
+#   error "__cpp_lib_void_t should have the value 201411L in c++23"
 # endif
 
-#endif // TEST_STD_VER > 20
+# ifdef __cpp_lib_within_lifetime
+#   error "__cpp_lib_within_lifetime should not be defined before c++26"
+# endif
+
+#elif TEST_STD_VER > 23
+
+# ifndef __cpp_lib_adaptor_iterator_pair_constructor
+#   error "__cpp_lib_adaptor_iterator_pair_constructor should be defined in c++26"
+# endif
+# if __cpp_lib_adaptor_iterator_pair_constructor != 202106L
+#   error "__cpp_lib_adaptor_iterator_pair_constructor should have the value 202106L in c++26"
+# endif
+
+# ifndef __cpp_lib_addressof_constexpr
+#   error "__cpp_lib_addressof_constexpr should be defined in c++26"
+# endif
+# if __cpp_lib_addressof_constexpr != 201603L
+#   error "__cpp_lib_addressof_constexpr should have the value 201603L in c++26"
+# endif
+
+# ifndef __cpp_lib_allocate_at_least
+#   error "__cpp_lib_allocate_at_least should be defined in c++26"
+# endif
+# if __cpp_lib_allocate_at_least != 202106L
+#   error "__cpp_lib_allocate_at_least should have the value 202106L in c++26"
+# endif
+
+# ifndef __cpp_lib_allocator_traits_is_always_equal
+#   error "__cpp_lib_allocator_traits_is_always_equal should be defined in c++26"
+# endif
+# if __cpp_lib_allocator_traits_is_always_equal != 201411L
+#   error "__cpp_lib_allocator_traits_is_always_equal should have the value 201411L in c++26"
+# endif
+
+# ifndef __cpp_lib_any
+#   error "__cpp_lib_any should be defined in c++26"
+# endif
+# if __cpp_lib_any != 201606L
+#   error "__cpp_lib_any should have the value 201606L in c++26"
+# endif
+
+# ifndef __cpp_lib_apply
+#   error "__cpp_lib_apply should be defined in c++26"
+# endif
+# if __cpp_lib_apply != 201603L
+#   error "__cpp_lib_apply should have the value 201603L in c++26"
+# endif
+
+# ifndef __cpp_lib_array_constexpr
+#   error "__cpp_lib_array_constexpr should be defined in c++26"
+# endif
+# if __cpp_lib_array_constexpr != 201811L
+#   error "__cpp_lib_array_constexpr should have the value 201811L in c++26"
+# endif
+
+# ifndef __cpp_lib_as_const
+#   error "__cpp_lib_as_const should be defined in c++26"
+# endif
+# if __cpp_lib_as_const != 201510L
+#   error "__cpp_lib_as_const should have the value 201510L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_associative_heterogeneous_erasure
+#     error "__cpp_lib_associative_heterogeneous_erasure should be defined in c++26"
+#   endif
+#   if __cpp_lib_associative_heterogeneous_erasure != 202110L
+#     error "__cpp_lib_associative_heterogeneous_erasure should have the value 202110L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_associative_heterogeneous_erasure
+#     error "__cpp_lib_associative_heterogeneous_erasure should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_associative_heterogeneous_insertion
+#     error "__cpp_lib_associative_heterogeneous_insertion should be defined in c++26"
+#   endif
+#   if __cpp_lib_associative_heterogeneous_insertion != 202306L
+#     error "__cpp_lib_associative_heterogeneous_insertion should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_associative_heterogeneous_insertion
+#     error "__cpp_lib_associative_heterogeneous_insertion should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_assume_aligned
+#   error "__cpp_lib_assume_aligned should be defined in c++26"
+# endif
+# if __cpp_lib_assume_aligned != 201811L
+#   error "__cpp_lib_assume_aligned should have the value 201811L in c++26"
+# endif
+
+# ifndef __cpp_lib_atomic_flag_test
+#   error "__cpp_lib_atomic_flag_test should be defined in c++26"
+# endif
+# if __cpp_lib_atomic_flag_test != 201907L
+#   error "__cpp_lib_atomic_flag_test should have the value 201907L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_atomic_float
+#     error "__cpp_lib_atomic_float should be defined in c++26"
+#   endif
+#   if __cpp_lib_atomic_float != 201711L
+#     error "__cpp_lib_atomic_float should have the value 201711L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_atomic_float
+#     error "__cpp_lib_atomic_float should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_atomic_is_always_lock_free
+#   error "__cpp_lib_atomic_is_always_lock_free should be defined in c++26"
+# endif
+# if __cpp_lib_atomic_is_always_lock_free != 201603L
+#   error "__cpp_lib_atomic_is_always_lock_free should have the value 201603L in c++26"
+# endif
+
+# ifndef __cpp_lib_atomic_lock_free_type_aliases
+#   error "__cpp_lib_atomic_lock_free_type_aliases should be defined in c++26"
+# endif
+# if __cpp_lib_atomic_lock_free_type_aliases != 201907L
+#   error "__cpp_lib_atomic_lock_free_type_aliases should have the value 201907L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_atomic_ref
+#     error "__cpp_lib_atomic_ref should be defined in c++26"
+#   endif
+#   if __cpp_lib_atomic_ref != 201806L
+#     error "__cpp_lib_atomic_ref should have the value 201806L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_atomic_ref
+#     error "__cpp_lib_atomic_ref should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_atomic_shared_ptr
+#     error "__cpp_lib_atomic_shared_ptr should be defined in c++26"
+#   endif
+#   if __cpp_lib_atomic_shared_ptr != 201711L
+#     error "__cpp_lib_atomic_shared_ptr should have the value 201711L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_atomic_shared_ptr
+#     error "__cpp_lib_atomic_shared_ptr should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_atomic_value_initialization
+#   error "__cpp_lib_atomic_value_initialization should be defined in c++26"
+# endif
+# if __cpp_lib_atomic_value_initialization != 201911L
+#   error "__cpp_lib_atomic_value_initialization should have the value 201911L in c++26"
+# endif
+
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
+#   ifndef __cpp_lib_atomic_wait
+#     error "__cpp_lib_atomic_wait should be defined in c++26"
+#   endif
+#   if __cpp_lib_atomic_wait != 201907L
+#     error "__cpp_lib_atomic_wait should have the value 201907L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_atomic_wait
+#     error "__cpp_lib_atomic_wait should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
+#   ifndef __cpp_lib_barrier
+#     error "__cpp_lib_barrier should be defined in c++26"
+#   endif
+#   if __cpp_lib_barrier != 201907L
+#     error "__cpp_lib_barrier should have the value 201907L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_barrier
+#     error "__cpp_lib_barrier should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_bind_back
+#     error "__cpp_lib_bind_back should be defined in c++26"
+#   endif
+#   if __cpp_lib_bind_back != 202306L
+#     error "__cpp_lib_bind_back should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_bind_back
+#     error "__cpp_lib_bind_back should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_bind_front
+#   error "__cpp_lib_bind_front should be defined in c++26"
+# endif
+# if __cpp_lib_bind_front != 202306L
+#   error "__cpp_lib_bind_front should have the value 202306L in c++26"
+# endif
+
+# ifndef __cpp_lib_bit_cast
+#   error "__cpp_lib_bit_cast should be defined in c++26"
+# endif
+# if __cpp_lib_bit_cast != 201806L
+#   error "__cpp_lib_bit_cast should have the value 201806L in c++26"
+# endif
+
+# ifndef __cpp_lib_bitops
+#   error "__cpp_lib_bitops should be defined in c++26"
+# endif
+# if __cpp_lib_bitops != 201907L
+#   error "__cpp_lib_bitops should have the value 201907L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_bitset
+#     error "__cpp_lib_bitset should be defined in c++26"
+#   endif
+#   if __cpp_lib_bitset != 202306L
+#     error "__cpp_lib_bitset should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_bitset
+#     error "__cpp_lib_bitset should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_bool_constant
+#   error "__cpp_lib_bool_constant should be defined in c++26"
+# endif
+# if __cpp_lib_bool_constant != 201505L
+#   error "__cpp_lib_bool_constant should have the value 201505L in c++26"
+# endif
+
+# ifndef __cpp_lib_bounded_array_traits
+#   error "__cpp_lib_bounded_array_traits should be defined in c++26"
+# endif
+# if __cpp_lib_bounded_array_traits != 201902L
+#   error "__cpp_lib_bounded_array_traits should have the value 201902L in c++26"
+# endif
+
+# ifndef __cpp_lib_boyer_moore_searcher
+#   error "__cpp_lib_boyer_moore_searcher should be defined in c++26"
+# endif
+# if __cpp_lib_boyer_moore_searcher != 201603L
+#   error "__cpp_lib_boyer_moore_searcher should have the value 201603L in c++26"
+# endif
+
+# ifndef __cpp_lib_byte
+#   error "__cpp_lib_byte should be defined in c++26"
+# endif
+# if __cpp_lib_byte != 201603L
+#   error "__cpp_lib_byte should have the value 201603L in c++26"
+# endif
+
+# ifndef __cpp_lib_byteswap
+#   error "__cpp_lib_byteswap should be defined in c++26"
+# endif
+# if __cpp_lib_byteswap != 202110L
+#   error "__cpp_lib_byteswap should have the value 202110L in c++26"
+# endif
+
+# if defined(__cpp_char8_t)
+#   ifndef __cpp_lib_char8_t
+#     error "__cpp_lib_char8_t should be defined in c++26"
+#   endif
+#   if __cpp_lib_char8_t != 201907L
+#     error "__cpp_lib_char8_t should have the value 201907L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_char8_t
+#     error "__cpp_lib_char8_t should not be defined when the requirement 'defined(__cpp_char8_t)' is not met!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_chrono
+#   error "__cpp_lib_chrono should be defined in c++26"
+# endif
+# if __cpp_lib_chrono != 201611L
+#   error "__cpp_lib_chrono should have the value 201611L in c++26"
+# endif
+
+# ifndef __cpp_lib_chrono_udls
+#   error "__cpp_lib_chrono_udls should be defined in c++26"
+# endif
+# if __cpp_lib_chrono_udls != 201304L
+#   error "__cpp_lib_chrono_udls should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_clamp
+#   error "__cpp_lib_clamp should be defined in c++26"
+# endif
+# if __cpp_lib_clamp != 201603L
+#   error "__cpp_lib_clamp should have the value 201603L in c++26"
+# endif
+
+# ifndef __cpp_lib_complex_udls
+#   error "__cpp_lib_complex_udls should be defined in c++26"
+# endif
+# if __cpp_lib_complex_udls != 201309L
+#   error "__cpp_lib_complex_udls should have the value 201309L in c++26"
+# endif
+
+# ifndef __cpp_lib_concepts
+#   error "__cpp_lib_concepts should be defined in c++26"
+# endif
+# if __cpp_lib_concepts != 202002L
+#   error "__cpp_lib_concepts should have the value 202002L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_algorithms
+#   error "__cpp_lib_constexpr_algorithms should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_algorithms != 201806L
+#   error "__cpp_lib_constexpr_algorithms should have the value 201806L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_bitset
+#   error "__cpp_lib_constexpr_bitset should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_bitset != 202207L
+#   error "__cpp_lib_constexpr_bitset should have the value 202207L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_charconv
+#   error "__cpp_lib_constexpr_charconv should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_charconv != 202207L
+#   error "__cpp_lib_constexpr_charconv should have the value 202207L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_constexpr_cmath
+#     error "__cpp_lib_constexpr_cmath should be defined in c++26"
+#   endif
+#   if __cpp_lib_constexpr_cmath != 202202L
+#     error "__cpp_lib_constexpr_cmath should have the value 202202L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_constexpr_cmath
+#     error "__cpp_lib_constexpr_cmath should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_constexpr_complex
+#   error "__cpp_lib_constexpr_complex should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_complex != 201711L
+#   error "__cpp_lib_constexpr_complex should have the value 201711L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_dynamic_alloc
+#   error "__cpp_lib_constexpr_dynamic_alloc should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_dynamic_alloc != 201907L
+#   error "__cpp_lib_constexpr_dynamic_alloc should have the value 201907L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_functional
+#   error "__cpp_lib_constexpr_functional should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_functional != 201907L
+#   error "__cpp_lib_constexpr_functional should have the value 201907L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_iterator
+#   error "__cpp_lib_constexpr_iterator should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_iterator != 201811L
+#   error "__cpp_lib_constexpr_iterator should have the value 201811L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_memory
+#   error "__cpp_lib_constexpr_memory should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_memory != 202202L
+#   error "__cpp_lib_constexpr_memory should have the value 202202L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_numeric
+#   error "__cpp_lib_constexpr_numeric should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_numeric != 201911L
+#   error "__cpp_lib_constexpr_numeric should have the value 201911L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_string
+#   error "__cpp_lib_constexpr_string should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_string != 201907L
+#   error "__cpp_lib_constexpr_string should have the value 201907L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_string_view
+#   error "__cpp_lib_constexpr_string_view should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_string_view != 201811L
+#   error "__cpp_lib_constexpr_string_view should have the value 201811L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_tuple
+#   error "__cpp_lib_constexpr_tuple should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_tuple != 201811L
+#   error "__cpp_lib_constexpr_tuple should have the value 201811L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_typeinfo
+#   error "__cpp_lib_constexpr_typeinfo should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_typeinfo != 202106L
+#   error "__cpp_lib_constexpr_typeinfo should have the value 202106L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_utility
+#   error "__cpp_lib_constexpr_utility should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_utility != 201811L
+#   error "__cpp_lib_constexpr_utility should have the value 201811L in c++26"
+# endif
+
+# ifndef __cpp_lib_constexpr_vector
+#   error "__cpp_lib_constexpr_vector should be defined in c++26"
+# endif
+# if __cpp_lib_constexpr_vector != 201907L
+#   error "__cpp_lib_constexpr_vector should have the value 201907L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_copyable_function
+#     error "__cpp_lib_copyable_function should be defined in c++26"
+#   endif
+#   if __cpp_lib_copyable_function != 202306L
+#     error "__cpp_lib_copyable_function should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_copyable_function
+#     error "__cpp_lib_copyable_function should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_coroutine
+#   error "__cpp_lib_coroutine should be defined in c++26"
+# endif
+# if __cpp_lib_coroutine != 201902L
+#   error "__cpp_lib_coroutine should have the value 201902L in c++26"
+# endif
+
+# if TEST_STD_VER > 17 && defined(__cpp_impl_destroying_delete) && __cpp_impl_destroying_delete >= 201806L
+#   ifndef __cpp_lib_destroying_delete
+#     error "__cpp_lib_destroying_delete should be defined in c++26"
+#   endif
+#   if __cpp_lib_destroying_delete != 201806L
+#     error "__cpp_lib_destroying_delete should have the value 201806L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_destroying_delete
+#     error "__cpp_lib_destroying_delete should not be defined when the requirement 'TEST_STD_VER > 17 && defined(__cpp_impl_destroying_delete) && __cpp_impl_destroying_delete >= 201806L' is not met!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_enable_shared_from_this
+#   error "__cpp_lib_enable_shared_from_this should be defined in c++26"
+# endif
+# if __cpp_lib_enable_shared_from_this != 201603L
+#   error "__cpp_lib_enable_shared_from_this should have the value 201603L in c++26"
+# endif
+
+# ifndef __cpp_lib_endian
+#   error "__cpp_lib_endian should be defined in c++26"
+# endif
+# if __cpp_lib_endian != 201907L
+#   error "__cpp_lib_endian should have the value 201907L in c++26"
+# endif
+
+# ifndef __cpp_lib_erase_if
+#   error "__cpp_lib_erase_if should be defined in c++26"
+# endif
+# if __cpp_lib_erase_if != 202002L
+#   error "__cpp_lib_erase_if should have the value 202002L in c++26"
+# endif
+
+# ifndef __cpp_lib_exchange_function
+#   error "__cpp_lib_exchange_function should be defined in c++26"
+# endif
+# if __cpp_lib_exchange_function != 201304L
+#   error "__cpp_lib_exchange_function should have the value 201304L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_execution
+#     error "__cpp_lib_execution should be defined in c++26"
+#   endif
+#   if __cpp_lib_execution != 201902L
+#     error "__cpp_lib_execution should have the value 201902L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_execution
+#     error "__cpp_lib_execution should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_expected
+#   error "__cpp_lib_expected should be defined in c++26"
+# endif
+# if __cpp_lib_expected != 202211L
+#   error "__cpp_lib_expected should have the value 202211L in c++26"
+# endif
+
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM_LIBRARY)
+#   ifndef __cpp_lib_filesystem
+#     error "__cpp_lib_filesystem should be defined in c++26"
+#   endif
+#   if __cpp_lib_filesystem != 201703L
+#     error "__cpp_lib_filesystem should have the value 201703L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_filesystem
+#     error "__cpp_lib_filesystem should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_FILESYSTEM_LIBRARY)' is not met!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_format
+#     error "__cpp_lib_format should be defined in c++26"
+#   endif
+#   if __cpp_lib_format != 202106L
+#     error "__cpp_lib_format should have the value 202106L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_format
+#     error "__cpp_lib_format should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_format_ranges
+#   error "__cpp_lib_format_ranges should be defined in c++26"
+# endif
+# if __cpp_lib_format_ranges != 202207L
+#   error "__cpp_lib_format_ranges should have the value 202207L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_formatters
+#     error "__cpp_lib_formatters should be defined in c++26"
+#   endif
+#   if __cpp_lib_formatters != 202302L
+#     error "__cpp_lib_formatters should have the value 202302L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_formatters
+#     error "__cpp_lib_formatters should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_forward_like
+#   error "__cpp_lib_forward_like should be defined in c++26"
+# endif
+# if __cpp_lib_forward_like != 202207L
+#   error "__cpp_lib_forward_like should have the value 202207L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_fstream_native_handle
+#     error "__cpp_lib_fstream_native_handle should be defined in c++26"
+#   endif
+#   if __cpp_lib_fstream_native_handle != 202306L
+#     error "__cpp_lib_fstream_native_handle should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_fstream_native_handle
+#     error "__cpp_lib_fstream_native_handle should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_function_ref
+#     error "__cpp_lib_function_ref should be defined in c++26"
+#   endif
+#   if __cpp_lib_function_ref != 202306L
+#     error "__cpp_lib_function_ref should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_function_ref
+#     error "__cpp_lib_function_ref should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_gcd_lcm
+#   error "__cpp_lib_gcd_lcm should be defined in c++26"
+# endif
+# if __cpp_lib_gcd_lcm != 201606L
+#   error "__cpp_lib_gcd_lcm should have the value 201606L in c++26"
+# endif
+
+# ifndef __cpp_lib_generic_associative_lookup
+#   error "__cpp_lib_generic_associative_lookup should be defined in c++26"
+# endif
+# if __cpp_lib_generic_associative_lookup != 201304L
+#   error "__cpp_lib_generic_associative_lookup should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_generic_unordered_lookup
+#   error "__cpp_lib_generic_unordered_lookup should be defined in c++26"
+# endif
+# if __cpp_lib_generic_unordered_lookup != 201811L
+#   error "__cpp_lib_generic_unordered_lookup should have the value 201811L in c++26"
+# endif
+
+# if defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)
+#   ifndef __cpp_lib_hardware_interference_size
+#     error "__cpp_lib_hardware_interference_size should be defined in c++26"
+#   endif
+#   if __cpp_lib_hardware_interference_size != 201703L
+#     error "__cpp_lib_hardware_interference_size should have the value 201703L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_hardware_interference_size
+#     error "__cpp_lib_hardware_interference_size should not be defined when the requirement 'defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)' is not met!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_has_unique_object_representations
+#   error "__cpp_lib_has_unique_object_representations should be defined in c++26"
+# endif
+# if __cpp_lib_has_unique_object_representations != 201606L
+#   error "__cpp_lib_has_unique_object_representations should have the value 201606L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_hazard_pointer
+#     error "__cpp_lib_hazard_pointer should be defined in c++26"
+#   endif
+#   if __cpp_lib_hazard_pointer != 202306L
+#     error "__cpp_lib_hazard_pointer should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_hazard_pointer
+#     error "__cpp_lib_hazard_pointer should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_hypot
+#   error "__cpp_lib_hypot should be defined in c++26"
+# endif
+# if __cpp_lib_hypot != 201603L
+#   error "__cpp_lib_hypot should have the value 201603L in c++26"
+# endif
+
+# ifndef __cpp_lib_incomplete_container_elements
+#   error "__cpp_lib_incomplete_container_elements should be defined in c++26"
+# endif
+# if __cpp_lib_incomplete_container_elements != 201505L
+#   error "__cpp_lib_incomplete_container_elements should have the value 201505L in c++26"
+# endif
+
+# ifndef __cpp_lib_int_pow2
+#   error "__cpp_lib_int_pow2 should be defined in c++26"
+# endif
+# if __cpp_lib_int_pow2 != 202002L
+#   error "__cpp_lib_int_pow2 should have the value 202002L in c++26"
+# endif
+
+# ifndef __cpp_lib_integer_comparison_functions
+#   error "__cpp_lib_integer_comparison_functions should be defined in c++26"
+# endif
+# if __cpp_lib_integer_comparison_functions != 202002L
+#   error "__cpp_lib_integer_comparison_functions should have the value 202002L in c++26"
+# endif
+
+# ifndef __cpp_lib_integer_sequence
+#   error "__cpp_lib_integer_sequence should be defined in c++26"
+# endif
+# if __cpp_lib_integer_sequence != 201304L
+#   error "__cpp_lib_integer_sequence should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_integral_constant_callable
+#   error "__cpp_lib_integral_constant_callable should be defined in c++26"
+# endif
+# if __cpp_lib_integral_constant_callable != 201304L
+#   error "__cpp_lib_integral_constant_callable should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_interpolate
+#   error "__cpp_lib_interpolate should be defined in c++26"
+# endif
+# if __cpp_lib_interpolate != 201902L
+#   error "__cpp_lib_interpolate should have the value 201902L in c++26"
+# endif
+
+# ifndef __cpp_lib_invoke
+#   error "__cpp_lib_invoke should be defined in c++26"
+# endif
+# if __cpp_lib_invoke != 201411L
+#   error "__cpp_lib_invoke should have the value 201411L in c++26"
+# endif
+
+# ifndef __cpp_lib_invoke_r
+#   error "__cpp_lib_invoke_r should be defined in c++26"
+# endif
+# if __cpp_lib_invoke_r != 202106L
+#   error "__cpp_lib_invoke_r should have the value 202106L in c++26"
+# endif
+
+# ifndef __cpp_lib_is_aggregate
+#   error "__cpp_lib_is_aggregate should be defined in c++26"
+# endif
+# if __cpp_lib_is_aggregate != 201703L
+#   error "__cpp_lib_is_aggregate should have the value 201703L in c++26"
+# endif
+
+# ifndef __cpp_lib_is_constant_evaluated
+#   error "__cpp_lib_is_constant_evaluated should be defined in c++26"
+# endif
+# if __cpp_lib_is_constant_evaluated != 201811L
+#   error "__cpp_lib_is_constant_evaluated should have the value 201811L in c++26"
+# endif
+
+# ifndef __cpp_lib_is_final
+#   error "__cpp_lib_is_final should be defined in c++26"
+# endif
+# if __cpp_lib_is_final != 201402L
+#   error "__cpp_lib_is_final should have the value 201402L in c++26"
+# endif
+
+# ifndef __cpp_lib_is_invocable
+#   error "__cpp_lib_is_invocable should be defined in c++26"
+# endif
+# if __cpp_lib_is_invocable != 201703L
+#   error "__cpp_lib_is_invocable should have the value 201703L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_is_layout_compatible
+#     error "__cpp_lib_is_layout_compatible should be defined in c++26"
+#   endif
+#   if __cpp_lib_is_layout_compatible != 201907L
+#     error "__cpp_lib_is_layout_compatible should have the value 201907L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_is_layout_compatible
+#     error "__cpp_lib_is_layout_compatible should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_is_nothrow_convertible
+#   error "__cpp_lib_is_nothrow_convertible should be defined in c++26"
+# endif
+# if __cpp_lib_is_nothrow_convertible != 201806L
+#   error "__cpp_lib_is_nothrow_convertible should have the value 201806L in c++26"
+# endif
+
+# ifndef __cpp_lib_is_null_pointer
+#   error "__cpp_lib_is_null_pointer should be defined in c++26"
+# endif
+# if __cpp_lib_is_null_pointer != 201309L
+#   error "__cpp_lib_is_null_pointer should have the value 201309L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_is_pointer_interconvertible
+#     error "__cpp_lib_is_pointer_interconvertible should be defined in c++26"
+#   endif
+#   if __cpp_lib_is_pointer_interconvertible != 201907L
+#     error "__cpp_lib_is_pointer_interconvertible should have the value 201907L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_is_pointer_interconvertible
+#     error "__cpp_lib_is_pointer_interconvertible should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_is_scoped_enum
+#   error "__cpp_lib_is_scoped_enum should be defined in c++26"
+# endif
+# if __cpp_lib_is_scoped_enum != 202011L
+#   error "__cpp_lib_is_scoped_enum should have the value 202011L in c++26"
+# endif
+
+# ifndef __cpp_lib_is_swappable
+#   error "__cpp_lib_is_swappable should be defined in c++26"
+# endif
+# if __cpp_lib_is_swappable != 201603L
+#   error "__cpp_lib_is_swappable should have the value 201603L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_jthread
+#     error "__cpp_lib_jthread should be defined in c++26"
+#   endif
+#   if __cpp_lib_jthread != 201911L
+#     error "__cpp_lib_jthread should have the value 201911L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_jthread
+#     error "__cpp_lib_jthread should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
+#   ifndef __cpp_lib_latch
+#     error "__cpp_lib_latch should be defined in c++26"
+#   endif
+#   if __cpp_lib_latch != 201907L
+#     error "__cpp_lib_latch should have the value 201907L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_latch
+#     error "__cpp_lib_latch should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_launder
+#   error "__cpp_lib_launder should be defined in c++26"
+# endif
+# if __cpp_lib_launder != 201606L
+#   error "__cpp_lib_launder should have the value 201606L in c++26"
+# endif
+
+# ifndef __cpp_lib_list_remove_return_type
+#   error "__cpp_lib_list_remove_return_type should be defined in c++26"
+# endif
+# if __cpp_lib_list_remove_return_type != 201806L
+#   error "__cpp_lib_list_remove_return_type should have the value 201806L in c++26"
+# endif
+
+# ifndef __cpp_lib_logical_traits
+#   error "__cpp_lib_logical_traits should be defined in c++26"
+# endif
+# if __cpp_lib_logical_traits != 201510L
+#   error "__cpp_lib_logical_traits should have the value 201510L in c++26"
+# endif
+
+# ifndef __cpp_lib_make_from_tuple
+#   error "__cpp_lib_make_from_tuple should be defined in c++26"
+# endif
+# if __cpp_lib_make_from_tuple != 201606L
+#   error "__cpp_lib_make_from_tuple should have the value 201606L in c++26"
+# endif
+
+# ifndef __cpp_lib_make_reverse_iterator
+#   error "__cpp_lib_make_reverse_iterator should be defined in c++26"
+# endif
+# if __cpp_lib_make_reverse_iterator != 201402L
+#   error "__cpp_lib_make_reverse_iterator should have the value 201402L in c++26"
+# endif
+
+# ifndef __cpp_lib_make_unique
+#   error "__cpp_lib_make_unique should be defined in c++26"
+# endif
+# if __cpp_lib_make_unique != 201304L
+#   error "__cpp_lib_make_unique should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_map_try_emplace
+#   error "__cpp_lib_map_try_emplace should be defined in c++26"
+# endif
+# if __cpp_lib_map_try_emplace != 201411L
+#   error "__cpp_lib_map_try_emplace should have the value 201411L in c++26"
+# endif
+
+# ifndef __cpp_lib_math_constants
+#   error "__cpp_lib_math_constants should be defined in c++26"
+# endif
+# if __cpp_lib_math_constants != 201907L
+#   error "__cpp_lib_math_constants should have the value 201907L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_math_special_functions
+#     error "__cpp_lib_math_special_functions should be defined in c++26"
+#   endif
+#   if __cpp_lib_math_special_functions != 201603L
+#     error "__cpp_lib_math_special_functions should have the value 201603L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_math_special_functions
+#     error "__cpp_lib_math_special_functions should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_mdspan
+#     error "__cpp_lib_mdspan should be defined in c++26"
+#   endif
+#   if __cpp_lib_mdspan != 202207L
+#     error "__cpp_lib_mdspan should have the value 202207L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_mdspan
+#     error "__cpp_lib_mdspan should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)
+#   ifndef __cpp_lib_memory_resource
+#     error "__cpp_lib_memory_resource should be defined in c++26"
+#   endif
+#   if __cpp_lib_memory_resource != 201603L
+#     error "__cpp_lib_memory_resource should have the value 201603L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_memory_resource
+#     error "__cpp_lib_memory_resource should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)' is not met!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_move_iterator_concept
+#   error "__cpp_lib_move_iterator_concept should be defined in c++26"
+# endif
+# if __cpp_lib_move_iterator_concept != 202207L
+#   error "__cpp_lib_move_iterator_concept should have the value 202207L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_move_only_function
+#     error "__cpp_lib_move_only_function should be defined in c++26"
+#   endif
+#   if __cpp_lib_move_only_function != 202110L
+#     error "__cpp_lib_move_only_function should have the value 202110L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_move_only_function
+#     error "__cpp_lib_move_only_function should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_node_extract
+#   error "__cpp_lib_node_extract should be defined in c++26"
+# endif
+# if __cpp_lib_node_extract != 201606L
+#   error "__cpp_lib_node_extract should have the value 201606L in c++26"
+# endif
+
+# ifndef __cpp_lib_nonmember_container_access
+#   error "__cpp_lib_nonmember_container_access should be defined in c++26"
+# endif
+# if __cpp_lib_nonmember_container_access != 201411L
+#   error "__cpp_lib_nonmember_container_access should have the value 201411L in c++26"
+# endif
+
+# ifndef __cpp_lib_not_fn
+#   error "__cpp_lib_not_fn should be defined in c++26"
+# endif
+# if __cpp_lib_not_fn != 201603L
+#   error "__cpp_lib_not_fn should have the value 201603L in c++26"
+# endif
+
+# ifndef __cpp_lib_null_iterators
+#   error "__cpp_lib_null_iterators should be defined in c++26"
+# endif
+# if __cpp_lib_null_iterators != 201304L
+#   error "__cpp_lib_null_iterators should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_optional
+#   error "__cpp_lib_optional should be defined in c++26"
+# endif
+# if __cpp_lib_optional != 202110L
+#   error "__cpp_lib_optional should have the value 202110L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_out_ptr
+#     error "__cpp_lib_out_ptr should be defined in c++26"
+#   endif
+#   if __cpp_lib_out_ptr != 202106L
+#     error "__cpp_lib_out_ptr should have the value 202106L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_out_ptr
+#     error "__cpp_lib_out_ptr should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_parallel_algorithm
+#     error "__cpp_lib_parallel_algorithm should be defined in c++26"
+#   endif
+#   if __cpp_lib_parallel_algorithm != 201603L
+#     error "__cpp_lib_parallel_algorithm should have the value 201603L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_parallel_algorithm
+#     error "__cpp_lib_parallel_algorithm should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)
+#   ifndef __cpp_lib_polymorphic_allocator
+#     error "__cpp_lib_polymorphic_allocator should be defined in c++26"
+#   endif
+#   if __cpp_lib_polymorphic_allocator != 201902L
+#     error "__cpp_lib_polymorphic_allocator should have the value 201902L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_polymorphic_allocator
+#     error "__cpp_lib_polymorphic_allocator should not be defined when the requirement '!defined(_LIBCPP_AVAILABILITY_HAS_NO_PMR)' is not met!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_print
+#     error "__cpp_lib_print should be defined in c++26"
+#   endif
+#   if __cpp_lib_print != 202207L
+#     error "__cpp_lib_print should have the value 202207L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_print
+#     error "__cpp_lib_print should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_quoted_string_io
+#   error "__cpp_lib_quoted_string_io should be defined in c++26"
+# endif
+# if __cpp_lib_quoted_string_io != 201304L
+#   error "__cpp_lib_quoted_string_io should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_ranges
+#   error "__cpp_lib_ranges should be defined in c++26"
+# endif
+# if __cpp_lib_ranges != 202207L
+#   error "__cpp_lib_ranges should have the value 202207L in c++26"
+# endif
+
+# ifndef __cpp_lib_ranges_as_rvalue
+#   error "__cpp_lib_ranges_as_rvalue should be defined in c++26"
+# endif
+# if __cpp_lib_ranges_as_rvalue != 202207L
+#   error "__cpp_lib_ranges_as_rvalue should have the value 202207L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_ranges_chunk
+#     error "__cpp_lib_ranges_chunk should be defined in c++26"
+#   endif
+#   if __cpp_lib_ranges_chunk != 202202L
+#     error "__cpp_lib_ranges_chunk should have the value 202202L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_ranges_chunk
+#     error "__cpp_lib_ranges_chunk should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_ranges_chunk_by
+#     error "__cpp_lib_ranges_chunk_by should be defined in c++26"
+#   endif
+#   if __cpp_lib_ranges_chunk_by != 202202L
+#     error "__cpp_lib_ranges_chunk_by should have the value 202202L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_ranges_chunk_by
+#     error "__cpp_lib_ranges_chunk_by should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_ranges_iota
+#     error "__cpp_lib_ranges_iota should be defined in c++26"
+#   endif
+#   if __cpp_lib_ranges_iota != 202202L
+#     error "__cpp_lib_ranges_iota should have the value 202202L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_ranges_iota
+#     error "__cpp_lib_ranges_iota should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_ranges_join_with
+#     error "__cpp_lib_ranges_join_with should be defined in c++26"
+#   endif
+#   if __cpp_lib_ranges_join_with != 202202L
+#     error "__cpp_lib_ranges_join_with should have the value 202202L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_ranges_join_with
+#     error "__cpp_lib_ranges_join_with should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_ranges_repeat
+#   error "__cpp_lib_ranges_repeat should be defined in c++26"
+# endif
+# if __cpp_lib_ranges_repeat != 202207L
+#   error "__cpp_lib_ranges_repeat should have the value 202207L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_ranges_slide
+#     error "__cpp_lib_ranges_slide should be defined in c++26"
+#   endif
+#   if __cpp_lib_ranges_slide != 202202L
+#     error "__cpp_lib_ranges_slide should have the value 202202L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_ranges_slide
+#     error "__cpp_lib_ranges_slide should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_ranges_starts_ends_with
+#     error "__cpp_lib_ranges_starts_ends_with should be defined in c++26"
+#   endif
+#   if __cpp_lib_ranges_starts_ends_with != 202106L
+#     error "__cpp_lib_ranges_starts_ends_with should have the value 202106L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_ranges_starts_ends_with
+#     error "__cpp_lib_ranges_starts_ends_with should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_ranges_to_container
+#   error "__cpp_lib_ranges_to_container should be defined in c++26"
+# endif
+# if __cpp_lib_ranges_to_container != 202202L
+#   error "__cpp_lib_ranges_to_container should have the value 202202L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_ranges_zip
+#     error "__cpp_lib_ranges_zip should be defined in c++26"
+#   endif
+#   if __cpp_lib_ranges_zip != 202110L
+#     error "__cpp_lib_ranges_zip should have the value 202110L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_ranges_zip
+#     error "__cpp_lib_ranges_zip should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_ratio
+#   error "__cpp_lib_ratio should be defined in c++26"
+# endif
+# if __cpp_lib_ratio != 202306L
+#   error "__cpp_lib_ratio should have the value 202306L in c++26"
+# endif
+
+# ifndef __cpp_lib_raw_memory_algorithms
+#   error "__cpp_lib_raw_memory_algorithms should be defined in c++26"
+# endif
+# if __cpp_lib_raw_memory_algorithms != 201606L
+#   error "__cpp_lib_raw_memory_algorithms should have the value 201606L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_rcu
+#     error "__cpp_lib_rcu should be defined in c++26"
+#   endif
+#   if __cpp_lib_rcu != 202306L
+#     error "__cpp_lib_rcu should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_rcu
+#     error "__cpp_lib_rcu should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_reference_from_temporary
+#     error "__cpp_lib_reference_from_temporary should be defined in c++26"
+#   endif
+#   if __cpp_lib_reference_from_temporary != 202202L
+#     error "__cpp_lib_reference_from_temporary should have the value 202202L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_reference_from_temporary
+#     error "__cpp_lib_reference_from_temporary should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_remove_cvref
+#   error "__cpp_lib_remove_cvref should be defined in c++26"
+# endif
+# if __cpp_lib_remove_cvref != 201711L
+#   error "__cpp_lib_remove_cvref should have the value 201711L in c++26"
+# endif
+
+# ifndef __cpp_lib_result_of_sfinae
+#   error "__cpp_lib_result_of_sfinae should be defined in c++26"
+# endif
+# if __cpp_lib_result_of_sfinae != 201210L
+#   error "__cpp_lib_result_of_sfinae should have the value 201210L in c++26"
+# endif
+
+# ifndef __cpp_lib_robust_nonmodifying_seq_ops
+#   error "__cpp_lib_robust_nonmodifying_seq_ops should be defined in c++26"
+# endif
+# if __cpp_lib_robust_nonmodifying_seq_ops != 201304L
+#   error "__cpp_lib_robust_nonmodifying_seq_ops should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_sample
+#   error "__cpp_lib_sample should be defined in c++26"
+# endif
+# if __cpp_lib_sample != 201603L
+#   error "__cpp_lib_sample should have the value 201603L in c++26"
+# endif
+
+# ifndef __cpp_lib_scoped_lock
+#   error "__cpp_lib_scoped_lock should be defined in c++26"
+# endif
+# if __cpp_lib_scoped_lock != 201703L
+#   error "__cpp_lib_scoped_lock should have the value 201703L in c++26"
+# endif
+
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)
+#   ifndef __cpp_lib_semaphore
+#     error "__cpp_lib_semaphore should be defined in c++26"
+#   endif
+#   if __cpp_lib_semaphore != 201907L
+#     error "__cpp_lib_semaphore should have the value 201907L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_semaphore
+#     error "__cpp_lib_semaphore should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SYNC)' is not met!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
+#   ifndef __cpp_lib_shared_mutex
+#     error "__cpp_lib_shared_mutex should be defined in c++26"
+#   endif
+#   if __cpp_lib_shared_mutex != 201505L
+#     error "__cpp_lib_shared_mutex should have the value 201505L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_shared_mutex
+#     error "__cpp_lib_shared_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_shared_ptr_arrays
+#   error "__cpp_lib_shared_ptr_arrays should be defined in c++26"
+# endif
+# if __cpp_lib_shared_ptr_arrays != 201707L
+#   error "__cpp_lib_shared_ptr_arrays should have the value 201707L in c++26"
+# endif
+
+# ifndef __cpp_lib_shared_ptr_weak_type
+#   error "__cpp_lib_shared_ptr_weak_type should be defined in c++26"
+# endif
+# if __cpp_lib_shared_ptr_weak_type != 201606L
+#   error "__cpp_lib_shared_ptr_weak_type should have the value 201606L in c++26"
+# endif
+
+# if !defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)
+#   ifndef __cpp_lib_shared_timed_mutex
+#     error "__cpp_lib_shared_timed_mutex should be defined in c++26"
+#   endif
+#   if __cpp_lib_shared_timed_mutex != 201402L
+#     error "__cpp_lib_shared_timed_mutex should have the value 201402L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_shared_timed_mutex
+#     error "__cpp_lib_shared_timed_mutex should not be defined when the requirement '!defined(_LIBCPP_HAS_NO_THREADS) && !defined(_LIBCPP_AVAILABILITY_HAS_NO_SHARED_MUTEX)' is not met!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_shift
+#   error "__cpp_lib_shift should be defined in c++26"
+# endif
+# if __cpp_lib_shift != 201806L
+#   error "__cpp_lib_shift should have the value 201806L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_smart_ptr_for_overwrite
+#     error "__cpp_lib_smart_ptr_for_overwrite should be defined in c++26"
+#   endif
+#   if __cpp_lib_smart_ptr_for_overwrite != 202002L
+#     error "__cpp_lib_smart_ptr_for_overwrite should have the value 202002L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_smart_ptr_for_overwrite
+#     error "__cpp_lib_smart_ptr_for_overwrite should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_smart_ptr_owner_equality
+#     error "__cpp_lib_smart_ptr_owner_equality should be defined in c++26"
+#   endif
+#   if __cpp_lib_smart_ptr_owner_equality != 202306L
+#     error "__cpp_lib_smart_ptr_owner_equality should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_smart_ptr_owner_equality
+#     error "__cpp_lib_smart_ptr_owner_equality should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if __has_builtin(__builtin_source_location) && !(defined(TEST_APPLE_CLANG_VER) && TEST_APPLE_CLANG_VER <= 1403)
+#   ifndef __cpp_lib_source_location
+#     error "__cpp_lib_source_location should be defined in c++26"
+#   endif
+#   if __cpp_lib_source_location != 201907L
+#     error "__cpp_lib_source_location should have the value 201907L in c++26"
+#   endif
+# else
+#   ifdef __cpp_lib_source_location
+#     error "__cpp_lib_source_location should not be defined when the requirement '__has_builtin(__builtin_source_location) && !(defined(TEST_APPLE_CLANG_VER) && TEST_APPLE_CLANG_VER <= 1403)' is not met!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_span
+#   error "__cpp_lib_span should be defined in c++26"
+# endif
+# if __cpp_lib_span != 202002L
+#   error "__cpp_lib_span should have the value 202002L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_spanstream
+#     error "__cpp_lib_spanstream should be defined in c++26"
+#   endif
+#   if __cpp_lib_spanstream != 202106L
+#     error "__cpp_lib_spanstream should have the value 202106L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_spanstream
+#     error "__cpp_lib_spanstream should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_ssize
+#   error "__cpp_lib_ssize should be defined in c++26"
+# endif
+# if __cpp_lib_ssize != 201902L
+#   error "__cpp_lib_ssize should have the value 201902L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_sstream_from_string_view
+#     error "__cpp_lib_sstream_from_string_view should be defined in c++26"
+#   endif
+#   if __cpp_lib_sstream_from_string_view != 202306L
+#     error "__cpp_lib_sstream_from_string_view should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_sstream_from_string_view
+#     error "__cpp_lib_sstream_from_string_view should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_stacktrace
+#     error "__cpp_lib_stacktrace should be defined in c++26"
+#   endif
+#   if __cpp_lib_stacktrace != 202011L
+#     error "__cpp_lib_stacktrace should have the value 202011L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_stacktrace
+#     error "__cpp_lib_stacktrace should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_starts_ends_with
+#   error "__cpp_lib_starts_ends_with should be defined in c++26"
+# endif
+# if __cpp_lib_starts_ends_with != 201711L
+#   error "__cpp_lib_starts_ends_with should have the value 201711L in c++26"
+# endif
+
+# ifndef __cpp_lib_stdatomic_h
+#   error "__cpp_lib_stdatomic_h should be defined in c++26"
+# endif
+# if __cpp_lib_stdatomic_h != 202011L
+#   error "__cpp_lib_stdatomic_h should have the value 202011L in c++26"
+# endif
+
+# ifndef __cpp_lib_string_contains
+#   error "__cpp_lib_string_contains should be defined in c++26"
+# endif
+# if __cpp_lib_string_contains != 202011L
+#   error "__cpp_lib_string_contains should have the value 202011L in c++26"
+# endif
+
+# ifndef __cpp_lib_string_resize_and_overwrite
+#   error "__cpp_lib_string_resize_and_overwrite should be defined in c++26"
+# endif
+# if __cpp_lib_string_resize_and_overwrite != 202110L
+#   error "__cpp_lib_string_resize_and_overwrite should have the value 202110L in c++26"
+# endif
+
+# ifndef __cpp_lib_string_udls
+#   error "__cpp_lib_string_udls should be defined in c++26"
+# endif
+# if __cpp_lib_string_udls != 201304L
+#   error "__cpp_lib_string_udls should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_string_view
+#   error "__cpp_lib_string_view should be defined in c++26"
+# endif
+# if __cpp_lib_string_view != 201803L
+#   error "__cpp_lib_string_view should have the value 201803L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_submdspan
+#     error "__cpp_lib_submdspan should be defined in c++26"
+#   endif
+#   if __cpp_lib_submdspan != 202306L
+#     error "__cpp_lib_submdspan should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_submdspan
+#     error "__cpp_lib_submdspan should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_syncbuf
+#     error "__cpp_lib_syncbuf should be defined in c++26"
+#   endif
+#   if __cpp_lib_syncbuf != 201803L
+#     error "__cpp_lib_syncbuf should have the value 201803L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_syncbuf
+#     error "__cpp_lib_syncbuf should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_text_encoding
+#     error "__cpp_lib_text_encoding should be defined in c++26"
+#   endif
+#   if __cpp_lib_text_encoding != 202306L
+#     error "__cpp_lib_text_encoding should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_text_encoding
+#     error "__cpp_lib_text_encoding should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_three_way_comparison
+#     error "__cpp_lib_three_way_comparison should be defined in c++26"
+#   endif
+#   if __cpp_lib_three_way_comparison != 201907L
+#     error "__cpp_lib_three_way_comparison should have the value 201907L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_three_way_comparison
+#     error "__cpp_lib_three_way_comparison should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_to_address
+#   error "__cpp_lib_to_address should be defined in c++26"
+# endif
+# if __cpp_lib_to_address != 201711L
+#   error "__cpp_lib_to_address should have the value 201711L in c++26"
+# endif
+
+# ifndef __cpp_lib_to_array
+#   error "__cpp_lib_to_array should be defined in c++26"
+# endif
+# if __cpp_lib_to_array != 201907L
+#   error "__cpp_lib_to_array should have the value 201907L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_to_chars
+#     error "__cpp_lib_to_chars should be defined in c++26"
+#   endif
+#   if __cpp_lib_to_chars != 201611L
+#     error "__cpp_lib_to_chars should have the value 201611L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_to_chars
+#     error "__cpp_lib_to_chars should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_to_string
+#     error "__cpp_lib_to_string should be defined in c++26"
+#   endif
+#   if __cpp_lib_to_string != 202306L
+#     error "__cpp_lib_to_string should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_to_string
+#     error "__cpp_lib_to_string should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# ifndef __cpp_lib_to_underlying
+#   error "__cpp_lib_to_underlying should be defined in c++26"
+# endif
+# if __cpp_lib_to_underlying != 202102L
+#   error "__cpp_lib_to_underlying should have the value 202102L in c++26"
+# endif
+
+# ifndef __cpp_lib_transformation_trait_aliases
+#   error "__cpp_lib_transformation_trait_aliases should be defined in c++26"
+# endif
+# if __cpp_lib_transformation_trait_aliases != 201304L
+#   error "__cpp_lib_transformation_trait_aliases should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_transparent_operators
+#   error "__cpp_lib_transparent_operators should be defined in c++26"
+# endif
+# if __cpp_lib_transparent_operators != 201510L
+#   error "__cpp_lib_transparent_operators should have the value 201510L in c++26"
+# endif
+
+# ifndef __cpp_lib_tuple_element_t
+#   error "__cpp_lib_tuple_element_t should be defined in c++26"
+# endif
+# if __cpp_lib_tuple_element_t != 201402L
+#   error "__cpp_lib_tuple_element_t should have the value 201402L in c++26"
+# endif
+
+# ifndef __cpp_lib_tuples_by_type
+#   error "__cpp_lib_tuples_by_type should be defined in c++26"
+# endif
+# if __cpp_lib_tuples_by_type != 201304L
+#   error "__cpp_lib_tuples_by_type should have the value 201304L in c++26"
+# endif
+
+# ifndef __cpp_lib_type_identity
+#   error "__cpp_lib_type_identity should be defined in c++26"
+# endif
+# if __cpp_lib_type_identity != 201806L
+#   error "__cpp_lib_type_identity should have the value 201806L in c++26"
+# endif
+
+# ifndef __cpp_lib_type_trait_variable_templates
+#   error "__cpp_lib_type_trait_variable_templates should be defined in c++26"
+# endif
+# if __cpp_lib_type_trait_variable_templates != 201510L
+#   error "__cpp_lib_type_trait_variable_templates should have the value 201510L in c++26"
+# endif
+
+# ifndef __cpp_lib_uncaught_exceptions
+#   error "__cpp_lib_uncaught_exceptions should be defined in c++26"
+# endif
+# if __cpp_lib_uncaught_exceptions != 201411L
+#   error "__cpp_lib_uncaught_exceptions should have the value 201411L in c++26"
+# endif
+
+# ifndef __cpp_lib_unordered_map_try_emplace
+#   error "__cpp_lib_unordered_map_try_emplace should be defined in c++26"
+# endif
+# if __cpp_lib_unordered_map_try_emplace != 201411L
+#   error "__cpp_lib_unordered_map_try_emplace should have the value 201411L in c++26"
+# endif
+
+# ifndef __cpp_lib_unreachable
+#   error "__cpp_lib_unreachable should be defined in c++26"
+# endif
+# if __cpp_lib_unreachable != 202202L
+#   error "__cpp_lib_unreachable should have the value 202202L in c++26"
+# endif
+
+# ifndef __cpp_lib_unwrap_ref
+#   error "__cpp_lib_unwrap_ref should be defined in c++26"
+# endif
+# if __cpp_lib_unwrap_ref != 201811L
+#   error "__cpp_lib_unwrap_ref should have the value 201811L in c++26"
+# endif
+
+# ifndef __cpp_lib_variant
+#   error "__cpp_lib_variant should be defined in c++26"
+# endif
+# if __cpp_lib_variant != 202102L
+#   error "__cpp_lib_variant should have the value 202102L in c++26"
+# endif
+
+# ifndef __cpp_lib_void_t
+#   error "__cpp_lib_void_t should be defined in c++26"
+# endif
+# if __cpp_lib_void_t != 201411L
+#   error "__cpp_lib_void_t should have the value 201411L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_within_lifetime
+#     error "__cpp_lib_within_lifetime should be defined in c++26"
+#   endif
+#   if __cpp_lib_within_lifetime != 202306L
+#     error "__cpp_lib_within_lifetime should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_within_lifetime
+#     error "__cpp_lib_within_lifetime should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+#endif // TEST_STD_VER > 23
 

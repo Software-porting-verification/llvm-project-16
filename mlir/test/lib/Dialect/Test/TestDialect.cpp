@@ -10,31 +10,36 @@
 #include "TestAttributes.h"
 #include "TestInterfaces.h"
 #include "TestTypes.h"
+#include "mlir/Bytecode/BytecodeImplementation.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
-#include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/ExtensibleDialect.h"
+#include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/ODSSupport.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/InferIntRangeInterface.h"
 #include "mlir/Reducer/ReductionPatternInterface.h"
+#include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include <optional>
+#include "llvm/Support/Base64.h"
 
+#include <cstdint>
 #include <numeric>
+#include <optional>
 
 // Include this before the using namespace lines below to
 // test that we don't have namespace dependencies.
@@ -43,9 +48,86 @@
 using namespace mlir;
 using namespace test;
 
+Attribute MyPropStruct::asAttribute(MLIRContext *ctx) const {
+  return StringAttr::get(ctx, content);
+}
+LogicalResult MyPropStruct::setFromAttr(MyPropStruct &prop, Attribute attr,
+                                        InFlightDiagnostic *diag) {
+  StringAttr strAttr = dyn_cast<StringAttr>(attr);
+  if (!strAttr) {
+    if (diag)
+      *diag << "Expect StringAttr but got " << attr;
+    return failure();
+  }
+  prop.content = strAttr.getValue();
+  return success();
+}
+llvm::hash_code MyPropStruct::hash() const {
+  return hash_value(StringRef(content));
+}
+
+static LogicalResult readFromMlirBytecode(DialectBytecodeReader &reader,
+                                          MyPropStruct &prop) {
+  StringRef str;
+  if (failed(reader.readString(str)))
+    return failure();
+  prop.content = str.str();
+  return success();
+}
+
+static void writeToMlirBytecode(::mlir::DialectBytecodeWriter &writer,
+                                MyPropStruct &prop) {
+  writer.writeOwnedString(prop.content);
+}
+
+static LogicalResult readFromMlirBytecode(DialectBytecodeReader &reader,
+                                          MutableArrayRef<int64_t> prop) {
+  uint64_t size;
+  if (failed(reader.readVarInt(size)))
+    return failure();
+  if (size != prop.size())
+    return reader.emitError("array size mismach when reading properties: ")
+           << size << " vs expected " << prop.size();
+  for (auto &elt : prop) {
+    uint64_t value;
+    if (failed(reader.readVarInt(value)))
+      return failure();
+    elt = value;
+  }
+  return success();
+}
+
+static void writeToMlirBytecode(::mlir::DialectBytecodeWriter &writer,
+                                ArrayRef<int64_t> prop) {
+  writer.writeVarInt(prop.size());
+  for (auto elt : prop)
+    writer.writeVarInt(elt);
+}
+
+static LogicalResult setPropertiesFromAttribute(PropertiesWithCustomPrint &prop,
+                                                Attribute attr,
+                                                InFlightDiagnostic *diagnostic);
+static DictionaryAttr
+getPropertiesAsAttribute(MLIRContext *ctx,
+                         const PropertiesWithCustomPrint &prop);
+static llvm::hash_code computeHash(const PropertiesWithCustomPrint &prop);
+static void customPrintProperties(OpAsmPrinter &p,
+                                  const PropertiesWithCustomPrint &prop);
+static ParseResult customParseProperties(OpAsmParser &parser,
+                                         PropertiesWithCustomPrint &prop);
+
 void test::registerTestDialect(DialectRegistry &registry) {
   registry.insert<TestDialect>();
 }
+
+//===----------------------------------------------------------------------===//
+// TestDialect version utilities
+//===----------------------------------------------------------------------===//
+
+struct TestDialectVersion : public DialectVersion {
+  uint32_t major = 2;
+  uint32_t minor = 0;
+};
 
 //===----------------------------------------------------------------------===//
 // TestDialect Interfaces
@@ -70,6 +152,106 @@ struct TestResourceBlobManagerInterface
       TestDialectResourceBlobHandle>::ResourceBlobManagerDialectInterfaceBase;
 };
 
+namespace {
+enum test_encoding { k_attr_params = 0 };
+}
+
+// Test support for interacting with the Bytecode reader/writer.
+struct TestBytecodeDialectInterface : public BytecodeDialectInterface {
+  using BytecodeDialectInterface::BytecodeDialectInterface;
+  TestBytecodeDialectInterface(Dialect *dialect)
+      : BytecodeDialectInterface(dialect) {}
+
+  LogicalResult writeAttribute(Attribute attr,
+                               DialectBytecodeWriter &writer) const final {
+    if (auto concreteAttr = llvm::dyn_cast<TestAttrParamsAttr>(attr)) {
+      writer.writeVarInt(test_encoding::k_attr_params);
+      writer.writeVarInt(concreteAttr.getV0());
+      writer.writeVarInt(concreteAttr.getV1());
+      return success();
+    }
+    return failure();
+  }
+
+  Attribute readAttribute(DialectBytecodeReader &reader,
+                          const DialectVersion &version_) const final {
+    const auto &version = static_cast<const TestDialectVersion &>(version_);
+    if (version.major < 2)
+      return readAttrOldEncoding(reader);
+    if (version.major == 2 && version.minor == 0)
+      return readAttrNewEncoding(reader);
+    // Forbid reading future versions by returning nullptr.
+    return Attribute();
+  }
+
+  // Emit a specific version of the dialect.
+  void writeVersion(DialectBytecodeWriter &writer) const final {
+    auto version = TestDialectVersion();
+    writer.writeVarInt(version.major); // major
+    writer.writeVarInt(version.minor); // minor
+  }
+
+  std::unique_ptr<DialectVersion>
+  readVersion(DialectBytecodeReader &reader) const final {
+    uint64_t major, minor;
+    if (failed(reader.readVarInt(major)) || failed(reader.readVarInt(minor)))
+      return nullptr;
+    auto version = std::make_unique<TestDialectVersion>();
+    version->major = major;
+    version->minor = minor;
+    return version;
+  }
+
+  LogicalResult upgradeFromVersion(Operation *topLevelOp,
+                                   const DialectVersion &version_) const final {
+    const auto &version = static_cast<const TestDialectVersion &>(version_);
+    if ((version.major == 2) && (version.minor == 0))
+      return success();
+    if (version.major > 2 || (version.major == 2 && version.minor > 0)) {
+      return topLevelOp->emitError()
+             << "current test dialect version is 2.0, can't parse version: "
+             << version.major << "." << version.minor;
+    }
+    // Prior version 2.0, the old op supported only a single attribute called
+    // "dimensions". We can perform the upgrade.
+    topLevelOp->walk([](TestVersionedOpA op) {
+      if (auto dims = op->getAttr("dimensions")) {
+        op->removeAttr("dimensions");
+        op->setAttr("dims", dims);
+      }
+      op->setAttr("modifier", BoolAttr::get(op->getContext(), false));
+    });
+    return success();
+  }
+
+private:
+  Attribute readAttrNewEncoding(DialectBytecodeReader &reader) const {
+    uint64_t encoding;
+    if (failed(reader.readVarInt(encoding)) ||
+        encoding != test_encoding::k_attr_params)
+      return Attribute();
+    // The new encoding has v0 first, v1 second.
+    uint64_t v0, v1;
+    if (failed(reader.readVarInt(v0)) || failed(reader.readVarInt(v1)))
+      return Attribute();
+    return TestAttrParamsAttr::get(getContext(), static_cast<int>(v0),
+                                   static_cast<int>(v1));
+  }
+
+  Attribute readAttrOldEncoding(DialectBytecodeReader &reader) const {
+    uint64_t encoding;
+    if (failed(reader.readVarInt(encoding)) ||
+        encoding != test_encoding::k_attr_params)
+      return Attribute();
+    // The old encoding has v1 first, v0 second.
+    uint64_t v0, v1;
+    if (failed(reader.readVarInt(v1)) || failed(reader.readVarInt(v0)))
+      return Attribute();
+    return TestAttrParamsAttr::get(getContext(), static_cast<int>(v0),
+                                   static_cast<int>(v1));
+  }
+};
+
 // Test support for interacting with the AsmPrinter.
 struct TestOpAsmInterface : public OpAsmDialectInterface {
   using OpAsmDialectInterface::OpAsmDialectInterface;
@@ -81,7 +263,7 @@ struct TestOpAsmInterface : public OpAsmDialectInterface {
   //===------------------------------------------------------------------===//
 
   AliasResult getAlias(Attribute attr, raw_ostream &os) const final {
-    StringAttr strAttr = attr.dyn_cast<StringAttr>();
+    StringAttr strAttr = dyn_cast<StringAttr>(attr);
     if (!strAttr)
       return AliasResult::NoAlias;
 
@@ -106,16 +288,16 @@ struct TestOpAsmInterface : public OpAsmDialectInterface {
   }
 
   AliasResult getAlias(Type type, raw_ostream &os) const final {
-    if (auto tupleType = type.dyn_cast<TupleType>()) {
+    if (auto tupleType = dyn_cast<TupleType>(type)) {
       if (tupleType.size() > 0 &&
           llvm::all_of(tupleType.getTypes(), [](Type elemType) {
-            return elemType.isa<SimpleAType>();
+            return isa<SimpleAType>(elemType);
           })) {
         os << "test_tuple";
         return AliasResult::FinalAlias;
       }
     }
-    if (auto intType = type.dyn_cast<TestIntegerType>()) {
+    if (auto intType = dyn_cast<TestIntegerType>(type)) {
       if (intType.getSignedness() ==
               TestIntegerType::SignednessSemantics::Unsigned &&
           intType.getWidth() == 8) {
@@ -123,12 +305,16 @@ struct TestOpAsmInterface : public OpAsmDialectInterface {
         return AliasResult::FinalAlias;
       }
     }
-    if (auto recType = type.dyn_cast<TestRecursiveType>()) {
+    if (auto recType = dyn_cast<TestRecursiveType>(type)) {
       if (recType.getName() == "type_to_alias") {
         // We only make alias for a specific recursive type.
         os << "testrec";
         return AliasResult::FinalAlias;
       }
+    }
+    if (auto recAliasType = dyn_cast<TestRecursiveAliasType>(type)) {
+      os << recAliasType.getName();
+      return AliasResult::FinalAlias;
     }
     return AliasResult::NoAlias;
   }
@@ -245,6 +431,23 @@ struct TestInlinerInterface : public DialectInlinerInterface {
     return builder.create<TestCastOp>(conversionLoc, resultType, input);
   }
 
+  Value handleArgument(OpBuilder &builder, Operation *call, Operation *callable,
+                       Value argument,
+                       DictionaryAttr argumentAttrs) const final {
+    if (!argumentAttrs.contains("test.handle_argument"))
+      return argument;
+    return builder.create<TestTypeChangerOp>(call->getLoc(), argument.getType(),
+                                             argument);
+  }
+
+  Value handleResult(OpBuilder &builder, Operation *call, Operation *callable,
+                     Value result, DictionaryAttr resultAttrs) const final {
+    if (!resultAttrs.contains("test.handle_result"))
+      return result;
+    return builder.create<TestTypeChangerOp>(call->getLoc(), result.getType(),
+                                             result);
+  }
+
   void processInlinedCallBlocks(
       Operation *call,
       iterator_range<Region::iterator> inlinedBlocks) const final {
@@ -358,6 +561,7 @@ void TestDialect::initialize() {
 #define GET_OP_LIST
 #include "TestOps.cpp.inc"
       >();
+  addOperations<ManualCppOpWithFold>();
   registerDynamicOp(getDynamicGenericOp(this));
   registerDynamicOp(getDynamicOneOperandTwoResultsOp(this));
   registerDynamicOp(getDynamicCustomParserPrinterOp(this));
@@ -366,7 +570,7 @@ void TestDialect::initialize() {
   addInterface<TestOpAsmInterface>(blobInterface);
 
   addInterfaces<TestDialectFoldInterface, TestInlinerInterface,
-                TestReductionPatternInterface>();
+                TestReductionPatternInterface, TestBytecodeDialectInterface>();
   allowUnknownOperations();
 
   // Instantiate our fallback op interface that we'll use on specific
@@ -386,7 +590,7 @@ Operation *TestDialect::materializeConstant(OpBuilder &builder, Attribute value,
 ::mlir::LogicalResult FormatInferType2Op::inferReturnTypes(
     ::mlir::MLIRContext *context, ::std::optional<::mlir::Location> location,
     ::mlir::ValueRange operands, ::mlir::DictionaryAttr attributes,
-    ::mlir::RegionRange regions,
+    OpaqueProperties properties, ::mlir::RegionRange regions,
     ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
   inferredReturnTypes.assign({::mlir::IntegerType::get(context, 16)});
   return ::mlir::success();
@@ -538,6 +742,29 @@ LogicalResult TestCallOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
     return emitOpError() << "'" << fnAttr.getValue()
                          << "' does not reference a valid function";
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// ConversionFuncOp
+//===----------------------------------------------------------------------===//
+
+ParseResult ConversionFuncOp::parse(OpAsmParser &parser,
+                                    OperationState &result) {
+  auto buildFuncType =
+      [](Builder &builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
+         function_interface_impl::VariadicFlag,
+         std::string &) { return builder.getFunctionType(argTypes, results); };
+
+  return function_interface_impl::parseFunctionOp(
+      parser, result, /*allowVariadic=*/false,
+      getFunctionTypeAttrName(result.name), buildFuncType,
+      getArgAttrsAttrName(result.name), getResAttrsAttrName(result.name));
+}
+
+void ConversionFuncOp::print(OpAsmPrinter &p) {
+  function_interface_impl::printFunctionOp(
+      p, *this, /*isVariadic=*/false, getFunctionTypeAttrName(),
+      getArgAttrsAttrName(), getResAttrsAttrName());
 }
 
 //===----------------------------------------------------------------------===//
@@ -799,7 +1026,7 @@ ParseResult IsolatedRegionOp::parse(OpAsmParser &parser,
 }
 
 void IsolatedRegionOp::print(OpAsmPrinter &p) {
-  p << "test.isolated_region ";
+  p << ' ';
   p.printOperand(getOperand());
   p.shadowRegionArgs(getRegion(), getOperand());
   p << ' ';
@@ -833,7 +1060,7 @@ ParseResult AffineScopeOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void AffineScopeOp::print(OpAsmPrinter &p) {
-  p << "test.affine_scope ";
+  p << " ";
   p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
 }
 
@@ -882,8 +1109,7 @@ ParseResult ParseB64BytesOp::parse(OpAsmParser &parser,
 }
 
 void ParseB64BytesOp::print(OpAsmPrinter &p) {
-  // Don't print the base64 version to check that we decoded it correctly.
-  p << " \"" << getB64() << "\"";
+  p << " \"" << llvm::encodeBase64(getB64()) << "\"";
 }
 
 //===----------------------------------------------------------------------===//
@@ -1008,10 +1234,10 @@ void PrettyPrintedRegionOp::print(OpAsmPrinter &p) {
   // Assuming that region has a single non-terminator inner-op, if the inner-op
   // meets some criteria (which in this case is a simple one  based on the name
   // of inner-op), then we can print the entire region in a succinct way.
-  // Here we assume that the prototype of "special.op" can be trivially derived
-  // while parsing it back.
-  if (innerOp.getName().getStringRef().equals("special.op")) {
-    p << " start special.op end";
+  // Here we assume that the prototype of "test.special.op" can be trivially
+  // derived while parsing it back.
+  if (innerOp.getName().getStringRef().equals("test.special.op")) {
+    p << " start test.special.op end";
   } else {
     p << " (";
     p.printRegion(getRegion());
@@ -1039,7 +1265,14 @@ ParseResult PolyForOp::parse(OpAsmParser &parser, OperationState &result) {
   return parser.parseRegion(*body, ivsInfo);
 }
 
-void PolyForOp::print(OpAsmPrinter &p) { p.printGenericOp(*this); }
+void PolyForOp::print(OpAsmPrinter &p) {
+  p << " ";
+  llvm::interleaveComma(getRegion().getArguments(), p, [&](auto arg) {
+    p.printRegionArgument(arg, /*argAttrs =*/{}, /*omitType=*/true);
+  });
+  p << " ";
+  p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
+}
 
 void PolyForOp::getAsmBlockArgumentNames(Region &region,
                                          OpAsmSetValueNameFn setNameFn) {
@@ -1049,7 +1282,7 @@ void PolyForOp::getAsmBlockArgumentNames(Region &region,
   auto args = getRegion().front().getArguments();
   auto e = std::min(arrayAttr.size(), args.size());
   for (unsigned i = 0; i < e; ++i) {
-    if (auto strAttr = arrayAttr[i].dyn_cast<StringAttr>())
+    if (auto strAttr = dyn_cast<StringAttr>(arrayAttr[i]))
       setNameFn(args[i], strAttr.getValue());
   }
 }
@@ -1071,7 +1304,7 @@ static ParseResult parseOptionalLoc(OpAsmParser &p, Attribute &loc) {
 }
 
 static void printOptionalLoc(OpAsmPrinter &p, Operation *op, Attribute loc) {
-  p.printOptionalLocationSpecifier(loc.cast<LocationAttr>());
+  p.printOptionalLocationSpecifier(cast<LocationAttr>(loc));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1102,9 +1335,7 @@ OpFoldResult TestOpWithRegionFold::fold(FoldAdaptor adaptor) {
   return getOperand();
 }
 
-OpFoldResult TestOpConstant::fold(FoldAdaptor adaptor) {
-  return getValue();
-}
+OpFoldResult TestOpConstant::fold(FoldAdaptor adaptor) { return getValue(); }
 
 LogicalResult TestOpWithVariadicResultsAndFolder::fold(
     FoldAdaptor adaptor, SmallVectorImpl<OpFoldResult> &results) {
@@ -1115,7 +1346,8 @@ LogicalResult TestOpWithVariadicResultsAndFolder::fold(
 }
 
 OpFoldResult TestOpInPlaceFold::fold(FoldAdaptor adaptor) {
-  if (adaptor.getOp()) {
+  if (adaptor.getOp() && !(*this)->getAttr("attr")) {
+    // The folder adds "attr" if not present.
     (*this)->setAttr("attr", adaptor.getOp());
     return getResult();
   }
@@ -1147,7 +1379,7 @@ OpFoldResult TestOpFoldWithFoldAdaptor::fold(FoldAdaptor adaptor) {
 
 LogicalResult OpWithInferTypeInterfaceOp::inferReturnTypes(
     MLIRContext *, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   if (operands[0].getType() != operands[1].getType()) {
     return emitOptionalError(location, "operand type mismatch ",
@@ -1158,20 +1390,34 @@ LogicalResult OpWithInferTypeInterfaceOp::inferReturnTypes(
   return success();
 }
 
+LogicalResult OpWithInferTypeAdaptorInterfaceOp::inferReturnTypes(
+    MLIRContext *, std::optional<Location> location,
+    OpWithInferTypeAdaptorInterfaceOp::Adaptor adaptor,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  if (adaptor.getX().getType() != adaptor.getY().getType()) {
+    return emitOptionalError(location, "operand type mismatch ",
+                             adaptor.getX().getType(), " vs ",
+                             adaptor.getY().getType());
+  }
+  inferredReturnTypes.assign({adaptor.getX().getType()});
+  return success();
+}
+
 // TODO: We should be able to only define either inferReturnType or
 // refineReturnType, currently only refineReturnType can be omitted.
 LogicalResult OpWithRefineTypeInterfaceOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &returnTypes) {
   returnTypes.clear();
   return OpWithRefineTypeInterfaceOp::refineReturnTypes(
-      context, location, operands, attributes, regions, returnTypes);
+      context, location, operands, attributes, properties, regions,
+      returnTypes);
 }
 
 LogicalResult OpWithRefineTypeInterfaceOp::refineReturnTypes(
     MLIRContext *, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
+    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &returnTypes) {
   if (operands[0].getType() != operands[1].getType()) {
     return emitOptionalError(location, "operand type mismatch ",
@@ -1190,19 +1436,19 @@ LogicalResult OpWithRefineTypeInterfaceOp::refineReturnTypes(
 
 LogicalResult OpWithShapedTypeInferTypeInterfaceOp::inferReturnTypeComponents(
     MLIRContext *context, std::optional<Location> location,
-    ValueShapeRange operands, DictionaryAttr attributes, RegionRange regions,
+    ValueShapeRange operands, DictionaryAttr attributes,
+    OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
   // Create return type consisting of the last element of the first operand.
   auto operandType = operands.front().getType();
-  auto sval = operandType.dyn_cast<ShapedType>();
-  if (!sval) {
+  auto sval = dyn_cast<ShapedType>(operandType);
+  if (!sval)
     return emitOptionalError(location, "only shaped type operands allowed");
-  }
   int64_t dim = sval.hasRank() ? sval.getShape().front() : ShapedType::kDynamic;
   auto type = IntegerType::get(context, 17);
 
   Attribute encoding;
-  if (auto rankedTy = sval.dyn_cast<RankedTensorType>())
+  if (auto rankedTy = dyn_cast<RankedTensorType>(sval))
     encoding = rankedTy.getEncoding();
   inferredReturnShapes.push_back(ShapedTypeComponents({dim}, type, encoding));
   return success();
@@ -1216,13 +1462,42 @@ LogicalResult OpWithShapedTypeInferTypeInterfaceOp::reifyReturnTypeShapes(
   return success();
 }
 
+LogicalResult
+OpWithShapedTypeInferTypeAdaptorInterfaceOp::inferReturnTypeComponents(
+    MLIRContext *context, std::optional<Location> location,
+    OpWithShapedTypeInferTypeAdaptorInterfaceOp::Adaptor adaptor,
+    SmallVectorImpl<ShapedTypeComponents> &inferredReturnShapes) {
+  // Create return type consisting of the last element of the first operand.
+  auto operandType = adaptor.getOperand1().getType();
+  auto sval = dyn_cast<ShapedType>(operandType);
+  if (!sval)
+    return emitOptionalError(location, "only shaped type operands allowed");
+  int64_t dim = sval.hasRank() ? sval.getShape().front() : ShapedType::kDynamic;
+  auto type = IntegerType::get(context, 17);
+
+  Attribute encoding;
+  if (auto rankedTy = dyn_cast<RankedTensorType>(sval))
+    encoding = rankedTy.getEncoding();
+  inferredReturnShapes.push_back(ShapedTypeComponents({dim}, type, encoding));
+  return success();
+}
+
+LogicalResult
+OpWithShapedTypeInferTypeAdaptorInterfaceOp::reifyReturnTypeShapes(
+    OpBuilder &builder, ValueRange operands,
+    llvm::SmallVectorImpl<Value> &shapes) {
+  shapes = SmallVector<Value, 1>{
+      builder.createOrFold<tensor::DimOp>(getLoc(), operands.front(), 0)};
+  return success();
+}
+
 LogicalResult OpWithResultShapeInterfaceOp::reifyReturnTypeShapes(
     OpBuilder &builder, ValueRange operands,
     llvm::SmallVectorImpl<Value> &shapes) {
   Location loc = getLoc();
   shapes.reserve(operands.size());
   for (Value operand : llvm::reverse(operands)) {
-    auto rank = operand.getType().cast<RankedTensorType>().getRank();
+    auto rank = cast<RankedTensorType>(operand.getType()).getRank();
     auto currShape = llvm::to_vector<4>(
         llvm::map_range(llvm::seq<int64_t>(0, rank), [&](int64_t dim) -> Value {
           return builder.createOrFold<tensor::DimOp>(loc, operand, dim);
@@ -1239,11 +1514,16 @@ LogicalResult OpWithResultShapePerDimInterfaceOp::reifyResultShapes(
   Location loc = getLoc();
   shapes.reserve(getNumOperands());
   for (Value operand : llvm::reverse(getOperands())) {
+    auto tensorType = cast<RankedTensorType>(operand.getType());
     auto currShape = llvm::to_vector<4>(llvm::map_range(
-        llvm::seq<int64_t>(
-            0, operand.getType().cast<RankedTensorType>().getRank()),
-        [&](int64_t dim) -> Value {
-          return builder.createOrFold<tensor::DimOp>(loc, operand, dim);
+        llvm::seq<int64_t>(0, tensorType.getRank()),
+        [&](int64_t dim) -> OpFoldResult {
+          return tensorType.isDynamicDim(dim)
+                     ? static_cast<OpFoldResult>(
+                           builder.createOrFold<tensor::DimOp>(loc, operand,
+                                                               dim))
+                     : static_cast<OpFoldResult>(
+                           builder.getIndexAttr(tensorType.getDimSize(dim)));
         }));
     shapes.emplace_back(std::move(currShape));
   }
@@ -1284,12 +1564,12 @@ void SideEffectOp::getEffects(
   // If there is one, it is an array of dictionary attributes that hold
   // information on the effects of this operation.
   for (Attribute element : effectsAttr) {
-    DictionaryAttr effectElement = element.cast<DictionaryAttr>();
+    DictionaryAttr effectElement = cast<DictionaryAttr>(element);
 
     // Get the specific memory effect.
     MemoryEffects::Effect *effect =
         StringSwitch<MemoryEffects::Effect *>(
-            effectElement.get("effect").cast<StringAttr>().getValue())
+            cast<StringAttr>(effectElement.get("effect")).getValue())
             .Case("allocate", MemoryEffects::Allocate::get())
             .Case("free", MemoryEffects::Free::get())
             .Case("read", MemoryEffects::Read::get())
@@ -1304,7 +1584,7 @@ void SideEffectOp::getEffects(
     if (effectElement.get("on_result"))
       effects.emplace_back(effect, getResult(), resource);
     else if (Attribute ref = effectElement.get("on_reference"))
-      effects.emplace_back(effect, ref.cast<SymbolRefAttr>(), resource);
+      effects.emplace_back(effect, cast<SymbolRefAttr>(ref), resource);
     else
       effects.emplace_back(effect, resource);
   }
@@ -1369,7 +1649,7 @@ void StringAttrPrettyNameOp::print(OpAsmPrinter &p) {
     llvm::raw_svector_ostream tmpStream(resultNameStr);
     p.printOperand(getResult(i), tmpStream);
 
-    auto expectedName = getNames()[i].dyn_cast<StringAttr>();
+    auto expectedName = dyn_cast<StringAttr>(getNames()[i]);
     if (!expectedName ||
         tmpStream.str().drop_front() != expectedName.getValue()) {
       namesDisagree = true;
@@ -1389,7 +1669,7 @@ void StringAttrPrettyNameOp::getAsmResultNames(
 
   auto value = getNames();
   for (size_t i = 0, e = value.size(); i != e; ++i)
-    if (auto str = value[i].dyn_cast<StringAttr>())
+    if (auto str = dyn_cast<StringAttr>(value[i]))
       if (!str.getValue().empty())
         setNameFn(getResult(i), str.getValue());
 }
@@ -1398,7 +1678,7 @@ void CustomResultsNameOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
   ArrayAttr value = getNames();
   for (size_t i = 0, e = value.size(); i != e; ++i)
-    if (auto str = value[i].dyn_cast<StringAttr>())
+    if (auto str = dyn_cast<StringAttr>(value[i]))
       if (!str.getValue().empty())
         setNameFn(getResult(i), str.getValue());
 }
@@ -1554,7 +1834,9 @@ LogicalResult TestVerifiersOp::verify() {
   if (definingOp && failed(mlir::verify(definingOp)))
     return emitOpError("operand hasn't been verified");
 
-  emitRemark("success run of verifier");
+  // Avoid using `emitRemark(msg)` since that will trigger an infinite verifier
+  // loop.
+  mlir::emitRemark(getLoc(), "success run of verifier");
 
   return success();
 }
@@ -1568,7 +1850,9 @@ LogicalResult TestVerifiersOp::verifyRegions() {
       if (failed(mlir::verify(&op)))
         return emitOpError("nested op hasn't been verified");
 
-  emitRemark("success run of region verifier");
+  // Avoid using `emitRemark(msg)` since that will trigger an infinite verifier
+  // loop.
+  mlir::emitRemark(getLoc(), "success run of region verifier");
 
   return success();
 }
@@ -1632,6 +1916,138 @@ void TestReflectBoundsOp::inferResultRanges(
   setSminAttr(b.getIndexAttr(range.smin().getSExtValue()));
   setSmaxAttr(b.getIndexAttr(range.smax().getSExtValue()));
   setResultRanges(getResult(), range);
+}
+
+OpFoldResult ManualCppOpWithFold::fold(ArrayRef<Attribute> attributes) {
+  // Just a simple fold for testing purposes that reads an operands constant
+  // value and returns it.
+  if (!attributes.empty())
+    return attributes.front();
+  return nullptr;
+}
+
+static LogicalResult
+setPropertiesFromAttribute(PropertiesWithCustomPrint &prop, Attribute attr,
+                           InFlightDiagnostic *diagnostic) {
+  DictionaryAttr dict = dyn_cast<DictionaryAttr>(attr);
+  if (!dict) {
+    if (diagnostic)
+      *diagnostic << "expected DictionaryAttr to set TestProperties";
+    return failure();
+  }
+  auto label = dict.getAs<mlir::StringAttr>("label");
+  if (!label) {
+    if (diagnostic)
+      *diagnostic << "expected StringAttr for key `label`";
+    return failure();
+  }
+  auto valueAttr = dict.getAs<IntegerAttr>("value");
+  if (!valueAttr) {
+    if (diagnostic)
+      *diagnostic << "expected IntegerAttr for key `value`";
+    return failure();
+  }
+
+  prop.label = std::make_shared<std::string>(label.getValue());
+  prop.value = valueAttr.getValue().getSExtValue();
+  return success();
+}
+static DictionaryAttr
+getPropertiesAsAttribute(MLIRContext *ctx,
+                         const PropertiesWithCustomPrint &prop) {
+  SmallVector<NamedAttribute> attrs;
+  Builder b{ctx};
+  attrs.push_back(b.getNamedAttr("label", b.getStringAttr(*prop.label)));
+  attrs.push_back(b.getNamedAttr("value", b.getI32IntegerAttr(prop.value)));
+  return b.getDictionaryAttr(attrs);
+}
+static llvm::hash_code computeHash(const PropertiesWithCustomPrint &prop) {
+  return llvm::hash_combine(prop.value, StringRef(*prop.label));
+}
+static void customPrintProperties(OpAsmPrinter &p,
+                                  const PropertiesWithCustomPrint &prop) {
+  p.printKeywordOrString(*prop.label);
+  p << " is " << prop.value;
+}
+static ParseResult customParseProperties(OpAsmParser &parser,
+                                         PropertiesWithCustomPrint &prop) {
+  std::string label;
+  if (parser.parseKeywordOrString(&label) || parser.parseKeyword("is") ||
+      parser.parseInteger(prop.value))
+    return failure();
+  prop.label = std::make_shared<std::string>(std::move(label));
+  return success();
+}
+
+static bool parseUsingPropertyInCustom(OpAsmParser &parser, int64_t value[3]) {
+  return parser.parseLSquare() || parser.parseInteger(value[0]) ||
+         parser.parseComma() || parser.parseInteger(value[1]) ||
+         parser.parseComma() || parser.parseInteger(value[2]) ||
+         parser.parseRSquare();
+}
+
+static void printUsingPropertyInCustom(OpAsmPrinter &printer, Operation *op,
+                                       ArrayRef<int64_t> value) {
+  printer << '[' << value << ']';
+}
+
+static bool parseIntProperty(OpAsmParser &parser, int64_t &value) {
+  return failed(parser.parseInteger(value));
+}
+
+static void printIntProperty(OpAsmPrinter &printer, Operation *op,
+                             int64_t value) {
+  printer << value;
+}
+
+static bool parseSumProperty(OpAsmParser &parser, int64_t &second,
+                             int64_t first) {
+  int64_t sum;
+  auto loc = parser.getCurrentLocation();
+  if (parser.parseInteger(second) || parser.parseEqual() ||
+      parser.parseInteger(sum))
+    return true;
+  if (sum != second + first) {
+    parser.emitError(loc, "Expected sum to equal first + second");
+    return true;
+  }
+  return false;
+}
+
+static void printSumProperty(OpAsmPrinter &printer, Operation *op,
+                             int64_t second, int64_t first) {
+  printer << second << " = " << (second + first);
+}
+
+//===----------------------------------------------------------------------===//
+// Test Dataflow
+//===----------------------------------------------------------------------===//
+
+CallInterfaceCallable TestCallAndStoreOp::getCallableForCallee() {
+  return getCallee();
+}
+
+void TestCallAndStoreOp::setCalleeFromCallable(CallInterfaceCallable callee) {
+  setCalleeAttr(callee.get<SymbolRefAttr>());
+}
+
+Operation::operand_range TestCallAndStoreOp::getArgOperands() {
+  return getCalleeOperands();
+}
+
+void TestStoreWithARegion::getSuccessorRegions(
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  if (!index) {
+    regions.emplace_back(&getBody(), getBody().front().getArguments());
+  } else {
+    regions.emplace_back();
+  }
+}
+
+MutableOperandRange TestStoreWithARegionTerminator::getMutableSuccessorOperands(
+    std::optional<unsigned> index) {
+  return MutableOperandRange(getOperation());
 }
 
 #include "TestOpEnums.cpp.inc"

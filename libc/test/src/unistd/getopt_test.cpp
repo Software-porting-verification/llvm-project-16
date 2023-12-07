@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/unistd/getopt.h"
-#include "utils/UnitTest/Test.h"
+#include "test/UnitTest/Test.h"
 
 #include "src/__support/CPP/array.h"
 #include "src/stdio/fflush.h"
@@ -31,7 +31,7 @@ unsigned optpos;
 void set_state(FILE *errstream) {
   __llvm_libc::impl::set_getopt_state(
       &test_globals::optarg, &test_globals::optind, &test_globals::optopt,
-      &test_globals::optpos, test_globals::opterr, errstream);
+      &test_globals::optpos, &test_globals::opterr, errstream);
 }
 
 // TODO: <stdio> could be either llvm-libc's or the system libc's. The former

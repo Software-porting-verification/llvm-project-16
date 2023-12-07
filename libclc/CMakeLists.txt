@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.20.0)
 
 project( libclc VERSION 0.2.0 LANGUAGES CXX C)
 
@@ -115,6 +115,7 @@ set(LLVM_LINK_COMPONENTS
   BitReader
   BitWriter
   Core
+  Support
 )
 add_llvm_executable( prepare_builtins utils/prepare-builtins.cpp )
 target_compile_definitions( prepare_builtins PRIVATE ${LLVM_VERSION_DEFINE} )
@@ -218,11 +219,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 
 	# Add the generated convert.cl here to prevent adding
 	# the one listed in SOURCES
-	if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" AND
-			NOT ${ARCH} STREQUAL "clspv" AND NOT ${ARCH} STREQUAL "clspv64" )
+	if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" )
 		set( rel_files convert.cl )
 		set( objects convert.cl )
-		if( NOT ENABLE_RUNTIME_SUBNORMAL )
+		if( NOT ENABLE_RUNTIME_SUBNORMAL AND NOT ${ARCH} STREQUAL "clspv" AND
+		    NOT ${ARCH} STREQUAL "clspv64" )
 			list( APPEND rel_files generic/lib/subnormal_use_default.ll )
 		endif()
 	else()
@@ -271,11 +272,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			set( spvflags --spirv-max-version=1.1 )
 		elseif( ${ARCH} STREQUAL "clspv" )
 			set( t "spir--" )
-			set( build_flags )
+			set( build_flags "-Wno-unknown-assumption")
 			set( opt_flags -O3 )
 		elseif( ${ARCH} STREQUAL "clspv64" )
 			set( t "spir64--" )
-			set( build_flags )
+			set( build_flags "-Wno-unknown-assumption")
 			set( opt_flags -O3 )
 		else()
 			set( build_flags )

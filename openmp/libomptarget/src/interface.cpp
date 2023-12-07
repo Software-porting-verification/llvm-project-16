@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "OmptCallback.h"
+#include "OmptInterface.h"
 #include "device.h"
 #include "omptarget.h"
 #include "private.h"
@@ -23,6 +25,10 @@
 #include <cstdlib>
 #include <mutex>
 #include <type_traits>
+
+#ifdef OMPT_SUPPORT
+using namespace llvm::omp::target::ompt;
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 /// adds requires flags
@@ -101,6 +107,21 @@ targetDataMapper(ident_t *Loc, int64_t DeviceId, int32_t ArgNum,
   DeviceTy &Device = *PM->Devices[DeviceId];
   TargetAsyncInfoTy TargetAsyncInfo(Device);
   AsyncInfoTy &AsyncInfo = TargetAsyncInfo;
+
+  /// RAII to establish tool anchors before and after data begin / end / update
+  OMPT_IF_BUILT(assert((TargetDataFunction == targetDataBegin ||
+                        TargetDataFunction == targetDataEnd ||
+                        TargetDataFunction == targetDataUpdate) &&
+                       "Encountered unexpected TargetDataFunction during "
+                       "execution of targetDataMapper");
+                auto CallbackFunctions =
+                    (TargetDataFunction == targetDataBegin)
+                        ? RegionInterface.getCallbacks<ompt_target_enter_data>()
+                    : (TargetDataFunction == targetDataEnd)
+                        ? RegionInterface.getCallbacks<ompt_target_exit_data>()
+                        : RegionInterface.getCallbacks<ompt_target_update>();
+                InterfaceRAII TargetDataRAII(CallbackFunctions, DeviceId,
+                                             OMPT_GET_RETURN_ADDRESS(0));)
 
   int Rc = OFFLOAD_SUCCESS;
   Rc = TargetDataFunction(Loc, Device, ArgNum, ArgsBase, Args, ArgSizes,
@@ -271,6 +292,10 @@ static inline int targetKernel(ident_t *Loc, int64_t DeviceId, int32_t NumTeams,
   DeviceTy &Device = *PM->Devices[DeviceId];
   TargetAsyncInfoTy TargetAsyncInfo(Device);
   AsyncInfoTy &AsyncInfo = TargetAsyncInfo;
+  /// RAII to establish tool anchors before and after target region
+  OMPT_IF_BUILT(InterfaceRAII TargetRAII(
+                    RegionInterface.getCallbacks<ompt_target>(), DeviceId,
+                    /* CodePtr */ OMPT_GET_RETURN_ADDRESS(0));)
 
   int Rc = OFFLOAD_SUCCESS;
   Rc = target(Loc, Device, HostPtr, *KernelArgs, AsyncInfo);
@@ -336,6 +361,10 @@ EXTERN int __tgt_target_kernel_replay(ident_t *Loc, int64_t DeviceId,
     return OMP_TGT_FAIL;
   }
   DeviceTy &Device = *PM->Devices[DeviceId];
+  /// RAII to establish tool anchors before and after target region
+  OMPT_IF_BUILT(InterfaceRAII TargetRAII(
+                    RegionInterface.getCallbacks<ompt_target>(), DeviceId,
+                    /* CodePtr */ OMPT_GET_RETURN_ADDRESS(0));)
 
   AsyncInfoTy AsyncInfo(Device);
   int Rc = target_replay(Loc, Device, HostPtr, DeviceMemory, DeviceMemorySize,
@@ -384,6 +413,12 @@ EXTERN void __tgt_set_info_flag(uint32_t NewInfoLevel) {
 }
 
 EXTERN int __tgt_print_device_info(int64_t DeviceId) {
+  // Make sure the device is ready.
+  if (!deviceIsReady(DeviceId)) {
+    DP("Device %" PRId64 " is not ready\n", DeviceId);
+    return OMP_TGT_FAIL;
+  }
+
   return PM->Devices[DeviceId]->printDeviceInfo(
       PM->Devices[DeviceId]->RTLDeviceID);
 }

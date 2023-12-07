@@ -169,10 +169,11 @@ __attribute__((tls_model(
 inline ThreadState *cur_thread() {
   return reinterpret_cast<ThreadState *>(cur_thread_placeholder)->current;
 }
-inline void cur_thread_init() {
+inline ThreadState * cur_thread_init() {
   ThreadState *thr = reinterpret_cast<ThreadState *>(cur_thread_placeholder);
   if (UNLIKELY(!thr->current))
     thr->current = thr;
+  return thr;
 }
 inline void set_cur_thread(ThreadState *thr) {
   reinterpret_cast<ThreadState *>(cur_thread_placeholder)->current = thr;
@@ -423,6 +424,18 @@ void CondSignal(ThreadState *thr, uptr pc, uptr cond, bool is_broadcase,
 enum FiberSwitchFlags {
   FiberSwitchFlagNoSync = 1 << 0,  // __trec_switch_to_fiber_no_sync
 };
+
+ALWAYS_INLINE
+void LazyInitialize(ThreadState *thr) {
+  // If we can use .preinit_array, assume that __tsan_init
+  // called from .preinit_array initializes runtime before
+  // any instrumented code except when tsan is used as a
+  // shared library.
+#if (!SANITIZER_CAN_USE_PREINIT_ARRAY || defined(SANITIZER_SHARED))
+  if (UNLIKELY(!is_initialized))
+    Initialize(thr);
+#endif
+}
 
 }  // namespace __trec
 

@@ -8,7 +8,7 @@
 // UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
 
 // Older Clangs do not support the C++20 feature to constrain destructors
-// XFAIL: clang-14, apple-clang-14
+// XFAIL: apple-clang-14
 
 // template<class... Args>
 //   constexpr T& emplace(Args&&... args) noexcept;
@@ -74,6 +74,13 @@ constexpr bool test() {
     assert(oldState.dtorCalled);
     assert(e.has_value());
     assert(e.value() == 10);
+  }
+
+  // TailClobberer
+  {
+    std::expected<TailClobberer<0>, bool> e(std::unexpect);
+    e.emplace();
+    assert(e.has_value());
   }
 
   return true;

@@ -498,6 +498,11 @@ getCheckOptions(const ClangTidyOptions &Options,
       std::make_unique<DefaultOptionsProvider>(ClangTidyGlobalOptions(),
                                                 Options),
       AllowEnablingAnalyzerAlphaCheckers);
+  ClangTidyDiagnosticConsumer DiagConsumer(Context);
+  DiagnosticsEngine DE(llvm::makeIntrusiveRefCnt<DiagnosticIDs>(),
+                       llvm::makeIntrusiveRefCnt<DiagnosticOptions>(),
+                       &DiagConsumer, /*ShouldOwnClient=*/false);
+  Context.setDiagnosticsEngine(&DE);
   ClangTidyASTConsumerFactory Factory(Context);
   return Factory.getCheckOptions();
 }
@@ -615,6 +620,8 @@ void exportReplacements(const llvm::StringRef MainFilePath,
   TUD.MainSourceFile = std::string(MainFilePath);
   for (const auto &Error : Errors) {
     tooling::Diagnostic Diag = Error;
+    if (Error.IsWarningAsError)
+      Diag.DiagLevel = tooling::Diagnostic::Error;
     TUD.Diagnostics.insert(TUD.Diagnostics.end(), Diag);
   }
 
