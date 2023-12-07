@@ -34,6 +34,9 @@
 
 using namespace __trec;
 
+DECLARE_REAL(void *, memcpy, void *to, const void *from, SIZE_T size)
+DECLARE_REAL(void *, memset, void *block, int c, SIZE_T size)
+
 #if SANITIZER_FREEBSD || SANITIZER_MAC
 #define stdout __stdoutp
 #define stderr __stderrp
@@ -1798,6 +1801,8 @@ static __sanitizer_sighandler_ptr signal_impl(int sig,
 #define SIGNAL_INTERCEPTOR_SIGNAL_IMPL(func, signo, handler) \
   { return (uptr)signal_impl(signo, (__sanitizer_sighandler_ptr)handler); }
 
+#define SIGNAL_INTERCEPTOR_ENTER() LazyInitialize(cur_thread_init())
+
 #include "sanitizer_common/sanitizer_signal_interceptors.inc"
 
 int sigaction_impl(int sig, const __sanitizer_sigaction *act,
@@ -2012,10 +2017,10 @@ static void unreachable() {
 SANITIZER_WEAK_ATTRIBUTE void InitializeLibdispatchInterceptors() {}
 
 void InitializeInterceptors() {
-  // Instruct libc malloc to consume less memory.
-#if SANITIZER_GLIBC
-  mallopt(1, 0);           // M_MXFAST
-  mallopt(-3, 32 * 1024);  // M_MMAP_THRESHOLD
+#if !SANITIZER_APPLE
+  // We need to setup it early, because functions like dlsym() can call it.
+  REAL(memset) = internal_memset;
+  REAL(memcpy) = internal_memcpy;
 #endif
 
   new (interceptor_ctx()) InterceptorContext();
