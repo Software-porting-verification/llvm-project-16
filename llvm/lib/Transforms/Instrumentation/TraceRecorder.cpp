@@ -20,7 +20,6 @@
 
 #include "llvm/Transforms/Instrumentation/TraceRecorder.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -1207,7 +1206,7 @@ int TraceRecorder::getMemoryAccessFuncIndex(Type *OrigTy, Value *Addr,
     // Ignore all unusual sizes.
     return -1;
   }
-  size_t Idx = countTrailingZeros(TypeSize / 8);
+  size_t Idx = llvm::countr_zero(TypeSize / 8);
   assert(Idx < kNumberOfAccessSizes);
   return Idx;
 }
