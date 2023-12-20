@@ -330,6 +330,8 @@ const int kSizeLog2 = 1;
 const int kSizeLog4 = 2;
 const int kSizeLog8 = 3;
 
+void SetSampleParameters();
+
 void RecordFuncEntry(ThreadState *thr, bool &should_record,
                      __sanitizer::u64 pc);
 void RecordSetLongJmp(ThreadState *thr, bool &should_record, bool isSet, __sanitizer::u64 pc,
