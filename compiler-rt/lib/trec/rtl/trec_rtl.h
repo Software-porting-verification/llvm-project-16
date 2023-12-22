@@ -137,7 +137,6 @@ struct ThreadState {
   bool is_dead;
   bool is_freeing;
   bool is_vptr_access;
-  bool should_record;
   ThreadContext *tctx;
 
   // Current wired Processor, or nullptr. Required to handle any events.
@@ -332,13 +331,13 @@ const int kSizeLog8 = 3;
 
 void SetSampleParameters();
 
-void RecordFuncEntry(ThreadState *thr, bool &should_record,
+bool RecordFuncEntry(ThreadState *thr,
                      __sanitizer::u64 pc);
-void RecordSetLongJmp(ThreadState *thr, bool &should_record, bool isSet, __sanitizer::u64 pc,
+void RecordSetLongJmp(ThreadState *thr, bool isSet, __sanitizer::u64 pc,
                       __sanitizer::u64 buf);
-void RecordFuncExit(ThreadState *thr, bool &should_record);
-void RecordBBLEntry(ThreadState *thr, bool &should_record);
-bool IsTrecBBL(ThreadState *thr, bool &should_record);
+void RecordFuncExit(ThreadState *thr);
+void RecordBBLEntry(ThreadState *thr);
+bool IsTrecBBL(ThreadState *thr);
 
 int ThreadCreate(ThreadState *thr, uptr pc, uptr uid, bool detached);
 void ThreadStart(ThreadState *thr, int tid, tid_t os_id,

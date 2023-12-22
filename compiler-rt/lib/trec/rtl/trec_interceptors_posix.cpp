@@ -202,7 +202,7 @@ static ThreadSignalContext *SigCtx(ThreadState *thr) {
 
 ScopedInterceptor::ScopedInterceptor(ThreadState *thr, const char *fname,
                                      uptr pc)
-    : thr_(thr), pc_(pc), should_record(false) {
+    : thr_(thr), pc_(pc) {
   Initialize(thr);
   if (!thr_->is_inited)
     return;

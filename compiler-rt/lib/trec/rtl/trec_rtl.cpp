@@ -32,6 +32,7 @@
 #include "sanitizer_common/sanitizer_stackdepot.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
 #include "trec_defs.h"
+#include "trec_map.h"
 #include "trec_platform.h"
 #include "ubsan/ubsan_init.h"
 
@@ -46,11 +47,9 @@ typedef __m128i m128;
 #endif
 namespace __trec {
 
-__sanitizer::Vector<int> gradientThresholds;  // 设定采集样本梯度对应的阈值
-int gradientSampleCounts = 100;  // 每个梯度采集100个函数进入退出数据
-__sanitizer::Vector<int> gradientCounts;
-int totalSamples = 0;     // 函数进入退出次数
-int currentGradient = 0;  // 当前所在梯度
+Map<u32, u32> funcNameId_num;  // 统计在运行时funcnameId 出现的次数
+Map<u32, double> sampling_rates;
+
 #if !SANITIZER_GO && !SANITIZER_MAC
 __attribute__((tls_model("initial-exec")))
 THREADLOCAL char cur_thread_placeholder[sizeof(ThreadState)] ALIGNED(64);
@@ -398,7 +397,7 @@ bool Context::state_restore() {
 
 // The objects are allocated in TLS, so one may rely on zero-initialization.
 ThreadState::ThreadState(Context *ctx, int tid, int unique_id)
-    : tid(tid), unique_id(unique_id), should_record(true) {}
+    : tid(tid), unique_id(unique_id) {}
 
 #if !SANITIZER_GO
 
@@ -483,19 +482,12 @@ void Initialize(ThreadState *thr) {
 }
 
 void SetSampleParameters() {
-  gradientThresholds.PushBack(100);
-  gradientThresholds.PushBack(500);
-  gradientThresholds.PushBack(2000);
-  gradientThresholds.PushBack(5000);
-  gradientThresholds.PushBack(10000);
-  gradientThresholds.PushBack(50000);
-  gradientThresholds.PushBack(100000);
-  gradientThresholds.PushBack(500000);
-  gradientThresholds.PushBack(1000000);
-  gradientThresholds.PushBack(UINT_MAX);
-  for (int i = 0; i < gradientThresholds.Size(); ++i) {
-    gradientCounts[i] = 0;
-  }
+  sampling_rates.insert({100, 1.0});
+  sampling_rates.insert({200, 0.8});
+  sampling_rates.insert({500, 0.6});
+  sampling_rates.insert({1000, 0.4});
+  sampling_rates.insert({2000, 0.2});
+  sampling_rates.insert({INT32_MAX, 0.1});
   return;
 }
 
@@ -594,12 +586,12 @@ void ForkChildAfter(ThreadState *thr, uptr pc) {
 }
 #endif
 
-ALWAYS_INLINE USED void RecordSetLongJmp(ThreadState *thr, bool &should_record,
-                                         bool isSet, __sanitizer::u64 pc,
+ALWAYS_INLINE USED void RecordSetLongJmp(ThreadState *thr, bool isSet,
+                                         __sanitizer::u64 pc,
                                          __sanitizer::u64 buf) {
   if (LIKELY(ctx->flags.output_trace) &&
-      LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
-      thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
+      LIKELY(ctx->flags.record_func_enter_exit) &&
+      LIKELY(thr->ignore_interceptors == 0)) {
     if (ctx->flags.trace_mode == 3) {
       timespec time_start, time_end;
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
@@ -635,21 +627,27 @@ ALWAYS_INLINE USED void RecordSetLongJmp(ThreadState *thr, bool &should_record,
   }
 }
 
-ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
-                                        __sanitizer::u64 pc) {
-  totalSamples++;  // 记录运行次数
-  // 判定运行次数在哪个梯度
-  while (totalSamples > gradientThresholds[currentGradient] &&
-         currentGradient < gradientThresholds.Size()) {
-    currentGradient++;
+ALWAYS_INLINE USED bool RecordFuncEntry(ThreadState *thr, __sanitizer::u64 pc) {
+  srand(42);
+  double random_value = (double)rand() / ((double)RAND_MAX + 1);
+  __trec_debug_info::InstDebugInfo &debug_info =
+      (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
+  u32 name_id = debug_info.nameID[0];
+  // 统计每个函数的运行次数
+  u32 count = funcNameId_num[name_id]++;
+  printf("name_id:%d, count:%d", name_id, count);
+  double sampling_rate = 1.0;
+  for (auto it = sampling_rates.begin(); it != sampling_rates.end(); ++it) {
+    // 设置运行次数对应的记录概率
+    if (count <= (*it).key) {
+      sampling_rate = (*it).value;
+    }
   }
-  // 当前梯度小于总梯度且当运行次数在设定的阈值范围内且，记录运行数据
-  if (currentGradient < gradientThresholds.Size() &&
-      gradientCounts[currentGradient] < gradientSampleCounts) {
-    gradientCounts[currentGradient]++;
+  printf("sampling_rate:%d", sampling_rate);
+  if (random_value <= sampling_rate) {
     if (LIKELY(ctx->flags.output_trace) &&
-        LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
-        thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
+        LIKELY(ctx->flags.record_func_enter_exit) &&
+        LIKELY(thr->ignore_interceptors == 0)) {
       if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
         timespec time_start, time_end;
         clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
@@ -690,19 +688,19 @@ ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
             time_end.tv_sec - time_start.tv_sec;
         thr->tctx->before_fork_time.tv_nsec -=
             time_end.tv_nsec - time_start.tv_nsec;
+        return true;
       }
     }
-    return;
   }
+  return false;
 }
 
-ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
-  // 当前梯度小于总梯度且在当前梯度采集数之内，记录运行数据
-  if (currentGradient < gradientThresholds.Size() &&
-      gradientCounts[currentGradient] < gradientSampleCounts) {
+ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool should_record) {
+  if (should_record) {
+    // 当前梯度小于总梯度且在当前梯度采集数之内，记录运行数据
     if (LIKELY(ctx->flags.output_trace) &&
-        LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
-        thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
+        LIKELY(ctx->flags.record_func_enter_exit) &&
+        LIKELY(thr->ignore_interceptors == 0)) {
       if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
         timespec time_start, time_end;
         clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
@@ -736,37 +734,34 @@ ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
             time_end.tv_nsec - time_start.tv_nsec;
       }
     }
-    return;
   }
+  return;
 }
 
-ALWAYS_INLINE USED bool IsTrecBBL(ThreadState *thr, bool &should_record) {
+ALWAYS_INLINE USED bool IsTrecBBL(ThreadState *thr) {
   const char *func_id = GetEnv("FUNC_ID");
   __trec_debug_info::InstDebugInfo &debug_info =
       (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
   __sanitizer::u64 id = debug_info.fid;
   if (func_id == nullptr) {
-    should_record = true;  // 对所有函数进行函数插桩
+    // 对所有函数进行函数插桩
     return false;
   } else {
     __sanitizer::u64 fun_id = strtoul(func_id, nullptr, 10);
     if (fun_id == id) {
-      should_record = true;  // 只对指定的函数进行BBL插桩
+      // 只对指定的函数进行BBL插桩
       return true;
-    } else {
-      should_record = false;  // 不对当前函数进行BBL插桩和函数插桩
-      return false;
     }
   }
 }
 
-ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr, bool &should_record) {
+ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr) {
   if (GetEnv("FUNC_ID") == nullptr) {
     return;
   }
   if (LIKELY(ctx->flags.output_trace) &&
-      LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
-      thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
+      LIKELY(ctx->flags.record_func_enter_exit) &&
+      LIKELY(thr->ignore_interceptors == 0)) {
     if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
       timespec time_start, time_end;
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
@@ -803,13 +798,13 @@ ALWAYS_INLINE USED void RecordBBLEntry(ThreadState *thr, bool &should_record) {
   return;
 }
 
-ALWAYS_INLINE USED void RecordBBLExit(ThreadState *thr, bool &should_record) {
+ALWAYS_INLINE USED void RecordBBLExit(ThreadState *thr) {
   if (GetEnv("FUNC_ID") == nullptr) {
     return;
   }
   if (LIKELY(ctx->flags.output_trace) &&
-      LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
-      thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
+      LIKELY(ctx->flags.record_func_enter_exit) &&
+      LIKELY(thr->ignore_interceptors == 0)) {
     if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
       timespec time_start, time_end;
       clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);

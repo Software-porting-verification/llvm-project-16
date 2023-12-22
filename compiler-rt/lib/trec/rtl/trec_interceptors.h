@@ -14,7 +14,6 @@ class ScopedInterceptor {
  private:
   ThreadState *const thr_;
   const uptr pc_;
-  bool should_record;
   char func_name[256];
 };
 
