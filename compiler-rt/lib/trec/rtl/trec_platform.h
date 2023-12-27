@@ -488,98 +488,10 @@ enum MappingType {
   MAPPING_VDSO_BEG,
 };
 
-// template <typename Mapping>
-// bool IsAppMemImpl(__sanitizer::uptr mem) {
-// #if !SANITIZER_GO
-//   return (mem >= Mapping::kHeapMemBeg && mem < Mapping::kHeapMemEnd) ||
-// #ifdef TREC_MID_APP_RANGE
-//          (mem >= Mapping::kMidAppMemBeg && mem < Mapping::kMidAppMemEnd) ||
-// #endif
-//          (mem >= Mapping::kLoAppMemBeg && mem < Mapping::kLoAppMemEnd) ||
-//          (mem >= Mapping::kHiAppMemBeg && mem < Mapping::kHiAppMemEnd);
-// #else
-//   return mem >= Mapping::kAppMemBeg && mem < Mapping::kAppMemEnd;
-// #endif
-// }
-
-// ALWAYS_INLINE
-// bool IsAppMem(__sanitizer::uptr mem) {
-// #if defined(__i386__)
-//   return true;
-// #elif defined(__aarch64__) && !defined(__APPLE__) && !SANITIZER_GO
-//   switch (vmaSize) {
-//     case 39:
-//       return IsAppMemImpl<Mapping39>(mem);
-//     case 42:
-//       return IsAppMemImpl<Mapping42>(mem);
-//     case 48:
-//       return IsAppMemImpl<Mapping48>(mem);
-//   }
-//   DCHECK(0);
-//   return false;
-// #elif defined(__powerpc64__)
-//   switch (vmaSize) {
-// #if !SANITIZER_GO
-//     case 44:
-//       return IsAppMemImpl<Mapping44>(mem);
-// #endif
-//     case 46:
-//       return IsAppMemImpl<Mapping46>(mem);
-//     case 47:
-//       return IsAppMemImpl<Mapping47>(mem);
-//   }
-//   DCHECK(0);
-//   return false;
-// #else
-//   return IsAppMemImpl<Mapping>(mem);
-// #endif
-// }
-
-template <typename Mapping>
-bool IsHeapMemImpl(__sanitizer::uptr mem) {
-#if !SANITIZER_GO
-  return (mem >= Mapping::kHeapMemBeg && mem < Mapping::kHeapMemEnd);
-#endif
-}
-
-ALWAYS_INLINE
-bool IsHeapMem(__sanitizer::uptr mem) {
-#if defined(__x86_64__) && !SANITIZER_GO
-  return IsHeapMemImpl<Mapping>(mem);
-#elif defined(__i386__) || defined(__riscv)
-  return true;
-#else
-  return false;
-#endif
-}
-
-template <typename Mapping>
-bool IsStackMemImpl(__sanitizer::uptr mem) {
-#if !SANITIZER_GO
-  return (mem >= Mapping::kHiAppMemBeg && mem < Mapping::kHiAppMemEnd);
-#endif
-}
-
-ALWAYS_INLINE
-bool IsStackMem(__sanitizer::uptr mem) {
-#if defined(__i386__) || defined(__riscv)
-  return true;
-#elif defined(__x86_64__) && !SANITIZER_GO
-  return IsStackMemImpl<Mapping>(mem);
-#else
-  return false;
-#endif
-}
-
 void InitializePlatform();
 void InitializePlatformEarly();
-// void CheckAndProtect();
-// void InitializeShadowMemoryPlatform();
-void FlushShadowMemory();
-// void WriteMemoryProfile(char *buf, __sanitizer::uptr buf_size, __sanitizer::uptr nthread, __sanitizer::uptr nlive);
-int ExtractResolvFDs(void *state, int *fds, int nfd);
+
 int ExtractRecvmsgFDs(void *msg, int *fds, int nfd);
-void ImitateTlsWrite(ThreadState *thr, __sanitizer::uptr tls_addr, __sanitizer::uptr tls_size);
 
 int call_pthread_cancel_with_cleanup(int (*fn)(void *arg),
                                      void (*cleanup)(void *arg), void *arg);

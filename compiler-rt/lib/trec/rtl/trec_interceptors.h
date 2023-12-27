@@ -14,20 +14,16 @@ class ScopedInterceptor {
  private:
   ThreadState *const thr_;
   const uptr pc_;
-  bool should_record;
-  char func_name[256];
 };
 
 }  // namespace __trec
 
-#define SCOPED_INTERCEPTOR_RAW(func, ...)                    \
-  cur_thread_init();                                         \
-  ThreadState *thr = cur_thread();                           \
-  const uptr caller_pc =                                     \
-      StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()); \
-  ScopedInterceptor si(thr, #func, caller_pc);               \
-  const uptr pc = caller_pc
-   // StackTrace::GetCurrentPc();
+#define SCOPED_INTERCEPTOR_RAW(func, ...)                                \
+  cur_thread_init();                                                     \
+  ThreadState *thr = cur_thread();                                       \
+  const uptr pc = StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()); \
+  ScopedInterceptor si(thr, #func, pc);                                  \
+  // StackTrace::GetCurrentPc();
 /**/
 
 #define SCOPED_TREC_INTERCEPTOR(func, ...)                           \

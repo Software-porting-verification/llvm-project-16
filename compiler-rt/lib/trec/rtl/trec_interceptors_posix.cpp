@@ -12,8 +12,7 @@
 // sanitizer_common/sanitizer_common_interceptors.inc
 //===----------------------------------------------------------------------===//
 
-#include <dlfcn.h>
-#include <stdarg.h>
+#define SANITIZER_COMMON_NO_REDEFINE_BUILTINS
 
 #include "interception/interception.h"
 #include "sanitizer_common/sanitizer_atomic.h"
@@ -37,7 +36,7 @@ using namespace __trec;
 DECLARE_REAL(void *, memcpy, void *to, const void *from, SIZE_T size)
 DECLARE_REAL(void *, memset, void *block, int c, SIZE_T size)
 
-#if SANITIZER_FREEBSD || SANITIZER_MAC
+#if SANITIZER_FREEBSD || SANITIZER_APPLE
 #define stdout __stdoutp
 #define stderr __stderrp
 #endif
@@ -96,22 +95,19 @@ extern "C" void _exit(int status);
 extern "C" int fileno_unlocked(void *stream);
 extern "C" int dirfd(void *dirp);
 #endif
-#if SANITIZER_GLIBC
-extern "C" int mallopt(int param, int value);
-#endif
 #if SANITIZER_NETBSD
 extern __sanitizer_FILE __sF[];
 #else
 extern __sanitizer_FILE *stdout, *stderr;
 #endif
-#if !SANITIZER_FREEBSD && !SANITIZER_MAC && !SANITIZER_NETBSD
+#if !SANITIZER_FREEBSD && !SANITIZER_APPLE && !SANITIZER_NETBSD
 const int PTHREAD_MUTEX_RECURSIVE = 1;
 const int PTHREAD_MUTEX_RECURSIVE_NP = 1;
 #else
 const int PTHREAD_MUTEX_RECURSIVE = 2;
 const int PTHREAD_MUTEX_RECURSIVE_NP = 2;
 #endif
-#if !SANITIZER_FREEBSD && !SANITIZER_MAC && !SANITIZER_NETBSD
+#if !SANITIZER_FREEBSD && !SANITIZER_APPLE && !SANITIZER_NETBSD
 const int EPOLL_CTL_ADD = 1;
 #endif
 const int SIGILL = 4;
@@ -121,7 +117,8 @@ const int SIGFPE = 8;
 const int SIGSEGV = 11;
 const int SIGPIPE = 13;
 const int SIGTERM = 15;
-#if defined(__mips__) || SANITIZER_FREEBSD || SANITIZER_MAC || SANITIZER_NETBSD
+#if defined(__mips__) || SANITIZER_FREEBSD || SANITIZER_APPLE || \
+    SANITIZER_NETBSD
 const int SIGBUS = 10;
 const int SIGSYS = 12;
 #else
@@ -131,7 +128,7 @@ const int SIGSYS = 31;
 void *const MAP_FAILED = (void *)-1;
 #if SANITIZER_NETBSD
 const int PTHREAD_BARRIER_SERIAL_THREAD = 1234567;
-#elif !SANITIZER_MAC
+#elif !SANITIZER_APPLE
 const int PTHREAD_BARRIER_SERIAL_THREAD = -1;
 #endif
 const int MAP_FIXED = 0x10;
@@ -144,7 +141,7 @@ typedef __sanitizer::u16 mode_t;
 #define F_TLOCK 2 /* Test and lock a region for exclusive use.  */
 #define F_TEST 3  /* Test a region for other processes locks.  */
 
-#if SANITIZER_FREEBSD || SANITIZER_MAC || SANITIZER_NETBSD
+#if SANITIZER_FREEBSD || SANITIZER_APPLE || SANITIZER_NETBSD
 const int SA_SIGINFO = 0x40;
 const int SIG_SETMASK = 3;
 #elif defined(__mips__)
@@ -192,11 +189,11 @@ struct InterceptorContext {
   // in a single cache line if possible (it's accessed in every interceptor).
   ALIGNED(64) LibIgnore libignore;
   __sanitizer_sigaction sigactions[kSigCount];
-#if !SANITIZER_MAC && !SANITIZER_NETBSD
+#if !SANITIZER_APPLE && !SANITIZER_NETBSD
   unsigned finalize_key;
 #endif
 
-  Mutex atexit_mu;
+  __sanitizer::Mutex atexit_mu;
   Vector<struct AtExitCtx *> AtExitStack;
 
   InterceptorContext() : libignore(LINKER_INITIALIZED), AtExitStack() {}
@@ -230,25 +227,10 @@ static ThreadSignalContext *SigCtx(ThreadState *thr) {
 
 ScopedInterceptor::ScopedInterceptor(ThreadState *thr, const char *fname,
                                      uptr pc)
-    : thr_(thr), pc_(pc), should_record(false) {
+    : thr_(thr), pc_(pc) {
   Initialize(thr);
   if (!thr_->is_inited)
     return;
-  should_record = thr->should_record;
-
-  if (!thr_->ignore_interceptors) {
-    bool should_record_ret = false;
-    RecordFuncEntry(thr, should_record_ret, fname, pc);
-    thr->should_record &= should_record_ret;
-  }
-  if (internal_strcmp(fname, "pthread_create")) {
-    thr->tctx->isFuncEnterMetaVaild = false;
-    thr->tctx->isFuncExitMetaVaild = false;
-    thr->tctx->parammetas.Resize(0);
-    thr->tctx->dbg_temp_buffer_size = 0;
-  }
-
-  internal_strlcpy(func_name, fname, 255);
 }
 
 ScopedInterceptor::~ScopedInterceptor() {
@@ -256,13 +238,7 @@ ScopedInterceptor::~ScopedInterceptor() {
     return;
   if (!thr_->ignore_interceptors) {
     ProcessPendingSignals(thr_);
-    RecordFuncExit(thr_, thr_->should_record, func_name);
   }
-  thr_->should_record = should_record;
-  thr_->tctx->isFuncEnterMetaVaild = false;
-  thr_->tctx->isFuncExitMetaVaild = false;
-  thr_->tctx->parammetas.Resize(0);
-  thr_->tctx->dbg_temp_buffer_size = 0;
 }
 
 #define TREC_INTERCEPT(func) INTERCEPT_FUNCTION(func);
@@ -336,6 +312,19 @@ TREC_INTERCEPTOR(int, pause, int fake) {
   return BLOCK_REAL(pause)(fake);
 }
 
+static void FlushStreams() {
+  // Flushing all the streams here may freeze the process if a child thread is
+  // performing file stream operations at the same time.
+  REAL(fflush)(stdout);
+  REAL(fflush)(stderr);
+  TrecFlushTraceOnDead();
+}
+
+static int OnExit(ThreadState *thr) {
+  int status = Finalize(thr);
+  return status;
+}
+
 static void at_exit_wrapper() {
   AtExitCtx *ctx;
   {
@@ -349,12 +338,14 @@ static void at_exit_wrapper() {
     interceptor_ctx()->atexit_mu.Unlock();
   }
   ((void (*)())ctx->f)();
+  FlushStreams();
   InternalFree(ctx);
 }
 
 static void cxa_at_exit_wrapper(void *arg) {
   AtExitCtx *ctx = (AtExitCtx *)arg;
   ((void (*)(void *arg))ctx->f)(ctx->arg);
+  FlushStreams();
   InternalFree(ctx);
 }
 
@@ -386,7 +377,7 @@ static int setup_at_exit_wrapper(ThreadState *thr, uptr pc, void (*f)(),
   if (!dso) {
     // NetBSD does not preserve the 2nd argument if dso is equal to 0
     // Store ctx in a local stack-like structure
-
+    ScopedIgnoreInterceptors ignore;
     res = REAL(__cxa_atexit)((void (*)(void *a))at_exit_wrapper, 0, 0);
     // Push AtExitCtx on the top of the stack of callback functions
     if (!res) {
@@ -398,12 +389,12 @@ static int setup_at_exit_wrapper(ThreadState *thr, uptr pc, void (*f)(),
   return res;
 }
 
-#if !SANITIZER_MAC && !SANITIZER_NETBSD
+#if !SANITIZER_APPLE && !SANITIZER_NETBSD
 static void on_exit_wrapper(int status, void *arg) {
   ThreadState *thr = cur_thread();
-  uptr pc = 0;
   AtExitCtx *ctx = (AtExitCtx *)arg;
   ((void (*)(int status, void *arg))ctx->f)(status, ctx->arg);
+  FlushStreams();
   InternalFree(ctx);
 }
 
@@ -422,12 +413,99 @@ TREC_INTERCEPTOR(int, on_exit, void (*f)(int, void *), void *arg) {
 #define TREC_MAYBE_INTERCEPT_ON_EXIT
 #endif
 
-#if !SANITIZER_MAC
+#if SANITIZER_APPLE
+TREC_INTERCEPTOR(int, setjmp, void *env);
+TREC_INTERCEPTOR(int, _setjmp, void *env);
+TREC_INTERCEPTOR(int, sigsetjmp, void *env);
+#else  // SANITIZER_APPLE
+
+#if SANITIZER_NETBSD
+#define setjmp_symname __setjmp14
+#define sigsetjmp_symname __sigsetjmp14
+#else
+#define setjmp_symname setjmp
+#define sigsetjmp_symname sigsetjmp
+#endif
+
+TREC_INTERCEPTOR(void, setjmp_symname, uptr *env) {
+  {
+    SCOPED_INTERCEPTOR_RAW(setjmp_symname, env);
+    Setjmp(thr, pc, (uptr)env);
+  }
+  REAL(setjmp_symname)(env);
+}
+
+TREC_INTERCEPTOR(void, sigsetjmp_symname, uptr *env) {
+  {
+    SCOPED_INTERCEPTOR_RAW(sigsetjmp_symname, env);
+    Setjmp(thr, pc, (uptr)env);
+  }
+  REAL(sigsetjmp_symname)(env);
+}
+
+TREC_INTERCEPTOR(void, _setjmp, uptr *env) {
+  {
+    SCOPED_INTERCEPTOR_RAW(_setjmp, env);
+    Setjmp(thr, pc, (uptr)env);
+  }
+  REAL(_setjmp)(env);
+}
+#if !SANITIZER_NETBSD
+TREC_INTERCEPTOR(void, __sigsetjmp, uptr *env) {
+  {
+    SCOPED_INTERCEPTOR_RAW(__sigsetjmp, env);
+    Setjmp(thr, pc, (uptr)env);
+  }
+  REAL(__sigsetjmp)(env);
+}
+#endif
+
+#endif  // SANITIZER_APPLE
+
+#if SANITIZER_NETBSD
+#define longjmp_symname __longjmp14
+#define siglongjmp_symname __siglongjmp14
+#else
+#define longjmp_symname longjmp
+#define siglongjmp_symname siglongjmp
+#endif
+
+TREC_INTERCEPTOR(void, longjmp_symname, uptr *env, int val) {
+  // Note: if we call REAL(longjmp) in the context of ScopedInterceptor,
+  // bad things will happen. We will jump over ScopedInterceptor dtor and can
+  // leave thr->in_ignored_lib set.
+  {
+    SCOPED_INTERCEPTOR_RAW(longjmp_symname, env, val);
+    Longjmp(thr, pc, (uptr)env);
+  }
+
+  REAL(longjmp_symname)(env, val);
+}
+
+TREC_INTERCEPTOR(void, siglongjmp_symname, uptr *env, int val) {
+  {
+    SCOPED_INTERCEPTOR_RAW(siglongjmp_symname, env, val);
+    Longjmp(thr, pc, (uptr)env);
+  }
+  REAL(siglongjmp_symname)(env, val);
+}
+
+#if SANITIZER_NETBSD
+TREC_INTERCEPTOR(void, _longjmp, uptr *env, int val) {
+  {
+    SCOPED_INTERCEPTOR_RAW(_longjmp, env, val);
+    Longjmp(thr, pc, (uptr)env);
+  }
+  REAL(_longjmp)(env, val);
+}
+#endif
+
+#if !SANITIZER_APPLE
 TREC_INTERCEPTOR(void *, malloc, uptr size) {
   void *p = 0;
   {
     SCOPED_INTERCEPTOR_RAW(malloc, size);
-    p = user_alloc(thr, caller_pc, size);
+    p = user_alloc(thr, pc, size);
   }
   invoke_malloc_hook(p, size);
   return p;
@@ -435,14 +513,14 @@ TREC_INTERCEPTOR(void *, malloc, uptr size) {
 
 TREC_INTERCEPTOR(void *, __libc_memalign, uptr align, uptr sz) {
   SCOPED_TREC_INTERCEPTOR(__libc_memalign, align, sz);
-  return user_memalign(thr, caller_pc, align, sz);
+  return user_memalign(thr, pc, align, sz);
 }
 
 TREC_INTERCEPTOR(void *, calloc, uptr size, uptr n) {
   void *p = 0;
   {
     SCOPED_INTERCEPTOR_RAW(calloc, size, n);
-    p = user_calloc(thr, caller_pc, size, n);
+    p = user_calloc(thr, pc, size, n);
   }
   invoke_malloc_hook(p, n * size);
   return p;
@@ -453,7 +531,7 @@ TREC_INTERCEPTOR(void *, realloc, void *p, uptr size) {
     invoke_free_hook(p);
   {
     SCOPED_INTERCEPTOR_RAW(realloc, p, size);
-    p = user_realloc(thr, caller_pc, p, size);
+    p = user_realloc(thr, pc, p, size);
   }
   invoke_malloc_hook(p, size);
   return p;
@@ -464,7 +542,7 @@ TREC_INTERCEPTOR(void *, reallocarray, void *p, uptr size, uptr n) {
     invoke_free_hook(p);
   {
     SCOPED_INTERCEPTOR_RAW(reallocarray, p, size, n);
-    p = user_reallocarray(thr, caller_pc, p, size, n);
+    p = user_reallocarray(thr, pc, p, size, n);
   }
   invoke_malloc_hook(p, size);
   return p;
@@ -476,7 +554,7 @@ TREC_INTERCEPTOR(void, free, void *p) {
   invoke_free_hook(p);
   SCOPED_INTERCEPTOR_RAW(free, p);
 
-  user_free(thr, caller_pc, p, true,
+  user_free(thr, pc, p, true,
             ctx->flags.output_trace && LIKELY(ctx->flags.record_alloc_free));
 }
 
@@ -485,11 +563,13 @@ TREC_INTERCEPTOR(void, cfree, void *p) {
     return;
   invoke_free_hook(p);
   SCOPED_INTERCEPTOR_RAW(cfree, p);
-  user_free(thr, caller_pc, p, true, true);
+  user_free(thr, pc, p, true, true);
 }
 
 TREC_INTERCEPTOR(uptr, malloc_usable_size, void *p) {
   SCOPED_INTERCEPTOR_RAW(malloc_usable_size, p);
+  if (allocator()->PointerIsMine(p))
+    return allocator()->GetActuallyAllocatedSize(p);
   return user_alloc_usable_size(p);
 }
 
@@ -497,64 +577,25 @@ TREC_INTERCEPTOR(uptr, malloc_usable_size, void *p) {
 
 TREC_INTERCEPTOR(char *, strcpy, char *dst, const char *src) {
   SCOPED_TREC_INTERCEPTOR(strcpy, dst, src);
-  uptr n = internal_strlen(src);
-  uptr rest_cnt = n, val;
-  int szLog;
-  char *ret = REAL(strcpy)(dst, src);
-  while (rest_cnt) {
-    if (rest_cnt >= 8) {
-      szLog = kSizeLog8;
-      val = *(u64 *)((char *)dst + n - rest_cnt);
-    } else if (rest_cnt >= 4 && rest_cnt < 8) {
-      szLog = kSizeLog4;
-      val = *(u32 *)((char *)dst + n - rest_cnt);
-    } else if (rest_cnt >= 2 && rest_cnt < 4) {
-      szLog = kSizeLog2;
-      val = *(u16 *)((char *)dst + n - rest_cnt);
-    } else {
-      szLog = kSizeLog1;
-      val = *(u8 *)((char *)dst + n - rest_cnt);
-    }
-    MemoryAccess(cur_thread(), caller_pc, (uptr)src, szLog, false, false, false,
-                 val, {(u16)(0x8000 | ((n - rest_cnt) & 0x7fff)), 2}, {0, 0},
-                 true);
-    MemoryAccess(cur_thread(), caller_pc, (uptr)dst, szLog, true, false, false,
-                 val, {(u16)(0x8000 | ((n - rest_cnt) & 0x7fff)), 1},
-                 {0, (uptr)src + n - rest_cnt}, true);
-    rest_cnt -= (1 << szLog);
+  uptr srclen = internal_strlen(src);
+  MemoryAccessRange(thr, pc, (uptr)src, srclen + 1, false, {1, 0, 0, 2});
+  MemoryAccessRange(thr, pc, (uptr)dst, srclen + 1, true, {1, 0, 0, 1});
+  {
+    ScopedIgnoreInterceptors ignore;
+    return REAL(strcpy)(dst, src);
   }
-  return ret;
 }
 
 TREC_INTERCEPTOR(char *, strncpy, char *dst, char *src, uptr n) {
   SCOPED_TREC_INTERCEPTOR(strncpy, dst, src, n);
   uptr srclen = internal_strnlen(src, n);
-  uptr rest_cnt = srclen, val;
-  int szLog;
-  char *ret = REAL(strncpy)(dst, src, n);
-  while (rest_cnt) {
-    if (rest_cnt >= 8) {
-      szLog = kSizeLog8;
-      val = *(u64 *)((char *)dst + srclen - rest_cnt);
-    } else if (rest_cnt >= 4 && rest_cnt < 8) {
-      szLog = kSizeLog4;
-      val = *(u32 *)((char *)dst + srclen - rest_cnt);
-    } else if (rest_cnt >= 2 && rest_cnt < 4) {
-      szLog = kSizeLog2;
-      val = *(u16 *)((char *)dst + srclen - rest_cnt);
-    } else {
-      szLog = kSizeLog1;
-      val = *(u8 *)((char *)dst + srclen - rest_cnt);
-    }
-    MemoryAccess(cur_thread(), caller_pc, (uptr)src, szLog, false, false, false,
-                 val, {(u16)(0x8000 | ((srclen - rest_cnt) & 0x7fff)), 2},
-                 {0, 0}, true);
-    MemoryAccess(cur_thread(), caller_pc, (uptr)dst, szLog, true, false, false,
-                 val, {(u16)(0x8000 | ((srclen - rest_cnt) & 0x7fff)), 1},
-                 {0, (uptr)src + srclen - rest_cnt}, true);
-    rest_cnt -= (1 << szLog);
+  MemoryAccessRange(thr, pc, (uptr)src, min(srclen + 1, n), false,
+                    {1, 0, 0, 2});
+  MemoryAccessRange(thr, pc, (uptr)dst, min(srclen + 1, n), true, {1, 0, 0, 1});
+  {
+    ScopedIgnoreInterceptors ignore;
+    return REAL(strncpy)(dst, src, n);
   }
-  return ret;
 }
 
 TREC_INTERCEPTOR(char *, strdup, const char *str) {
@@ -562,69 +603,47 @@ TREC_INTERCEPTOR(char *, strdup, const char *str) {
   // strdup will call malloc, so no instrumentation is required here.
   char *dst = REAL(strdup)(str);
   uptr srclen = internal_strlen(dst);
-  uptr rest_cnt = srclen, val;
-  int szLog;
-  while (rest_cnt) {
-    if (rest_cnt >= 8) {
-      szLog = kSizeLog8;
-      val = *(u64 *)((char *)dst + srclen - rest_cnt);
-    } else if (rest_cnt >= 4 && rest_cnt < 8) {
-      szLog = kSizeLog4;
-      val = *(u32 *)((char *)dst + srclen - rest_cnt);
-    } else if (rest_cnt >= 2 && rest_cnt < 4) {
-      szLog = kSizeLog2;
-      val = *(u16 *)((char *)dst + srclen - rest_cnt);
-    } else {
-      szLog = kSizeLog1;
-      val = *(u8 *)((char *)dst + srclen - rest_cnt);
-    }
-    MemoryAccess(cur_thread(), caller_pc, (uptr)str, szLog, false, false, false,
-                 val, {(u16)(0x8000 | ((srclen - rest_cnt) & 0x7fff)), 2},
-                 {0, 0}, true);
-    MemoryAccess(cur_thread(), caller_pc, (uptr)dst, szLog, true, false, false,
-                 val, {(u16)(0x8000 | ((srclen - rest_cnt) & 0x7fff)), 1},
-                 {0, (uptr)str + srclen - rest_cnt}, true);
-    rest_cnt -= (1 << szLog);
-  }
+  MemoryAccessRange(thr, pc, (uptr)str, srclen + 1, false, {1, 0, 0, 1});
+  MemoryAccessRange(thr, pc, (uptr)dst, srclen + 1, true, {1, 0, 0, 2});
   return dst;
 }
 
 #if SANITIZER_LINUX
 TREC_INTERCEPTOR(void *, memalign, uptr align, uptr sz) {
   SCOPED_INTERCEPTOR_RAW(memalign, align, sz);
-  return user_memalign(thr, caller_pc, align, sz);
+  return user_memalign(thr, pc, align, sz);
 }
 #define TREC_MAYBE_INTERCEPT_MEMALIGN TREC_INTERCEPT(memalign)
 #else
 #define TREC_MAYBE_INTERCEPT_MEMALIGN
 #endif
 
-#if !SANITIZER_MAC
+#if !SANITIZER_APPLE
 TREC_INTERCEPTOR(void *, aligned_alloc, uptr align, uptr sz) {
   SCOPED_INTERCEPTOR_RAW(aligned_alloc, align, sz);
-  return user_aligned_alloc(thr, caller_pc, align, sz);
+  return user_aligned_alloc(thr, pc, align, sz);
 }
 
 TREC_INTERCEPTOR(void *, valloc, uptr sz) {
   SCOPED_INTERCEPTOR_RAW(valloc, sz);
-  return user_valloc(thr, caller_pc, sz);
+  return user_valloc(thr, pc, sz);
 }
 #endif
 
 #if SANITIZER_LINUX
 TREC_INTERCEPTOR(void *, pvalloc, uptr sz) {
   SCOPED_INTERCEPTOR_RAW(pvalloc, sz);
-  return user_pvalloc(thr, caller_pc, sz);
+  return user_pvalloc(thr, pc, sz);
 }
 #define TREC_MAYBE_INTERCEPT_PVALLOC TREC_INTERCEPT(pvalloc)
 #else
 #define TREC_MAYBE_INTERCEPT_PVALLOC
 #endif
 
-#if !SANITIZER_MAC
+#if !SANITIZER_APPLE
 TREC_INTERCEPTOR(int, posix_memalign, void **memptr, uptr align, uptr sz) {
   SCOPED_INTERCEPTOR_RAW(posix_memalign, memptr, align, sz);
-  return user_posix_memalign(thr, caller_pc, memptr, align, sz);
+  return user_posix_memalign(thr, pc, memptr, align, sz);
 }
 #endif
 
@@ -638,7 +657,7 @@ TREC_INTERCEPTOR(int, posix_memalign, void **memptr, uptr align, uptr sz) {
 // these interceptors with INTERFACE_ATTRIBUTE.
 // On OS X, we don't support statically linking, so we just use a regular
 // interceptor.
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 #define STDCXX_INTERCEPTOR TREC_INTERCEPTOR
 #else
 #define STDCXX_INTERCEPTOR(rettype, name, ...) \
@@ -653,7 +672,6 @@ void DestroyThreadState() {
   ProcUnwire(proc, thr);
   ProcDestroy(proc);
   DTLS_Destroy();
-  cur_thread_finalize();
 }
 
 void PlatformCleanUpThreadState(ThreadState *thr) {
@@ -665,13 +683,13 @@ void PlatformCleanUpThreadState(ThreadState *thr) {
 }
 }  // namespace __trec
 
-#if !SANITIZER_MAC && !SANITIZER_NETBSD && !SANITIZER_FREEBSD
+#if !SANITIZER_APPLE && !SANITIZER_NETBSD && !SANITIZER_FREEBSD
 static void thread_finalize(void *v) {
   uptr iter = (uptr)v;
   if (iter > 1) {
     if (pthread_setspecific(interceptor_ctx()->finalize_key,
                             (void *)(iter - 1))) {
-      Printf("TraceRecorder: failed to set thread key\n");
+      Printf("ThreadSanitizer: failed to set thread key\n");
       Die();
     }
     return;
@@ -683,46 +701,31 @@ static void thread_finalize(void *v) {
 struct ThreadParam {
   void *(*callback)(void *arg);
   void *param;
-  atomic_uintptr_t tid;
-  __trec_metadata::FuncEnterMeta entry_meta;
-  Vector<__trec_metadata::FuncParamMeta> parameters;
-  bool isEnterMetaVaild = false;
-  char debug_info[512];
-  int debug_info_size = 0;
+  Tid tid;
+  Semaphore created;
+  Semaphore started;
 };
 
 extern "C" void *__trec_thread_start_func(void *arg) {
   ThreadParam *p = (ThreadParam *)arg;
   void *(*callback)(void *arg) = p->callback;
   void *param = p->param;
-  int tid = 0;
   {
-    cur_thread_init();
-    ThreadState *thr = cur_thread();
+    ThreadState *thr = cur_thread_init();
     // Thread-local state is not initialized yet.
     ScopedIgnoreInterceptors ignore;
-#if !SANITIZER_MAC && !SANITIZER_NETBSD && !SANITIZER_FREEBSD
+#if !SANITIZER_APPLE && !SANITIZER_NETBSD && !SANITIZER_FREEBSD
     if (pthread_setspecific(interceptor_ctx()->finalize_key,
                             (void *)GetPthreadDestructorIterations())) {
-      Printf("TraceRecorder: failed to set thread key\n");
+      Printf("ThreadSanitizer: failed to set thread key\n");
       Die();
     }
 #endif
-    while ((tid = atomic_load(&p->tid, memory_order_acquire)) == 0)
-      internal_sched_yield();
+    p->created.Wait();
     Processor *proc = ProcCreate();
     ProcWire(proc, thr);
-    ThreadStart(thr, tid, GetTid(), ThreadType::Regular);
-    thr->tctx->isFuncEnterMetaVaild = p->isEnterMetaVaild;
-    thr->tctx->entry_meta = p->entry_meta;
-    thr->tctx->parammetas.Resize(0);
-    for (int idx = 0; idx < p->parameters.Size(); idx++) {
-      thr->tctx->parammetas.PushBack(p->parameters[idx]);
-    }
-    internal_memcpy(thr->tctx->dbg_temp_buffer, p->debug_info,
-                    p->debug_info_size);
-    thr->tctx->dbg_temp_buffer_size = p->debug_info_size;
-    atomic_store(&p->tid, 0, memory_order_release);
+    ThreadStart(thr, p->tid, GetTid(), ThreadType::Regular);
+    p->started.Post();
   }
   void *res = callback(param);
   // Prevent the callback from being tail called,
@@ -737,57 +740,15 @@ TREC_INTERCEPTOR(int, pthread_create, void *th, void *attr,
   ScopedIgnoreInterceptors ignore;
   SCOPED_INTERCEPTOR_RAW(pthread_create, th, attr, callback, param);
 
+  int detached = 0;
+  if (attr) {
+    REAL(pthread_attr_getdetachstate)(attr, &detached);
+  }
+
   ThreadParam p;
   p.callback = callback;
   p.param = param;
-  p.debug_info_size = 0;
-  p.isEnterMetaVaild = false;
-  if (thr->tctx->isFuncEnterMetaVaild) {
-    p.entry_meta = thr->tctx->entry_meta;
-    for (int idx = 0; idx < thr->tctx->parammetas.Size(); idx++) {
-      if (thr->tctx->parammetas[idx].id == 4) {
-        __trec_metadata::FuncParamMeta meta = thr->tctx->parammetas[idx];
-        meta.id = 1;
-        p.parameters.PushBack(meta);
-      }
-    }
-    p.entry_meta.parammeta_cnt = p.parameters.Size();
-    p.entry_meta.arg_size -= 3;
-    p.isEnterMetaVaild = true;
-    thr->tctx->parammetas.Resize(0);
-    thr->tctx->isFuncEnterMetaVaild = false;
-  }
-  if (thr->tctx->dbg_temp_buffer_size) {
-    p.debug_info_size =
-        min(thr->tctx->dbg_temp_buffer_size, (__sanitizer::u64)512);
-    internal_memcpy(p.debug_info, thr->tctx->dbg_temp_buffer,
-                    p.debug_info_size);
-    thr->tctx->dbg_temp_buffer_size = 0;
-  }
-  atomic_store(&p.tid, 0, memory_order_relaxed);
-
-  if (ctx->after_multithreaded_fork) {
-    if (flags()->die_after_fork) {
-      Report(
-          "TraceRecorder: starting new threads after multi-threaded "
-          "fork is not supported. Dying (set die_after_fork=0 to override)\n");
-      Die();
-    } else {
-      VPrintf(1,
-              "TraceRecorder: starting new threads after multi-threaded "
-              "fork is not supported (pid %d). Continuing because of "
-              "die_after_fork=0, but you are on your own\n",
-              internal_getpid());
-    }
-  }
-  __sanitizer_pthread_attr_t myattr;
-  if (attr == 0) {
-    pthread_attr_init(&myattr);
-    attr = &myattr;
-  }
-  int detached = 0;
-  REAL(pthread_attr_getdetachstate)(attr, &detached);
-  AdjustStackSize(attr);
+  p.tid = kMainTid;
 
   int res = -1;
   {
@@ -795,12 +756,8 @@ TREC_INTERCEPTOR(int, pthread_create, void *th, void *attr,
     res = REAL(pthread_create)(th, attr, __trec_thread_start_func, &p);
   }
   if (res == 0) {
-    int backup = thr->ignore_interceptors;
-    thr->ignore_interceptors = 0;
-    int tid =
-        ThreadCreate(thr, caller_pc, *(uptr *)th, IsStateDetached(detached));
-    thr->ignore_interceptors = backup;
-    CHECK_NE(tid, 0);
+    int tid = ThreadCreate(thr, pc, *(uptr *)th, IsStateDetached(detached));
+    CHECK_NE(tid, kMainTid);
     // Synchronization on p.tid serves two purposes:
     // 1. ThreadCreate must finish before the new thread starts.
     //    Otherwise the new thread can call pthread_detach, but the pthread_t
@@ -808,21 +765,19 @@ TREC_INTERCEPTOR(int, pthread_create, void *th, void *attr,
     // 2. ThreadStart must finish before this thread continues.
     //    Otherwise, this thread can call pthread_detach and reset thr->sync
     //    before the new thread got a chance to acquire from it in ThreadStart.
-    atomic_store(&p.tid, tid, memory_order_release);
-    while (atomic_load(&p.tid, memory_order_acquire) != 0)
-      internal_sched_yield();
+    p.tid = tid;
+    p.created.Post();
+    p.started.Wait();
   }
-  if (attr == &myattr)
-    pthread_attr_destroy(&myattr);
   return res;
 }
 
 TREC_INTERCEPTOR(int, pthread_join, void *th, void **ret) {
   SCOPED_INTERCEPTOR_RAW(pthread_join, th, ret);
-  int tid = ThreadConsumeTid(thr, caller_pc, (uptr)th);
+  int tid = ThreadConsumeTid(thr, pc, (uptr)th);
   int res = BLOCK_REAL(pthread_join)(th, ret);
   if (res == 0) {
-    ThreadJoin(thr, caller_pc, tid);
+    ThreadJoin(thr, pc, tid);
   }
   return res;
 }
@@ -831,10 +786,10 @@ DEFINE_REAL_PTHREAD_FUNCTIONS
 
 TREC_INTERCEPTOR(int, pthread_detach, void *th) {
   SCOPED_INTERCEPTOR_RAW(pthread_detach, th);
-  int tid = ThreadConsumeTid(thr, caller_pc, (uptr)th);
+  int tid = ThreadConsumeTid(thr, pc, (uptr)th);
   int res = REAL(pthread_detach)(th);
   if (res == 0) {
-    ThreadDetach(thr, caller_pc, tid);
+    ThreadDetach(thr, pc, tid);
   }
   return res;
 }
@@ -842,7 +797,7 @@ TREC_INTERCEPTOR(int, pthread_detach, void *th) {
 TREC_INTERCEPTOR(void, pthread_exit, void *retval) {
   {
     SCOPED_INTERCEPTOR_RAW(pthread_exit, retval);
-#if !SANITIZER_MAC && !SANITIZER_ANDROID
+#if !SANITIZER_APPLE && !SANITIZER_ANDROID
     CHECK_EQ(thr, &cur_thread_placeholder);
 #endif
   }
@@ -853,65 +808,27 @@ TREC_INTERCEPTOR(void, pthread_exit, void *retval) {
 #if SANITIZER_LINUX
 TREC_INTERCEPTOR(int, pthread_tryjoin_np, void *th, void **ret) {
   SCOPED_INTERCEPTOR_RAW(pthread_tryjoin_np, th, ret);
-  int tid = ThreadConsumeTid(thr, caller_pc, (uptr)th);
+  int tid = ThreadConsumeTid(thr, pc, (uptr)th);
   int res = REAL(pthread_tryjoin_np)(th, ret);
   if (res == 0)
-    ThreadJoin(thr, caller_pc, tid);
+    ThreadJoin(thr, pc, tid);
   else
-    ThreadNotJoined(thr, caller_pc, tid, (uptr)th);
+    ThreadNotJoined(thr, pc, tid, (uptr)th);
   return res;
 }
 
 TREC_INTERCEPTOR(int, pthread_timedjoin_np, void *th, void **ret,
                  const struct timespec *abstime) {
   SCOPED_INTERCEPTOR_RAW(pthread_timedjoin_np, th, ret, abstime);
-  int tid = ThreadConsumeTid(thr, caller_pc, (uptr)th);
+  int tid = ThreadConsumeTid(thr, pc, (uptr)th);
   int res = BLOCK_REAL(pthread_timedjoin_np)(th, ret, abstime);
   if (res == 0)
-    ThreadJoin(thr, caller_pc, tid);
+    ThreadJoin(thr, pc, tid);
   else
-    ThreadNotJoined(thr, caller_pc, tid, (uptr)th);
+    ThreadNotJoined(thr, pc, tid, (uptr)th);
   return res;
 }
 #endif
-
-// Problem:
-// NPTL implementation of pthread_cond has 2 versions (2.2.5 and 2.3.2).
-// pthread_cond_t has different size in the different versions.
-// If call new REAL functions for old pthread_cond_t, they will corrupt memory
-// after pthread_cond_t (old cond is smaller).
-// If we call old REAL functions for new pthread_cond_t, we will lose  some
-// functionality (e.g. old functions do not support waiting against
-// CLOCK_REALTIME).
-// Proper handling would require to have 2 versions of interceptors as well.
-// But this is messy, in particular requires linker scripts when sanitizer
-// runtime is linked into a shared library.
-// Instead we assume we don't have dynamic libraries built against old
-// pthread (2.2.5 is dated by 2002). And provide legacy_pthread_cond flag
-// that allows to work with old libraries (but this mode does not support
-// some features, e.g. pthread_condattr_getpshared).
-static void *init_cond(void *c, bool force = false) {
-  // sizeof(pthread_cond_t) >= sizeof(uptr) in both versions.
-  // So we allocate additional memory on the side large enough to hold
-  // any pthread_cond_t object. Always call new REAL functions, but pass
-  // the aux object to them.
-  // Note: the code assumes that PTHREAD_COND_INITIALIZER initializes
-  // first word of pthread_cond_t to zero.
-  // It's all relevant only for linux.
-  if (!common_flags()->legacy_pthread_cond)
-    return c;
-  atomic_uintptr_t *p = (atomic_uintptr_t *)c;
-  uptr cond = atomic_load(p, memory_order_acquire);
-  if (!force && cond != 0)
-    return (void *)cond;
-  void *newcond = WRAP(malloc)(pthread_cond_t_sz);
-  internal_memset(newcond, 0, pthread_cond_t_sz);
-  if (atomic_compare_exchange_strong(p, &cond, (uptr)newcond,
-                                     memory_order_acq_rel))
-    return newcond;
-  WRAP(free)(newcond);
-  return (void *)cond;
-}
 
 namespace {
 
@@ -945,18 +862,16 @@ void CondMutexUnlockCtx<Fn>::Unlock() const {
 }  // namespace
 
 INTERCEPTOR(int, pthread_cond_init, void *c, void *a) {
-  void *cond = init_cond(c, true);
+  void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_init, cond, a);
-  MemoryAccess(thr, caller_pc, (uptr)c, kSizeLog8, true, false, false, 0,
-               {0x8000, 1});
   return REAL(pthread_cond_init)(cond, a);
 }
 
 template <class Fn>
 int cond_wait(ThreadState *thr, uptr pc, ScopedInterceptor *si, const Fn &fn,
               void *c, void *m) {
-  MutexUnlock(thr, pc, (uptr)m, {0x8000, 2});
-  CondWait(thr, pc, (uptr)c, (uptr)m, {0x8000, 1}, {0x8000, 2});
+  MutexUnlock(thr, pc, (uptr)m, {1, 0, 0, 2});
+  CondWait(thr, pc, (uptr)c, {1, 0, 0, 1});
   int res = 0;
   // This ensures that we handle mutex lock even in case of pthread_cancel.
   // See test/trec/cond_cancel.cpp.
@@ -973,23 +888,23 @@ int cond_wait(ThreadState *thr, uptr pc, ScopedInterceptor *si, const Fn &fn,
   }
   if (res == errno_EOWNERDEAD)
     MutexRepair(thr, pc, (uptr)m);
-  MutexPostLock(thr, pc, (uptr)m, {0x8000, 2});
+  MutexPostLock(thr, pc, (uptr)m, {1, 0, 0, 2});
   return res;
 }
 
 INTERCEPTOR(int, pthread_cond_wait, void *c, void *m) {
-  void *cond = init_cond(c);
+  void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_wait, cond, m);
   return cond_wait(
-      thr, caller_pc, &si, [=]() { return REAL(pthread_cond_wait)(cond, m); },
-      cond, m);
+      thr, pc, &si, [=]() { return REAL(pthread_cond_wait)(cond, m); }, cond,
+      m);
 }
 
 INTERCEPTOR(int, pthread_cond_timedwait, void *c, void *m, void *abstime) {
-  void *cond = init_cond(c);
+  void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_timedwait, cond, m, abstime);
   return cond_wait(
-      thr, caller_pc, &si,
+      thr, pc, &si,
       [=]() { return REAL(pthread_cond_timedwait)(cond, m, abstime); }, cond,
       m);
 }
@@ -997,10 +912,10 @@ INTERCEPTOR(int, pthread_cond_timedwait, void *c, void *m, void *abstime) {
 #if SANITIZER_LINUX
 INTERCEPTOR(int, pthread_cond_clockwait, void *c, void *m,
             __sanitizer_clockid_t clock, void *abstime) {
-  void *cond = init_cond(c);
+  void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_clockwait, cond, m, clock, abstime);
   return cond_wait(
-      thr, caller_pc, &si,
+      thr, pc, &si,
       [=]() { return REAL(pthread_cond_clockwait)(cond, m, clock, abstime); },
       cond, m);
 }
@@ -1009,13 +924,13 @@ INTERCEPTOR(int, pthread_cond_clockwait, void *c, void *m,
 #define TREC_MAYBE_PTHREAD_COND_CLOCKWAIT
 #endif
 
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 INTERCEPTOR(int, pthread_cond_timedwait_relative_np, void *c, void *m,
             void *reltime) {
-  void *cond = init_cond(c);
+  void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_timedwait_relative_np, cond, m, reltime);
   return cond_wait(
-      thr, caller_pc, &si,
+      thr, pc, &si,
       [=]() {
         return REAL(pthread_cond_timedwait_relative_np)(cond, m, reltime);
       },
@@ -1024,48 +939,57 @@ INTERCEPTOR(int, pthread_cond_timedwait_relative_np, void *c, void *m,
 #endif
 
 INTERCEPTOR(int, pthread_cond_signal, void *c) {
-  void *cond = init_cond(c);
+  void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_signal, cond);
-  CondSignal(thr, caller_pc, (uptr)c, false, {0x8000, 1});
+  CondSignal(thr, pc, (uptr)c, false, {1, 0, 0, 1});
   return REAL(pthread_cond_signal)(cond);
 }
 
 INTERCEPTOR(int, pthread_cond_broadcast, void *c) {
-  void *cond = init_cond(c);
+  void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_broadcast, cond);
-  CondSignal(thr, caller_pc, (uptr)c, true, {0x8000, 1});
+  CondSignal(thr, pc, (uptr)c, true, {1, 0, 0, 1});
   return REAL(pthread_cond_broadcast)(cond);
 }
 
 INTERCEPTOR(int, pthread_cond_destroy, void *c) {
-  void *cond = init_cond(c);
+  ScopedIgnoreInterceptors ignore;
+  void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_destroy, cond);
-  MemoryAccess(thr, caller_pc, (uptr)c, kSizeLog8, true, false, false, 0,
-               {0x8000, 1});
   int res = REAL(pthread_cond_destroy)(cond);
-  if (common_flags()->legacy_pthread_cond) {
-    // Free our aux cond and zero the pointer to not leave dangling pointers.
-    WRAP(free)(cond);
-    atomic_store((atomic_uintptr_t *)c, 0, memory_order_relaxed);
-  }
   return res;
 }
 
 TREC_INTERCEPTOR(int, pthread_mutex_init, void *m, void *a) {
+  ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_mutex_init, m, a);
   int res = REAL(pthread_mutex_init)(m, a);
   if (res == 0) {
-    MutexCreate(thr, caller_pc, (uptr)m);
+    MutexCreate(thr, pc, (uptr)m);
   }
   return res;
 }
 
 TREC_INTERCEPTOR(int, pthread_mutex_destroy, void *m) {
+  ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_mutex_destroy, m);
   int res = REAL(pthread_mutex_destroy)(m);
   if (res == 0 || res == errno_EBUSY) {
-    MutexDestroy(thr, caller_pc, (uptr)m);
+    MutexDestroy(thr, pc, (uptr)m);
   }
+  return res;
+}
+
+TREC_INTERCEPTOR(int, pthread_mutex_lock, void *m) {
+  SCOPED_TREC_INTERCEPTOR(pthread_mutex_lock, m);
+  MutexPreLock(thr, pc, (uptr)m);
+  int res = REAL(pthread_mutex_lock)(m);
+  if (res == errno_EOWNERDEAD)
+    MutexRepair(thr, pc, (uptr)m);
+  if (res == 0 || res == errno_EOWNERDEAD)
+    MutexPostLock(thr, pc, (uptr)m, {1, 0, 0, 1});
+  if (res == errno_EINVAL)
+    MutexInvalidAccess(thr, pc, (uptr)m);
   return res;
 }
 
@@ -1073,48 +997,59 @@ TREC_INTERCEPTOR(int, pthread_mutex_trylock, void *m) {
   SCOPED_TREC_INTERCEPTOR(pthread_mutex_trylock, m);
   int res = REAL(pthread_mutex_trylock)(m);
   if (res == errno_EOWNERDEAD)
-    MutexRepair(thr, caller_pc, (uptr)m);
+    MutexRepair(thr, pc, (uptr)m);
   if (res == 0 || res == errno_EOWNERDEAD)
-    MutexPostLock(thr, caller_pc, (uptr)m, {0x8000, 1});
+    MutexPostLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   return res;
 }
 
-#if !SANITIZER_MAC
+#if !SANITIZER_APPLE
 TREC_INTERCEPTOR(int, pthread_mutex_timedlock, void *m, void *abstime) {
   SCOPED_TREC_INTERCEPTOR(pthread_mutex_timedlock, m, abstime);
   int res = REAL(pthread_mutex_timedlock)(m, abstime);
   if (res == 0) {
-    MutexPostLock(thr, caller_pc, (uptr)m, {0x8000, 1});
+    MutexPostLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 #endif
 
-#if !SANITIZER_MAC
+TREC_INTERCEPTOR(int, pthread_mutex_unlock, void *m) {
+  SCOPED_TREC_INTERCEPTOR(pthread_mutex_unlock, m);
+  MutexUnlock(thr, pc, (uptr)m, {1, 0, 0, 1});
+  int res = REAL(pthread_mutex_unlock)(m);
+  if (res == errno_EINVAL)
+    MutexInvalidAccess(thr, pc, (uptr)m);
+  return res;
+}
+
+#if !SANITIZER_APPLE
 TREC_INTERCEPTOR(int, pthread_spin_init, void *m, int pshared) {
+  ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_spin_init, m, pshared);
   int res = REAL(pthread_spin_init)(m, pshared);
   if (res == 0) {
-    MutexCreate(thr, caller_pc, (uptr)m);
+    MutexCreate(thr, pc, (uptr)m);
   }
   return res;
 }
 
 TREC_INTERCEPTOR(int, pthread_spin_destroy, void *m) {
+  ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_spin_destroy, m);
   int res = REAL(pthread_spin_destroy)(m);
   if (res == 0) {
-    MutexDestroy(thr, caller_pc, (uptr)m);
+    MutexDestroy(thr, pc, (uptr)m);
   }
   return res;
 }
 
 TREC_INTERCEPTOR(int, pthread_spin_lock, void *m) {
   SCOPED_TREC_INTERCEPTOR(pthread_spin_lock, m);
-  MutexPreLock(thr, caller_pc, (uptr)m);
+  MutexPreLock(thr, pc, (uptr)m);
   int res = REAL(pthread_spin_lock)(m);
   if (res == 0) {
-    MutexPostLock(thr, caller_pc, (uptr)m, {0x8000, 1});
+    MutexPostLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
@@ -1123,43 +1058,45 @@ TREC_INTERCEPTOR(int, pthread_spin_trylock, void *m) {
   SCOPED_TREC_INTERCEPTOR(pthread_spin_trylock, m);
   int res = REAL(pthread_spin_trylock)(m);
   if (res == 0) {
-    MutexPostLock(thr, caller_pc, (uptr)m, {0x8000, 1});
+    MutexPostLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 
 TREC_INTERCEPTOR(int, pthread_spin_unlock, void *m) {
   SCOPED_TREC_INTERCEPTOR(pthread_spin_unlock, m);
-  MutexUnlock(thr, caller_pc, (uptr)m, {(u16)0x8000, 1});
+  MutexUnlock(thr, pc, (uptr)m, {1, 0, 0, 1});
   int res = REAL(pthread_spin_unlock)(m);
   return res;
 }
 #endif
 
 TREC_INTERCEPTOR(int, pthread_rwlock_init, void *m, void *a) {
+  ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_init, m, a);
   int res = REAL(pthread_rwlock_init)(m, a);
   if (res == 0) {
-    MutexCreate(thr, caller_pc, (uptr)m);
+    MutexCreate(thr, pc, (uptr)m);
   }
   return res;
 }
 
 TREC_INTERCEPTOR(int, pthread_rwlock_destroy, void *m) {
+  ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_destroy, m);
   int res = REAL(pthread_rwlock_destroy)(m);
   if (res == 0) {
-    MutexDestroy(thr, caller_pc, (uptr)m);
+    MutexDestroy(thr, pc, (uptr)m);
   }
   return res;
 }
 
 TREC_INTERCEPTOR(int, pthread_rwlock_rdlock, void *m) {
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_rdlock, m);
-  MutexPreReadLock(thr, caller_pc, (uptr)m);
+  MutexPreReadLock(thr, pc, (uptr)m);
   int res = REAL(pthread_rwlock_rdlock)(m);
   if (res == 0) {
-    MutexPostReadLock(thr, caller_pc, (uptr)m, 0, {0x8000, 1});
+    MutexPostReadLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
@@ -1168,17 +1105,17 @@ TREC_INTERCEPTOR(int, pthread_rwlock_tryrdlock, void *m) {
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_tryrdlock, m);
   int res = REAL(pthread_rwlock_tryrdlock)(m);
   if (res == 0) {
-    MutexPostReadLock(thr, caller_pc, (uptr)m, 0, {0x8000, 1});
+    MutexPostReadLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 
-#if !SANITIZER_MAC
+#if !SANITIZER_APPLE
 TREC_INTERCEPTOR(int, pthread_rwlock_timedrdlock, void *m, void *abstime) {
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_timedrdlock, m, abstime);
   int res = REAL(pthread_rwlock_timedrdlock)(m, abstime);
   if (res == 0) {
-    MutexPostReadLock(thr, caller_pc, (uptr)m, 0, {0x8000, 1});
+    MutexPostReadLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
@@ -1186,10 +1123,10 @@ TREC_INTERCEPTOR(int, pthread_rwlock_timedrdlock, void *m, void *abstime) {
 
 TREC_INTERCEPTOR(int, pthread_rwlock_wrlock, void *m) {
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_wrlock, m);
-  MutexPreLock(thr, caller_pc, (uptr)m);
+  MutexPreLock(thr, pc, (uptr)m);
   int res = REAL(pthread_rwlock_wrlock)(m);
   if (res == 0) {
-    MutexPostLock(thr, caller_pc, (uptr)m, {0x8000, 1});
+    MutexPostWriteLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
@@ -1198,17 +1135,17 @@ TREC_INTERCEPTOR(int, pthread_rwlock_trywrlock, void *m) {
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_trywrlock, m);
   int res = REAL(pthread_rwlock_trywrlock)(m);
   if (res == 0) {
-    MutexPostLock(thr, caller_pc, (uptr)m, {0x8000, 1});
+    MutexPostWriteLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 
-#if !SANITIZER_MAC
+#if !SANITIZER_APPLE
 TREC_INTERCEPTOR(int, pthread_rwlock_timedwrlock, void *m, void *abstime) {
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_timedwrlock, m, abstime);
   int res = REAL(pthread_rwlock_timedwrlock)(m, abstime);
   if (res == 0) {
-    MutexPostLock(thr, caller_pc, (uptr)m, {0x8000, 1});
+    MutexPostWriteLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
@@ -1216,14 +1153,31 @@ TREC_INTERCEPTOR(int, pthread_rwlock_timedwrlock, void *m, void *abstime) {
 
 TREC_INTERCEPTOR(int, pthread_rwlock_unlock, void *m) {
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_unlock, m);
+  bool is_write;
+  {
+    ScopedIgnoreInterceptors ignore;
+    int ret = REAL(pthread_rwlock_tryrdlock)(m);
+    if (ret == 0) {
+      // reader lock
+      is_write = false;
+      REAL(pthread_rwlock_unlock)(m);
+    } else if (ret == errno_EBUSY) {
+      // writer lock
+      is_write = true;
+    } else {
+      Report("cannot detect lock type in pthread_rwlock_unlock: errno %d\n",
+             ret);
+      Die();
+    }
+  }
   int res = REAL(pthread_rwlock_unlock)(m);
   if (res == 0) {
-    MutexUnlock(thr, caller_pc, (uptr)m, {0x8000, 1});
+    MutexReadOrWriteUnlock(thr, pc, (uptr)m, is_write, {1, 0, 0, 1});
   }
   return res;
 }
 
-#if !SANITIZER_MAC
+#if !SANITIZER_APPLE
 TREC_INTERCEPTOR(int, pthread_barrier_init, void *b, void *a, unsigned count) {
   SCOPED_TREC_INTERCEPTOR(pthread_barrier_init, b, a, count);
   int res = REAL(pthread_barrier_init)(b, a, count);
@@ -1269,11 +1223,10 @@ TREC_INTERCEPTOR(int, pthread_once, void *o, void (*f)()) {
   return 0;
 }
 
-static void FlushStreams() {
-  // Flushing all the streams here may freeze the process if a child thread is
-  // performing file stream operations at the same time.
-  REAL(fflush)(stdout);
-  REAL(fflush)(stderr);
+TREC_INTERCEPTOR(void, abort, int fake) {
+  SCOPED_TREC_INTERCEPTOR(abort, fake);
+  FlushStreams();
+  REAL(abort)(fake);
 }
 
 // The following functions are intercepted merely to process pending signals.
@@ -1514,19 +1467,12 @@ TREC_INTERCEPTOR(int, vfork, int fake) {
   return WRAP(fork)(fake);
 }
 
-static int OnExit(ThreadState *thr) {
-  int status = Finalize(thr);
-  FlushStreams();
-  return status;
-}
-
 struct TrecInterceptorContext {
   ThreadState *thr;
-  const uptr caller_pc;
   const uptr pc;
 };
 
-#if !SANITIZER_MAC
+#if !SANITIZER_APPLE
 static void HandleRecvmsg(ThreadState *thr, uptr pc, __sanitizer_msghdr *msg) {
   int fds[64];
   int cnt = ExtractRecvmsgFDs(msg, fds, ARRAY_SIZE(fds));
@@ -1549,7 +1495,6 @@ static void HandleRecvmsg(ThreadState *thr, uptr pc, __sanitizer_msghdr *msg) {
 #define COMMON_INTERCEPT_FUNCTION_VER_UNVERSIONED_FALLBACK(name, ver) \
   (INTERCEPT_FUNCTION_VER(name, ver) || INTERCEPT_FUNCTION(name))
 
-// #TODO
 #define COMMON_INTERCEPTOR_WRITE_RANGE(ctx, ptr, size, ...)               \
   MemoryAccessRange(((TrecInterceptorContext *)ctx)->thr,                 \
                     ((TrecInterceptorContext *)ctx)->pc, (uptr)ptr, size, \
@@ -1560,45 +1505,33 @@ static void HandleRecvmsg(ThreadState *thr, uptr pc, __sanitizer_msghdr *msg) {
                     ((TrecInterceptorContext *)ctx)->pc, (uptr)ptr, size, \
                     false, ##__VA_ARGS__)
 
-#define COMMON_INTERCEPTOR_ENTER(ctx, func, ...)      \
-  SCOPED_TREC_INTERCEPTOR(func, __VA_ARGS__);         \
-  TrecInterceptorContext _ctx = {thr, caller_pc, pc}; \
-  ctx = (void *)&_ctx;                                \
+#define COMMON_INTERCEPTOR_ENTER(ctx, func, ...) \
+  SCOPED_TREC_INTERCEPTOR(func, __VA_ARGS__);    \
+  TrecInterceptorContext _ctx = {thr, pc};       \
+  ctx = (void *)&_ctx;                           \
   (void)ctx;
 
 #define COMMON_INTERCEPTOR_ENTER_NOIGNORE(ctx, func, ...) \
   SCOPED_INTERCEPTOR_RAW(func, __VA_ARGS__);              \
-  TrecInterceptorContext _ctx = {thr, caller_pc, pc};     \
+  TrecInterceptorContext _ctx = {thr, pc};                \
   ctx = (void *)&_ctx;                                    \
   (void)ctx;
 
-void Acquire(ThreadState *thr, uptr pc, uptr addr) {}
-void FdAcquire(ThreadState *thr, uptr pc, int fd) {}
-void FdRelease(ThreadState *thr, uptr pc, int fd) {}
-void FdSocketAccept(ThreadState *thr, uptr pc, int fd, int newfd) {}
-void FdAccess(ThreadState *thr, uptr pc, int fd) {}
-uptr Dir2addr(const char *path) {
-  (void)path;
-  static u64 addr;
-  return (uptr)&addr;
-}
-
 #define COMMON_INTERCEPTOR_FD_ACQUIRE(ctx, fd) \
-  FdAcquire(((TrecInterceptorContext *)ctx)->thr, pc, fd)
+  {}
 
 #define COMMON_INTERCEPTOR_FD_RELEASE(ctx, fd) \
-  FdRelease(((TrecInterceptorContext *)ctx)->thr, pc, fd)
+  {}
 
 #define COMMON_INTERCEPTOR_FD_ACCESS(ctx, fd) \
-  FdAccess(((TrecInterceptorContext *)ctx)->thr, pc, fd)
+  {}
 
 #define COMMON_INTERCEPTOR_FD_SOCKET_ACCEPT(ctx, fd, newfd) \
-  FdSocketAccept(((TrecInterceptorContext *)ctx)->thr, pc, fd, newfd)
+  {}
 
 #define COMMON_INTERCEPTOR_SET_THREAD_NAME(ctx, name) \
   ThreadSetName(((TrecInterceptorContext *)ctx)->thr, name)
-#define COMMON_INTERCEPTOR_DIR_ACQUIRE(ctx, path) \
-  Acquire(((TrecInterceptorContext *)ctx)->thr, pc, Dir2addr(path))
+#define COMMON_INTERCEPTOR_DIR_ACQUIRE(ctx, path)
 
 #define COMMON_INTERCEPTOR_SET_PTHREAD_NAME(ctx, thread, name) \
   __trec::ctx->thread_registry->SetThreadNameByUserId(thread, name)
@@ -1608,29 +1541,7 @@ uptr Dir2addr(const char *path) {
 #define COMMON_INTERCEPTOR_ON_EXIT(ctx) \
   OnExit(((TrecInterceptorContext *)ctx)->thr)
 
-#define COMMON_INTERCEPTOR_MUTEX_PRE_LOCK(ctx, m)    \
-  MutexPreLock(((TrecInterceptorContext *)ctx)->thr, \
-               ((TrecInterceptorContext *)ctx)->caller_pc, (uptr)m)
-
-#define COMMON_INTERCEPTOR_MUTEX_POST_LOCK(ctx, m)                   \
-  MutexPostLock(((TrecInterceptorContext *)ctx)->thr,                \
-                ((TrecInterceptorContext *)ctx)->caller_pc, (uptr)m, \
-                {0x8000, 1})
-
-#define COMMON_INTERCEPTOR_MUTEX_UNLOCK(ctx, m)                    \
-  MutexUnlock(((TrecInterceptorContext *)ctx)->thr,                \
-              ((TrecInterceptorContext *)ctx)->caller_pc, (uptr)m, \
-              {0x8000, 1})
-
-#define COMMON_INTERCEPTOR_MUTEX_REPAIR(ctx, m)     \
-  MutexRepair(((TrecInterceptorContext *)ctx)->thr, \
-              ((TrecInterceptorContext *)ctx)->pc, (uptr)m)
-
-#define COMMON_INTERCEPTOR_MUTEX_INVALID(ctx, m)           \
-  MutexInvalidAccess(((TrecInterceptorContext *)ctx)->thr, \
-                     ((TrecInterceptorContext *)ctx)->pc, (uptr)m)
-
-#if !SANITIZER_MAC
+#if !SANITIZER_APPLE
 #define COMMON_INTERCEPTOR_HANDLE_RECVMSG(ctx, msg)   \
   HandleRecvmsg(((TrecInterceptorContext *)ctx)->thr, \
                 ((TrecInterceptorContext *)ctx)->pc, msg)
@@ -1644,151 +1555,66 @@ uptr Dir2addr(const char *path) {
     *begin = *end = 0;                               \
   }
 
-#define COMMON_INTERCEPTOR_MEMSET_IMPL(ctx, dst, v, size)                      \
-  {                                                                            \
-    if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED)                             \
-      return internal_memset(dst, v, size);                                    \
-    COMMON_INTERCEPTOR_ENTER(ctx, memset, dst, v, size);                       \
-    uptr rest_cnt = size, val;                                                 \
-    int szLog;                                                                 \
-    void *ret = REAL(memset)(dst, v, size);                                    \
-    while (rest_cnt) {                                                         \
-      if (rest_cnt >= 8) {                                                     \
-        szLog = kSizeLog8;                                                     \
-        val = *(u64 *)((char *)dst + size - rest_cnt);                         \
-      } else if (rest_cnt >= 4 && rest_cnt < 8) {                              \
-        szLog = kSizeLog4;                                                     \
-        val = *(u32 *)((char *)dst + size - rest_cnt);                         \
-      } else if (rest_cnt >= 2 && rest_cnt < 4) {                              \
-        szLog = kSizeLog2;                                                     \
-        val = *(u16 *)((char *)dst + size - rest_cnt);                         \
-      } else {                                                                 \
-        szLog = kSizeLog1;                                                     \
-        val = *(u8 *)((char *)dst + size - rest_cnt);                          \
-      }                                                                        \
-      MemoryAccess(                                                            \
-          cur_thread(), StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()), \
-          (uptr)dst + size - rest_cnt, szLog, true, false, false, val,         \
-          {(u16)(0x8000 | ((size - rest_cnt) & 0x7fff)), 1}, {0, 0}, true);    \
-      rest_cnt -= (1 << szLog);                                                \
-    }                                                                          \
-    FuncExitParam(cur_thread(), 1, 0x8000, (uptr)ret);                         \
-    return ret;                                                                \
+#define COMMON_INTERCEPTOR_MEMSET_IMPL(ctx, dst, v, size)            \
+  {                                                                  \
+    if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED)                   \
+      return internal_memset(dst, v, size);                          \
+    COMMON_INTERCEPTOR_ENTER(ctx, memset, dst, v, size);             \
+    void *ret = REAL(memset)(dst, v, size);                          \
+    MemoryAccessRange(thr, pc, (uptr)dst, size, true, {1, 0, 0, 1}); \
+    return ret;                                                      \
   }
 
-#define COMMON_INTERCEPTOR_MEMMOVE_IMPL(ctx, dst, src, size)                   \
-  {                                                                            \
-    if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED)                             \
-      return internal_memmove(dst, src, size);                                 \
-    COMMON_INTERCEPTOR_ENTER(ctx, memmove, dst, src, size);                    \
-    uptr rest_cnt = size, val;                                                 \
-    int szLog;                                                                 \
-    void *ret = REAL(memmove)(dst, src, size);                                 \
-    while (rest_cnt) {                                                         \
-      if (rest_cnt >= 8) {                                                     \
-        szLog = kSizeLog8;                                                     \
-        val = *(u64 *)((char *)dst + size - rest_cnt);                         \
-      } else if (rest_cnt >= 4 && rest_cnt < 8) {                              \
-        szLog = kSizeLog4;                                                     \
-        val = *(u32 *)((char *)dst + size - rest_cnt);                         \
-      } else if (rest_cnt >= 2 && rest_cnt < 4) {                              \
-        szLog = kSizeLog2;                                                     \
-        val = *(u16 *)((char *)dst + size - rest_cnt);                         \
-      } else {                                                                 \
-        szLog = kSizeLog1;                                                     \
-        val = *(u8 *)((char *)dst + size - rest_cnt);                          \
-      }                                                                        \
-      MemoryAccess(                                                            \
-          cur_thread(), StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()), \
-          (uptr)src + size - rest_cnt, szLog, false, false, false, val,        \
-          {(u16)(0x8000 | ((size - rest_cnt) & 0x7fff)), 2}, {0, 0}, true);    \
-      MemoryAccess(cur_thread(),                                               \
-                   StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),      \
-                   (uptr)dst + size - rest_cnt, szLog, true, false, false,     \
-                   val, {(u16)(0x8000 | ((size - rest_cnt) & 0x7fff)), 1},     \
-                   {0, (uptr)src + size - rest_cnt}, true);                    \
-      rest_cnt -= (1 << szLog);                                                \
-    }                                                                          \
-    FuncExitParam(cur_thread(), 1, 0x8000, (uptr)ret);                         \
-    return ret;                                                                \
+#define COMMON_INTERCEPTOR_MEMMOVE_IMPL(ctx, dst, src, size)          \
+  {                                                                   \
+    if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED)                    \
+      return internal_memmove(dst, src, size);                        \
+    COMMON_INTERCEPTOR_ENTER(ctx, memmove, dst, src, size);           \
+    void *ret = REAL(memmove)(dst, src, size);                        \
+    MemoryAccessRange(thr, pc, (uptr)src, size, false, {1, 0, 0, 2}); \
+    MemoryAccessRange(thr, pc, (uptr)dst, size, true, {1, 0, 0, 1});  \
+    return ret;                                                       \
   }
 
-#define COMMON_INTERCEPTOR_MEMCPY_IMPL(ctx, dst, src, size)                    \
-  {                                                                            \
-    if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED) {                           \
-      return internal_memmove(dst, src, size);                                 \
-    }                                                                          \
-    COMMON_INTERCEPTOR_ENTER(ctx, memcpy, dst, src, size);                     \
-                                                                               \
-    uptr rest_cnt = size, val;                                                 \
-    int szLog;                                                                 \
-    void *ret = REAL(memcpy)(dst, src, size);                                  \
-    while (rest_cnt) {                                                         \
-      if (rest_cnt >= 8) {                                                     \
-        szLog = kSizeLog8;                                                     \
-        val = *(u64 *)((char *)dst + size - rest_cnt);                         \
-      } else if (rest_cnt >= 4 && rest_cnt < 8) {                              \
-        szLog = kSizeLog4;                                                     \
-        val = *(u32 *)((char *)dst + size - rest_cnt);                         \
-      } else if (rest_cnt >= 2 && rest_cnt < 4) {                              \
-        szLog = kSizeLog2;                                                     \
-        val = *(u16 *)((char *)dst + size - rest_cnt);                         \
-      } else {                                                                 \
-        szLog = kSizeLog1;                                                     \
-        val = *(u8 *)((char *)dst + size - rest_cnt);                          \
-      }                                                                        \
-      MemoryAccess(                                                            \
-          cur_thread(), StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()), \
-          (uptr)src + size - rest_cnt, szLog, false, false, false, val,        \
-          {(u16)(0x8000 | ((size - rest_cnt) & 0x7fff)), 2}, {0, 0}, true);    \
-      MemoryAccess(cur_thread(),                                               \
-                   StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),      \
-                   (uptr)dst + size - rest_cnt, szLog, true, false, false,     \
-                   val, {(u16)(0x8000 | ((size - rest_cnt) & 0x7fff)), 1},     \
-                   {0, (uptr)src + size - rest_cnt}, true);                    \
-      rest_cnt -= (1 << szLog);                                                \
-    }                                                                          \
-    FuncExitParam(cur_thread(), 1, 0x8000, (uptr)ret);                         \
-    return ret;                                                                \
+#define COMMON_INTERCEPTOR_MEMCPY_IMPL(ctx, dst, src, size)           \
+  {                                                                   \
+    if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED) {                  \
+      return internal_memmove(dst, src, size);                        \
+    }                                                                 \
+    COMMON_INTERCEPTOR_ENTER(ctx, memcpy, dst, src, size);            \
+    void *ret = REAL(memcpy)(dst, src, size);                         \
+    MemoryAccessRange(thr, pc, (uptr)src, size, false, {1, 0, 0, 2}); \
+    MemoryAccessRange(thr, pc, (uptr)dst, size, true, {1, 0, 0, 1});  \
+    return ret;                                                       \
   }
 
-#define COMMON_INTERCEPTOR_STRNDUP_IMPL(ctx, s, size)                      \
-  COMMON_INTERCEPTOR_ENTER(ctx, strndup, s, size);                         \
-  uptr copy_length = internal_strnlen(s, size);                            \
-  char *new_mem = (char *)WRAP(malloc)(copy_length + 1);                   \
-  uptr rest_cnt = copy_length, val;                                        \
-  int szLog;                                                               \
-  void *ret = internal_memcpy(new_mem, s, copy_length);                    \
-  while (rest_cnt) {                                                       \
-    if (rest_cnt >= 8) {                                                   \
-      szLog = kSizeLog8;                                                   \
-      val = *(u64 *)((char *)new_mem + copy_length - rest_cnt);            \
-    } else if (rest_cnt >= 4 && rest_cnt < 8) {                            \
-      szLog = kSizeLog4;                                                   \
-      val = *(u32 *)((char *)new_mem + copy_length - rest_cnt);            \
-    } else if (rest_cnt >= 2 && rest_cnt < 4) {                            \
-      szLog = kSizeLog2;                                                   \
-      val = *(u16 *)((char *)new_mem + copy_length - rest_cnt);            \
-    } else {                                                               \
-      szLog = kSizeLog1;                                                   \
-      val = *(u8 *)((char *)new_mem + copy_length - rest_cnt);             \
-    }                                                                      \
-    MemoryAccess(cur_thread(),                                             \
-                 StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),    \
-                 (uptr)s, szLog, false, false, false, val,                 \
-                 {(u16)(0x8000 | ((copy_length - rest_cnt) & 0x7fff)), 2}, \
-                 {0, 0}, true);                                            \
-    MemoryAccess(cur_thread(),                                             \
-                 StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()),    \
-                 (uptr)new_mem, szLog, true, false, false, val,            \
-                 {(u16)(0x8000 | ((copy_length - rest_cnt) & 0x7fff)), 1}, \
-                 {0, (uptr)s + copy_length - rest_cnt}, true);             \
-    rest_cnt -= (1 << szLog);                                              \
-  }                                                                        \
-  new_mem[copy_length] = '\0';                                             \
+#define COMMON_INTERCEPTOR_STRNDUP_IMPL(ctx, s, size)                    \
+  COMMON_INTERCEPTOR_ENTER(ctx, strndup, s, size);                       \
+  uptr copy_length = internal_strnlen(s, size);                          \
+  char *new_mem = (char *)WRAP(malloc)(copy_length + 1);                 \
+  internal_memcpy(new_mem, s, copy_length);                              \
+  MemoryAccessRange(thr, pc, (uptr)s, copy_length, false, {1, 0, 0, 1}); \
+  MemoryAccessRange(thr, pc, (uptr)new_mem, copy_length + 1, true,       \
+                    {1, 0, 0, 3});                                       \
+  new_mem[copy_length] = '\0';                                           \
   return new_mem;
 
+#define COMMON_INTERCEPTOR_READ_STRING(ctx, s, n, ...)                       \
+  COMMON_INTERCEPTOR_READ_RANGE(                                             \
+      (ctx), (s),                                                            \
+      common_flags()->strict_string_checks ? (internal_strlen(s)) + 1 : (n), \
+      ##__VA_ARGS__)
+
+#define TREC_INTERCEPTOR_WRITE_RANGE(ctx, ptr, size, ...) \
+  COMMON_INTERCEPTOR_WRITE_RANGE(ctx, ptr, size, ##__VA_ARGS__)
+
+#define TREC_INTERCEPTOR_READ_RANGE(ctx, ptr, size, ...) \
+  COMMON_INTERCEPTOR_READ_RANGE(ctx, ptr, size, ##__VA_ARGS__)
+
+#define IGNORE_INTERCEPTOR ScopedIgnoreInterceptors ignore;
+
 #include "sanitizer_common/sanitizer_common_interceptors.inc"
+#include "sanitizer_common/sanitizer_common_interceptors_memintrinsics.inc"
 
 static int sigaction_impl(int sig, const __sanitizer_sigaction *act,
                           __sanitizer_sigaction *old);
@@ -1828,7 +1654,7 @@ int sigaction_impl(int sig, const __sanitizer_sigaction *act,
     sigactions[sig].sa_flags = *(volatile int const *)&act->sa_flags;
     internal_memcpy(&sigactions[sig].sa_mask, &act->sa_mask,
                     sizeof(sigactions[sig].sa_mask));
-#if !SANITIZER_FREEBSD && !SANITIZER_MAC && !SANITIZER_NETBSD
+#if !SANITIZER_FREEBSD && !SANITIZER_APPLE && !SANITIZER_NETBSD
     sigactions[sig].sa_restorer = act->sa_restorer;
 #endif
     internal_memcpy(&newact, act, sizeof(newact));
@@ -1879,12 +1705,9 @@ struct ScopedSyscall {
   ~ScopedSyscall() { ProcessPendingSignals(thr); }
 };
 
-#if !SANITIZER_FREEBSD && !SANITIZER_MAC
-static void syscall_access_range(uptr pc, uptr p, uptr s, bool write,
-                                 __trec_metadata::SourceAddressInfo SAI = {0,
-                                                                           0}) {
+#if !SANITIZER_FREEBSD && !SANITIZER_APPLE
+static void syscall_access_range(uptr pc, uptr p, uptr s, bool write) {
   TREC_SYSCALL();
-  MemoryAccessRange(thr, pc, p, s, write, SAI);
 }
 
 static USED void syscall_acquire(uptr pc, uptr addr) {
@@ -1917,13 +1740,13 @@ static void syscall_post_fork(uptr pc, int pid) {
 }
 #endif
 
-#define COMMON_SYSCALL_PRE_READ_RANGE(p, s, ...)                              \
-  syscall_access_range(StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()), \
-                       (uptr)(p), (uptr)(s), false, ##__VA_ARGS__)
+#define COMMON_SYSCALL_PRE_READ_RANGE(p, s, ...)                     \
+  syscall_access_range(GET_CALLER_PC(), (uptr)(p), (uptr)(s), false, \
+                       ##__VA_ARGS__)
 
-#define COMMON_SYSCALL_PRE_WRITE_RANGE(p, s, ...)                             \
-  syscall_access_range(StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()), \
-                       (uptr)(p), (uptr)(s), true, ##__VA_ARGS__)
+#define COMMON_SYSCALL_PRE_WRITE_RANGE(p, s, ...)                   \
+  syscall_access_range(GET_CALLER_PC(), (uptr)(p), (uptr)(s), true, \
+                       ##__VA_ARGS__)
 
 #define COMMON_SYSCALL_POST_READ_RANGE(p, s) \
   do {                                       \
@@ -1937,19 +1760,15 @@ static void syscall_post_fork(uptr pc, int pid) {
     (void)(s);                                \
   } while (false)
 
-#define COMMON_SYSCALL_ACQUIRE(addr)                                     \
-  syscall_acquire(StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()), \
-                  (uptr)(addr))
+#define COMMON_SYSCALL_ACQUIRE(addr) \
+  syscall_acquire(GET_CALLER_PC(), (uptr)(addr))
 
-#define COMMON_SYSCALL_RELEASE(addr)                                     \
-  syscall_release(StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()), \
-                  (uptr)(addr))
+#define COMMON_SYSCALL_RELEASE(addr) \
+  syscall_release(GET_CALLER_PC(), (uptr)(addr))
 
-#define COMMON_SYSCALL_PRE_FORK() \
-  syscall_pre_fork(StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()))
+#define COMMON_SYSCALL_PRE_FORK() syscall_pre_fork(GET_CALLER_PC())
 
-#define COMMON_SYSCALL_POST_FORK(res) \
-  syscall_post_fork(StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()), res)
+#define COMMON_SYSCALL_POST_FORK(res) syscall_post_fork(GET_CALLER_PC(), res)
 
 #include "sanitizer_common/sanitizer_common_syscalls.inc"
 #include "sanitizer_common/sanitizer_syscalls_netbsd.inc"
@@ -1999,14 +1818,12 @@ namespace __trec {
 
 static void finalize(void *arg) {
   ThreadState *thr = cur_thread();
-  int status = Finalize(thr);
-  // Make sure the output is not lost.
-  FlushStreams();
+  int status = OnExit(thr);
   if (status)
     Die();
 }
 
-#if !SANITIZER_MAC && !SANITIZER_ANDROID
+#if !SANITIZER_APPLE && !SANITIZER_ANDROID
 static void unreachable() {
   Report("FATAL: TraceRecorder: unreachable called\n");
   Die();
@@ -2027,6 +1844,18 @@ void InitializeInterceptors() {
   InitializeCommonInterceptors();
   InitializeSignalInterceptors();
   InitializeLibdispatchInterceptors();
+
+  TREC_INTERCEPT(setjmp_symname);
+  TREC_INTERCEPT(_setjmp);
+  TREC_INTERCEPT(sigsetjmp_symname);
+#if !SANITIZER_NETBSD
+  TREC_INTERCEPT(__sigsetjmp);
+#endif
+  TREC_INTERCEPT(longjmp_symname);
+  TREC_INTERCEPT(siglongjmp_symname);
+#if SANITIZER_NETBSD
+  TREC_INTERCEPT(_longjmp);
+#endif
 
   TREC_INTERCEPT(malloc);
   TREC_INTERCEPT(__libc_memalign);
@@ -2064,8 +1893,10 @@ void InitializeInterceptors() {
 
   TREC_INTERCEPT(pthread_mutex_init);
   TREC_INTERCEPT(pthread_mutex_destroy);
+  TREC_INTERCEPT(pthread_mutex_lock);
   TREC_INTERCEPT(pthread_mutex_trylock);
   TREC_INTERCEPT(pthread_mutex_timedlock);
+  TREC_INTERCEPT(pthread_mutex_unlock);
 
   TREC_INTERCEPT(pthread_spin_init);
   TREC_INTERCEPT(pthread_spin_destroy);
@@ -2112,7 +1943,7 @@ void InitializeInterceptors() {
   TREC_MAYBE_INTERCEPT__LWP_EXIT;
   TREC_MAYBE_INTERCEPT_THR_EXIT;
 
-#if !SANITIZER_MAC && !SANITIZER_ANDROID
+#if !SANITIZER_APPLE && !SANITIZER_ANDROID
   // Need to setup it, because interceptors check that the function is resolved.
   // But atexit is emitted directly into the module, so can't be resolved.
   REAL(atexit) = (int (*)(void (*)()))unreachable;
@@ -2123,7 +1954,7 @@ void InitializeInterceptors() {
     Die();
   }
 
-#if !SANITIZER_MAC && !SANITIZER_NETBSD && !SANITIZER_FREEBSD
+#if !SANITIZER_APPLE && !SANITIZER_NETBSD && !SANITIZER_FREEBSD
   if (pthread_key_create(&interceptor_ctx()->finalize_key, &thread_finalize)) {
     Printf("TraceRecorder: failed to create thread key\n");
     Die();

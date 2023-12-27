@@ -31,8 +31,6 @@ set(TREC_SOURCES
   rtl/trec_interface.cpp
   rtl/trec_interface_atomic.cpp
   rtl/trec_mman.cpp
-  rtl/trec_mutex.cpp
-  rtl/trec_mutexset.cpp
   rtl/trec_preinit.cpp
   rtl/trec_rtl.cpp
   rtl/trec_rtl_mutex.cpp
@@ -44,15 +42,10 @@ set(TREC_CXX_SOURCES
   rtl/trec_new_delete.cpp
   )
 
-if(APPLE)
-  list(APPEND TREC_SOURCES
-    rtl/trec_platform_posix.cpp
-    )
-elseif(UNIX)
+if(UNIX)
   # Assume Linux
   list(APPEND TREC_SOURCES
     rtl/trec_platform_linux.cpp
-    rtl/trec_platform_posix.cpp
     )
 endif()
 
