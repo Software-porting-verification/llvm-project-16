@@ -5,6 +5,7 @@ __trec_write*
 __trec_func*
 __trec_atomic*
 __trec_unaligned*
+__trec_branch
 __trec_get_current_fiber
 __trec_create_fiber
 __trec_destroy_fiber

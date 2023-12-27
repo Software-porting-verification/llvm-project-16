@@ -47,6 +47,11 @@
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
+#include <fcntl.h>
+#include <filesystem>
+#include <sqlite3.h>
+#include <sys/file.h>
+#include <unistd.h>
 
 using namespace llvm;
 
@@ -55,16 +60,9 @@ using namespace llvm;
 static cl::opt<bool> ClInstrumentMemoryAccesses(
     "trec-instrument-memory-accesses", cl::init(true),
     cl::desc("Instrument memory accesses"), cl::Hidden);
-static cl::opt<bool>
-    ClInstrumentMemoryReads("trec-instrument-memory-read", cl::init(true),
-                            cl::desc("Instrument memory reads"), cl::Hidden);
-static cl::opt<bool> ClInstrumentAllocas("trec-instrument-alloca",
-                                         cl::init(false),
-                                         cl::desc("Instrument allocas"),
-                                         cl::Hidden);
-static cl::opt<bool>
-    ClInstrumentMemoryWrites("trec-instrument-memory-write", cl::init(true),
-                             cl::desc("Instrument memory writes"), cl::Hidden);
+static cl::opt<bool> ClForceInstrumentAllMemoryAccesses(
+    "trec-force-instrument-all-memory-accesses", cl::init(false),
+    cl::desc("Force to instrument all memory accesses"), cl::Hidden);
 static cl::opt<bool>
     ClInstrumentFuncEntryExit("trec-instrument-func-entry-exit", cl::init(true),
                               cl::desc("Instrument function entry and exit"),
@@ -85,13 +83,11 @@ static cl::opt<bool>
     ClInstrumentFuncParam("trec-instrument-function-parameters", cl::init(true),
                           cl::desc("Instrument function parameters"),
                           cl::Hidden);
-static cl::opt<bool>
-    ClTrecAddDebugInfo("trec-add-debug-info", cl::init(true),
-                       cl::desc("Instrument to record debug information"),
-                       cl::Hidden);
 
 STATISTIC(NumInstrumentedReads, "Number of instrumented reads");
 STATISTIC(NumInstrumentedWrites, "Number of instrumented writes");
+STATISTIC(NumAllReads, "Number of all reads");
+STATISTIC(NumAllWrites, "Number of all writes");
 STATISTIC(NumOmittedReadsBeforeWrite,
           "Number of reads ignored due to following writes");
 STATISTIC(NumAccessesWithBadSize, "Number of accesses with bad size");
@@ -106,8 +102,33 @@ const char kTrecModuleCtorName[] = "trec.module_ctor";
 const char kTrecInitName[] = "__trec_init";
 
 namespace {
-std::map<std::string, Value *> TraceRecorderModuleVarNames;
-static enum Mode { Eagle, Verification, Unknown } mode;
+
+class SqliteDebugWriter {
+  sqlite3 *db;
+  int DBID;
+  std::filesystem::path DBDirPath;
+  std::map<std::string, uint32_t> KnownFileNames, KnownVarNames;
+  std::string sql;
+  int queryFileID(const char *name);
+  int queryVarID(const char *name);
+  int queryID(const char *table, const char *name);
+  int queryDebugInfoID(int nameA, int nameB, int line, int col);
+  void insertName(const char *table, const char *name,
+                  std::map<std::string, uint32_t> &m);
+  void insertDebugInfo(int nameA, int nameB, int line, int col);
+
+public:
+  SqliteDebugWriter();
+  ~SqliteDebugWriter();
+  int getFileID(const char *name);
+  int getVarID(const char *name);
+  int getDebugInfoID(int nameA, int nameB, int line, int col);
+  void insertFileName(const char *name);
+  void insertVarName(const char *name);
+  void commitSQL();
+  uint64_t ReformID(int ID);
+};
+
 /// TraceRecorder: instrument the code in module to record traces.
 ///
 /// Instantiating TraceRecorder inserts the trec runtime library API
@@ -115,31 +136,33 @@ static enum Mode { Eagle, Verification, Unknown } mode;
 /// Instantiating ensures the __trec_init function is in the list of global
 /// constructors for the module.
 struct TraceRecorder {
-  TraceRecorder(std::map<std::string, Value *> &VN) : VarNames(VN) {
+  TraceRecorder() {
     // Sanity check options and warn user.
-    if (getenv("TREC_COMPILE_MODE") == nullptr)
-      mode = Mode::Unknown;
-    else if (strcmp(getenv("TREC_COMPILE_MODE"), "eagle") == 0)
-      mode = Mode::Eagle;
-    else if (strcmp(getenv("TREC_COMPILE_MODE"), "verification") == 0) {
-      mode = Mode::Verification;
-      ClInstrumentAllocas = true;
-    } else
-      mode = Mode::Unknown;
-    if (mode == Mode::Unknown) {
-      printf("Error: Unknown TraceRecorder mode: ENV variable "
-             "`TREC_COMPILE_MODE` has "
-             "not been set!\n");
-      exit(-1);
+  }
+  ~TraceRecorder() {
+    if (getenv("TREC_COMPILE_STAT")) {
+      printf("loads shrinking: %lu/%lu (%.4lf)\t",
+             NumInstrumentedReads.getValue(), NumAllReads.getValue(),
+             NumInstrumentedReads.getValue() * 100.0 / NumAllReads.getValue());
+      printf("stores shrinking: %lu/%lu (%.4lf)\t",
+             NumInstrumentedWrites.getValue(), NumAllWrites.getValue(),
+             NumInstrumentedWrites.getValue() * 100.0 /
+                 NumAllWrites.getValue());
+      printf(
+          "total shrinking: %lu/%lu (%.4lf)\n",
+          (NumInstrumentedReads.getValue() + NumInstrumentedWrites.getValue()),
+          NumAllReads.getValue() + NumAllWrites.getValue(),
+          (NumInstrumentedReads.getValue() + NumInstrumentedWrites.getValue()) *
+              100.0 / (NumAllReads.getValue() + NumAllWrites.getValue()));
     }
   }
 
   bool sanitizeFunction(Function &F, const TargetLibraryInfo &TLI);
-  std::map<std::string, Value *> &VarNames;
 
 private:
-  SmallDenseMap<Instruction *, unsigned int> FuncCallOrders;
-  unsigned int FuncCallOrderCounter;
+  SmallDenseMap<Value *, unsigned int> VarOrders;
+  unsigned int VarOrderCounter;
+  std::set<Instruction *> SeperatedExits;
 
   // Internal Instruction wrapper that contains more information about the
   // Instruction from prior analysis.
@@ -153,85 +176,96 @@ private:
     Instruction *Inst;
     unsigned Flags = 0;
   };
+  SqliteDebugWriter debuger;
+  std::set<Instruction *> StoresToBeInstrumented, LoadsToBeInstrumented;
+  std::map<Value *, std::vector<StoreInst *>> AddrAllStores;
 
   void initialize(Module &M);
   bool instrumentLoadStore(const InstructionInfo &II, const DataLayout &DL);
   bool instrumentAtomic(Instruction *I, const DataLayout &DL);
   bool instrumentBranch(Instruction *I, const DataLayout &DL);
   bool instrumentMemIntrinsic(Instruction *I);
-  bool instrumentFunctionReturn(Instruction *I);
-  bool instrumentFunctionParamCall(Instruction *I);
-  bool instrumentAlloca(Instruction *I, const DataLayout &DL);
+  bool instrumentReturn(Instruction *I);
+  bool instrumentFunctionCall(Instruction *I);
   int getMemoryAccessFuncIndex(Type *OrigTy, Value *Addr, const DataLayout &DL);
-  struct ValSourceInfo {
+  class ValSourceInfo {
     Value *Addr;  // null if not found in variables
-    uint16_t Idx; // index in function call parameters, start from 1. null if
-                  // not found in parameters
-    uint16_t offset;
-    Value *AddrInst, *IdxInst;
-    ValSourceInfo(Value *a = nullptr, uint16_t i = 0)
-        : Addr(a), Idx(i), offset(0) {}
-    void Reform(IRBuilder<> &IRB) {
-      if (mode == Mode::Eagle) {
-        if (Addr) {
-          // load from memory
-          // set the highest bit of IdxInst to 0
-          if (Addr->getType()->isIntegerTy())
-            AddrInst = IRB.CreateIntToPtr(Addr, IRB.getInt8PtrTy());
-          else if (Addr->getType()->isPointerTy())
-            AddrInst = IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy());
-          else
-            AddrInst = IRB.CreateIntToPtr(IRB.getInt8(0), IRB.getInt8PtrTy());
-          IdxInst = IRB.getInt16(offset & 0x7fff);
-        } else if (Idx) {
-          // get from parameters/local function call returns
-          // set the hightest bit of IdxInst to 1
-          AddrInst = IRB.CreateIntToPtr(IRB.getInt16(Idx), IRB.getInt8PtrTy());
-          IdxInst = IRB.getInt16(offset | 0x8000);
+    uint16_t Idx; // index in function call parameters/call return values, start
+                  // from 1. 0 if not found in parameters/ret values
+
+    APInt offset;
+    bool isDirect, isRealAddr, isValid;
+
+  public:
+    ValSourceInfo()
+        : Addr(nullptr), Idx(0), offset(14, 0, true), isDirect(false),
+          isRealAddr(false), isValid(false) {}
+    void setAddr(Value *A, APInt o, bool D) {
+      Addr = A;
+      offset = o;
+      isDirect = D;
+      isRealAddr = true;
+      isValid = true;
+    }
+    void setIdx(uint16_t i, APInt o, bool D) {
+      assert(i != 0);
+      Idx = i;
+      offset = o;
+      isDirect = D;
+      isRealAddr = false;
+      isValid = true;
+    }
+    Value *Reform(IRBuilder<> &IRB) {
+      assert(isValid);
+      if (isValid) {
+        if (isRealAddr) {
+          if (Addr->getType()->isIntegerTy() ||
+              Addr->getType()->isPointerTy()) {
+            Value *Addr48Bit = IRB.CreateAnd(
+                IRB.CreateBitOrPointerCast(Addr, IRB.getInt64Ty()),
+                ((1ULL << 48) - 1));
+            Value *LabelAndOffset16Bit =
+                IRB.getInt64(((((uint64_t)(isDirect << 1 | isRealAddr)) << 14) |
+                              ((*offset.getRawData()) & 0x3fff))
+                             << 48);
+            return IRB.CreateOr(Addr48Bit, LabelAndOffset16Bit);
+          }
         } else {
-          AddrInst = IRB.CreateIntToPtr(IRB.getInt8(0), IRB.getInt8PtrTy());
-          IdxInst = IRB.getInt16(0);
-        }
-      } else if (mode == Mode::Verification) {
-        if (Addr && Idx == 0) {
-          // load from memory
-          // set the highest bit of IdxInst to 0
-          if (Addr->getType()->isIntegerTy())
-            AddrInst = IRB.CreateIntToPtr(Addr, IRB.getInt8PtrTy());
-          else if (Addr->getType()->isPointerTy())
-            AddrInst = IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy());
-          else
-            AddrInst = IRB.CreateIntToPtr(IRB.getInt8(0), IRB.getInt8PtrTy());
-          IdxInst = IRB.getInt16(offset & 0x7fff);
-        } else if (Addr && Idx) {
-          // use local/static variable
-          // set the hightest bit of IdxInst to 1
-          AddrInst = IRB.CreateIntToPtr(IRB.getInt64((uint64_t)Addr),
-                                        IRB.getInt8PtrTy());
-          IdxInst = IRB.getInt16(offset | 0x8000);
-        } else if (Idx) {
           // get from parameters/local function call returns
-          // set the hightest bit of IdxInst to 1
-          AddrInst = IRB.CreateIntToPtr(IRB.getInt16(Idx), IRB.getInt8PtrTy());
-          IdxInst = IRB.getInt16(offset | 0x8000);
-        } else {
-          printf("Error,%p,%d,%d\n", (void *)Addr, Idx, offset);
-          exit(-2);
+          Value *Idx48Bit = IRB.getInt64(((uint64_t)Idx) & ((1ULL << 48) - 1));
+          Value *LabelAndOffset16Bit = IRB.getInt64(
+              ((((((uint64_t)isDirect) << 1 | ((uint64_t)isRealAddr))) << 14) |
+               ((*offset.getRawData()) & 0x3fff))
+              << 48);
+          return IRB.CreateOr(Idx48Bit, LabelAndOffset16Bit);
         }
       }
+      return IRB.getInt64(0);
     }
+    bool isNull() { return !isValid; }
   };
-  void getSource(Value *Val, Function *F, ValSourceInfo &VSI);
-  inline std::string concatFileName(std::string dir, std::string file) {
-    return dir + "/" + file;
+
+  // return the source of Val
+  // should always be a:
+  // 1) global variable
+  // 2) function parameter
+  // 3) function call return value
+  ValSourceInfo getSource(Value *Val, Function *F);
+  std::vector<StoreInst *> getAllStoresToAddr(Value *Addr, Function *F);
+  bool isReachable(Instruction *From, Instruction *To);
+  Value *
+  StripCastsAndAccumulateConstantBinaryOffsets(Value *SrcValue, APInt &offset,
+                                               const llvm::DataLayout &DL);
+  inline std::string concatFileName(std::filesystem::path dir,
+                                    std::filesystem::path file) {
+    return (dir / file).string();
   }
 
   Type *IntptrTy;
   FunctionCallee TrecFuncEntry;
   FunctionCallee TrecFuncExit;
-  FunctionCallee TrecIgnoreBegin;
-  // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
-  static const size_t kNumberOfAccessSizes = 5;
+  // Accesses sizes are powers of two: 1, 2, 4, 8.
+  static const size_t kNumberOfAccessSizes = 4;
   FunctionCallee TrecRead[kNumberOfAccessSizes];
   FunctionCallee TrecWrite[kNumberOfAccessSizes];
   FunctionCallee TrecUnalignedRead[kNumberOfAccessSizes];
@@ -247,8 +281,6 @@ private:
   FunctionCallee TrecBranch;
   FunctionCallee TrecFuncParam;
   FunctionCallee TrecFuncExitParam;
-  FunctionCallee TrecInstDebugInfo;
-  FunctionCallee TrecAlloca;
 };
 
 void insertModuleCtor(Module &M) {
@@ -260,11 +292,301 @@ void insertModuleCtor(Module &M) {
       [&](Function *Ctor, FunctionCallee) { appendToGlobalCtors(M, Ctor, 0); });
 }
 
+int query_callback(void *ret, int argc, char **argv, char **azColName) {
+  assert(argc == 1);
+  *(int *)ret = atoi(argv[0]);
+  return 0;
+}
+
+int SqliteDebugWriter::queryFileID(const char *name) {
+  return queryID("DEBUGFILENAME", name);
+}
+
+int SqliteDebugWriter::queryVarID(const char *name) {
+  return queryID("DEBUGVARNAME", name);
+}
+
+int SqliteDebugWriter::queryID(const char *table, const char *name) {
+  char *errmsg;
+  char buf[4096];
+  int ID = -1;
+  snprintf(buf, 4095, "SELECT ID from %s where NAME=\"%s\";", table, name);
+  int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
+  if (status != SQLITE_OK) {
+    printf("query error(%d): %s\n", status, errmsg);
+    exit(status);
+  };
+  sqlite3_free(errmsg);
+  return ID;
+}
+
+int SqliteDebugWriter::queryDebugInfoID(int nameA, int nameB, int line,
+                                        int col) {
+  char *errmsg;
+  char buf[4096];
+  int ID = -1;
+  snprintf(
+      buf, 4095,
+      "SELECT ID from DEBUGINFO where NAMEIDA=\"%d\" AND NAMEIDB=\"%d\" AND "
+      "LINE=\"%d\" AND COL=\"%d\";",
+      nameA, nameB, line, col);
+  int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
+  if (status != SQLITE_OK) {
+    printf("query error(%d): %s\n", status, errmsg);
+    exit(status);
+  };
+  sqlite3_free(errmsg);
+  return ID;
+}
+
+void SqliteDebugWriter::insertName(const char *table, const char *name,
+                                   std::map<std::string, uint32_t> &m) {
+  char buf[4096];
+  int ID = queryID(table, name);
+  if (ID == -1) {
+    snprintf(buf, 2047, "INSERT INTO %s VALUES (NULL, \"%s\");", table, name);
+    sql += std::string(buf);
+  }
+}
+
+void SqliteDebugWriter::insertDebugInfo(int nameA, int nameB, int line,
+                                        int col) {
+  char buf[4096];
+  int ID = queryDebugInfoID(nameA, nameB, line, col);
+  if (ID == -1) {
+    snprintf(buf, 2047, "INSERT INTO DEBUGINFO VALUES (NULL, %d, %d, %d, %d);",
+             nameA, nameB, line, col);
+    sql += std::string(buf);
+  }
+}
+
+void SqliteDebugWriter::commitSQL() {
+  char *errmsg;
+  int status;
+  sql += "END;";
+  while ((status = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &errmsg)) ==
+         SQLITE_BUSY)
+    ;
+  if (status != SQLITE_OK) {
+    printf("insert sql instructions error(%d): %s\n", status, errmsg);
+    exit(status);
+  };
+  sql = "BEGIN;";
+}
+
+uint64_t SqliteDebugWriter::ReformID(int ID) {
+  assert(DBID >= 1);
+  assert(ID >= 1);
+  return (((uint64_t)DBID & ((1ULL << 16) - 1)) << 48) |
+         ((uint64_t)ID & ((1ULL << 48) - 1));
+}
+
+SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1) {
+  char *DatabaseDir = getenv("TREC_DATABASE_DIR");
+  if (DatabaseDir == nullptr) {
+    printf("ERROR: ENV variable `TREC_DATABASE_DIR` has not been set!\n");
+    exit(-1);
+  }
+  DBDirPath = std::filesystem::path(DatabaseDir);
+  int pid = getpid();
+  std::filesystem::path managerDBPath =
+      DBDirPath / std::filesystem::path("manager.db");
+  int status;
+  char *errmsg;
+
+  // open sqlite database
+  status = sqlite3_open(managerDBPath.c_str(), &db);
+  if (status) {
+    printf("Open manager databased %s failed(%d): %s\n", managerDBPath.c_str(),
+           status, sqlite3_errmsg(db));
+    exit(status);
+  }
+
+  // acquire flock
+  int database_fd = open(managerDBPath.c_str(), O_RDONLY);
+  if ((status = flock(database_fd, LOCK_EX)) != 0) {
+    printf("ERROR: acquire flock for manager database %s failed(%d)\n",
+           managerDBPath.c_str(), status);
+    exit(status);
+  }
+
+  status = sqlite3_exec(
+      db, "CREATE TABLE MANAGER (ID INTEGER PRIMARY KEY, PID INTEGER UNIQUE);",
+      nullptr, nullptr, &errmsg);
+  if (status != SQLITE_OK &&
+      !(status == SQLITE_ERROR &&
+        strcmp(errmsg, "table MANAGER already exists") == 0)) {
+    printf("create table error(%d): %s\n", status, errmsg);
+    exit(status);
+  };
+  sqlite3_free(errmsg);
+
+  bool isCreated = false;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "SELECT ID from MANAGER where PID=%d;", pid);
+  status = sqlite3_exec(db, buffer, query_callback, &DBID, &errmsg);
+  if (status != SQLITE_OK) {
+    printf("query manager table error(%d): %s\n", status, errmsg);
+    exit(status);
+  };
+  while (DBID == -1) {
+    snprintf(buffer, sizeof(buffer),
+             "SELECT ID from MANAGER where PID IS NULL;");
+    status = sqlite3_exec(db, buffer, query_callback, &DBID, &errmsg);
+    if (status != SQLITE_OK) {
+      printf("query manager table error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+    if (DBID == -1) {
+      // no empty entry
+      isCreated = true;
+      snprintf(buffer, sizeof(buffer),
+               "INSERT INTO MANAGER VALUES (NULL, NULL);");
+      while ((status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg)) ==
+             SQLITE_BUSY)
+        ;
+      if (status != SQLITE_OK) {
+        printf("insert manager table error(%d): %s\n", status, errmsg);
+        exit(status);
+      };
+    }
+  }
+  snprintf(buffer, sizeof(buffer), "UPDATE MANAGER SET PID=%d where ID=%d;",
+           pid, DBID);
+  status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg);
+  if (status != SQLITE_OK) {
+    printf("update manager table error(%d): %s\n", status, errmsg);
+    exit(status);
+  };
+
+  // release flock
+  if ((status = flock(database_fd, LOCK_UN)) != 0) {
+    printf("ERROR: release flock failed\n");
+    exit(status);
+  }
+  close(database_fd);
+
+  // close manager database
+  sqlite3_close(db);
+
+  snprintf(buffer, sizeof(buffer), "%s/debuginfo%d.db", DBDirPath.c_str(),
+           DBID);
+  sqlite3_open(buffer, &db);
+  if (status) {
+    printf("open %s file failed(%d): %s\n", buffer, status, sqlite3_errmsg(db));
+    exit(status);
+  }
+
+  // speedup querying
+  status =
+      sqlite3_exec(db, "PRAGMA synchronous=OFF;", nullptr, nullptr, nullptr);
+  if (status != SQLITE_OK) {
+    printf("trun off synchronous mode failed: %s\n", sqlite3_errmsg(db));
+    exit(status);
+  }
+
+  if (isCreated) {
+    status = sqlite3_exec(db,
+                          "CREATE TABLE DEBUGINFO ("
+                          "ID INTEGER PRIMARY KEY,"
+                          "NAMEIDA INTEGER NOT NULL,"
+                          "NAMEIDB INTEGER NOT NULL,"
+                          "LINE SMALLINT NOT NULL,"
+                          "COL SMALLINT NOT NULL);"
+                          "CREATE TABLE DEBUGVARNAME ("
+                          "ID INTEGER PRIMARY KEY,"
+                          "NAME CHAR(256));"
+                          "CREATE TABLE DEBUGFILENAME ("
+                          "ID INTEGER PRIMARY KEY,"
+                          "NAME CHAR(2048));",
+                          nullptr, nullptr, &errmsg);
+    if (status) {
+      printf("create subtables failed %d:%s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    }
+  }
+  sql = "BEGIN;";
+}
+SqliteDebugWriter::~SqliteDebugWriter() {
+  sqlite3_close(db);
+
+  std::filesystem::path managerDBPath =
+      DBDirPath / std::filesystem::path("manager.db");
+  int status;
+  char *errmsg;
+  int database_fd = open(managerDBPath.c_str(), O_RDONLY);
+  if ((status = flock(database_fd, LOCK_EX)) != 0) {
+    printf("ERROR: acquire flock failed\n");
+    exit(status);
+  }
+  status = sqlite3_open(managerDBPath.c_str(), &db);
+  if (status) {
+    printf("Open manager databased %s failed(%d): %s\n", managerDBPath.c_str(),
+           status, sqlite3_errmsg(db));
+    exit(status);
+  }
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "UPDATE MANAGER SET PID=NULL where ID=%d;",
+           DBID);
+  status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg);
+  if (status != SQLITE_OK) {
+    printf("update manager table error(%d): %s\n", status, errmsg);
+    exit(status);
+  };
+
+  sqlite3_close(db);
+  if ((status = flock(database_fd, LOCK_UN)) != 0) {
+    printf("ERROR: release flock failed\n");
+    exit(status);
+  }
+  close(database_fd);
+}
+int SqliteDebugWriter::getFileID(const char *name) {
+  if (!KnownFileNames.count(name)) {
+    insertFileName(name);
+    commitSQL();
+    int ID = queryFileID(name);
+    if (ID == -1) {
+      printf("insert file name failed\n");
+      exit(-1);
+    }
+    KnownFileNames[name] = ID;
+  }
+  return KnownFileNames.at(name);
+}
+int SqliteDebugWriter::getVarID(const char *name) {
+  if (!KnownVarNames.count(name)) {
+    insertVarName(name);
+    commitSQL();
+    int ID = queryVarID(name);
+    if (ID == -1) {
+      printf("insert var name failed\n");
+      exit(-1);
+    }
+    KnownVarNames[name] = ID;
+  }
+  return KnownVarNames.at(name);
+}
+int SqliteDebugWriter::getDebugInfoID(int nameA, int nameB, int line, int col) {
+  int ID = queryDebugInfoID(nameA, nameB, line, col);
+  if (ID == -1) {
+    insertDebugInfo(nameA, nameB, line, col);
+    commitSQL();
+    ID = queryDebugInfoID(nameA, nameB, line, col);
+  }
+  return ID;
+}
+void SqliteDebugWriter::insertFileName(const char *name) {
+  insertName("DEBUGFILENAME", name, KnownFileNames);
+}
+void SqliteDebugWriter::insertVarName(const char *name) {
+  insertName("DEBUGVARNAME", name, KnownVarNames);
+}
 } // namespace
 
 PreservedAnalyses TraceRecorderPass::run(Function &F,
                                          FunctionAnalysisManager &FAM) {
-  TraceRecorder TRec(TraceRecorderModuleVarNames);
+  TraceRecorder TRec;
   if (TRec.sanitizeFunction(F, FAM.getResult<TargetLibraryAnalysis>(F)))
     return PreservedAnalyses::none();
   return PreservedAnalyses::all();
@@ -273,7 +595,6 @@ PreservedAnalyses TraceRecorderPass::run(Function &F,
 PreservedAnalyses ModuleTraceRecorderPass::run(Module &M,
                                                ModuleAnalysisManager &MAM) {
   insertModuleCtor(M);
-  TraceRecorderModuleVarNames.clear();
   return PreservedAnalyses::none();
 }
 
@@ -285,9 +606,10 @@ void TraceRecorder::initialize(Module &M) {
   Attr = Attr.addFnAttribute(M.getContext(), Attribute::NoUnwind);
   // Initialize the callbacks.
   TrecFuncEntry = M.getOrInsertFunction("__trec_func_entry", Attr,
-                                        IRB.getVoidTy(), IRB.getInt8PtrTy());
-  TrecFuncExit =
-      M.getOrInsertFunction("__trec_func_exit", Attr, IRB.getVoidTy());
+                                        IRB.getVoidTy(), IRB.getInt16Ty(),
+                                        IRB.getInt16Ty(), IRB.getInt64Ty());
+  TrecFuncExit = M.getOrInsertFunction("__trec_func_exit", Attr,
+                                       IRB.getVoidTy(), IRB.getInt64Ty());
   IntegerType *OrdTy = IRB.getInt32Ty();
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
     const unsigned ByteSize = 1U << i;
@@ -295,59 +617,38 @@ void TraceRecorder::initialize(Module &M) {
     std::string ByteSizeStr = utostr(ByteSize);
     std::string BitSizeStr = utostr(BitSize);
     SmallString<32> ReadName("__trec_read" + ByteSizeStr);
-    if (i < 4)
-      TrecRead[i] = M.getOrInsertFunction(
-          ReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(), IRB.getInt1Ty(),
-          IRB.getInt8PtrTy(), IRB.getInt8PtrTy(), IRB.getInt16Ty());
-    else
-      TrecRead[i] = M.getOrInsertFunction(
-          ReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(), IRB.getInt1Ty(),
-          IRB.getInt128Ty(), IRB.getInt8PtrTy(), IRB.getInt16Ty());
+    TrecRead[i] = M.getOrInsertFunction(
+        ReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(), IRB.getInt1Ty(),
+        IRB.getInt8PtrTy(), IRB.getInt64Ty(), IRB.getInt64Ty());
     SmallString<32> WriteName("__trec_write" + ByteSizeStr);
-    if (i < 4)
-      TrecWrite[i] = M.getOrInsertFunction(
-          WriteName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(), IRB.getInt1Ty(),
-          IRB.getInt8PtrTy(), IRB.getInt8PtrTy(), IRB.getInt16Ty(),
-          IRB.getInt8PtrTy(), IRB.getInt16Ty());
-    else
-      TrecWrite[i] = M.getOrInsertFunction(
-          WriteName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(), IRB.getInt1Ty(),
-          IRB.getInt128Ty(), IRB.getInt8PtrTy(), IRB.getInt16Ty(),
-          IRB.getInt8PtrTy(), IRB.getInt16Ty());
+    TrecWrite[i] = M.getOrInsertFunction(WriteName, Attr, IRB.getVoidTy(),
+                                         IRB.getInt8PtrTy(), IRB.getInt1Ty(),
+                                         IRB.getInt8PtrTy(), IRB.getInt64Ty(),
+                                         IRB.getInt64Ty(), IRB.getInt64Ty());
     SmallString<64> UnalignedReadName("__trec_unaligned_read" + ByteSizeStr);
-    if (i < 4)
-      TrecUnalignedRead[i] = M.getOrInsertFunction(
-          UnalignedReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(),
-          IRB.getInt1Ty(), IRB.getInt8PtrTy(), IRB.getInt8PtrTy(),
-          IRB.getInt16Ty());
-    else
-      TrecUnalignedRead[i] = M.getOrInsertFunction(
-          UnalignedReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(),
-          IRB.getInt1Ty(), IRB.getInt128Ty(), IRB.getInt8PtrTy(),
-          IRB.getInt16Ty());
+    TrecUnalignedRead[i] = M.getOrInsertFunction(
+        UnalignedReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(),
+        IRB.getInt1Ty(), IRB.getInt8PtrTy(), IRB.getInt64Ty(),
+        IRB.getInt64Ty());
 
     SmallString<64> UnalignedWriteName("__trec_unaligned_write" + ByteSizeStr);
-    if (i < 4)
-      TrecUnalignedWrite[i] = M.getOrInsertFunction(
-          UnalignedWriteName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(),
-          IRB.getInt1Ty(), IRB.getInt8PtrTy(), IRB.getInt8PtrTy(),
-          IRB.getInt16Ty(), IRB.getInt8PtrTy(), IRB.getInt16Ty());
-    else
-      TrecUnalignedWrite[i] = M.getOrInsertFunction(
-          UnalignedWriteName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(),
-          IRB.getInt1Ty(), IRB.getInt128Ty(), IRB.getInt8PtrTy(),
-          IRB.getInt16Ty(), IRB.getInt8PtrTy(), IRB.getInt16Ty());
+    TrecUnalignedWrite[i] = M.getOrInsertFunction(
+        UnalignedWriteName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(),
+        IRB.getInt1Ty(), IRB.getInt8PtrTy(), IRB.getInt64Ty(), IRB.getInt64Ty(),
+        IRB.getInt64Ty());
 
     Type *Ty = Type::getIntNTy(M.getContext(), BitSize);
     Type *PtrTy = Ty->getPointerTo();
     Type *BoolTy = Type::getInt1Ty(M.getContext());
+    Type *debugTy = Type::getInt64Ty(M.getContext());
     SmallString<32> AtomicLoadName("__trec_atomic" + BitSizeStr + "_load");
-    TrecAtomicLoad[i] =
-        M.getOrInsertFunction(AtomicLoadName, Attr, Ty, PtrTy, OrdTy, BoolTy);
+    TrecAtomicLoad[i] = M.getOrInsertFunction(AtomicLoadName, Attr, Ty, PtrTy,
+                                              OrdTy, BoolTy, debugTy);
 
     SmallString<32> AtomicStoreName("__trec_atomic" + BitSizeStr + "_store");
-    TrecAtomicStore[i] = M.getOrInsertFunction(
-        AtomicStoreName, Attr, IRB.getVoidTy(), PtrTy, Ty, OrdTy, BoolTy);
+    TrecAtomicStore[i] =
+        M.getOrInsertFunction(AtomicStoreName, Attr, IRB.getVoidTy(), PtrTy, Ty,
+                              OrdTy, BoolTy, debugTy);
 
     for (unsigned Op = AtomicRMWInst::FIRST_BINOP;
          Op <= AtomicRMWInst::LAST_BINOP; ++Op) {
@@ -370,14 +671,14 @@ void TraceRecorder::initialize(Module &M) {
       else
         continue;
       SmallString<32> RMWName("__trec_atomic" + itostr(BitSize) + NamePart);
-      TrecAtomicRMW[Op][i] =
-          M.getOrInsertFunction(RMWName, Attr, Ty, PtrTy, Ty, OrdTy, BoolTy);
+      TrecAtomicRMW[Op][i] = M.getOrInsertFunction(RMWName, Attr, Ty, PtrTy, Ty,
+                                                   OrdTy, BoolTy, debugTy);
     }
 
     SmallString<32> AtomicCASName("__trec_atomic" + BitSizeStr +
                                   "_compare_exchange_val");
     TrecAtomicCAS[i] = M.getOrInsertFunction(AtomicCASName, Attr, Ty, PtrTy, Ty,
-                                             Ty, OrdTy, OrdTy, BoolTy);
+                                             Ty, OrdTy, OrdTy, BoolTy, debugTy);
   }
   TrecAtomicThreadFence = M.getOrInsertFunction("__trec_atomic_thread_fence",
                                                 Attr, IRB.getVoidTy(), OrdTy);
@@ -394,18 +695,14 @@ void TraceRecorder::initialize(Module &M) {
       M.getOrInsertFunction("memset", Attr, IRB.getInt8PtrTy(),
                             IRB.getInt8PtrTy(), IRB.getInt32Ty(), IntptrTy);
   TrecBranch = M.getOrInsertFunction("__trec_branch", Attr, IRB.getVoidTy(),
+                                     IRB.getInt8PtrTy(), IRB.getInt64Ty(),
                                      IRB.getInt64Ty());
   TrecFuncParam = M.getOrInsertFunction(
       "__trec_func_param", Attr, IRB.getVoidTy(), IRB.getInt16Ty(),
-      IRB.getInt8PtrTy(), IRB.getInt16Ty(), IRB.getInt8PtrTy());
+      IRB.getInt64Ty(), IRB.getInt8PtrTy(), IRB.getInt64Ty());
   TrecFuncExitParam = M.getOrInsertFunction(
-      "__trec_func_exit_param", Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(),
-      IRB.getInt16Ty(), IRB.getInt8PtrTy());
-  TrecInstDebugInfo = M.getOrInsertFunction(
-      "__trec_inst_debug_info", Attr, IRB.getVoidTy(), IRB.getInt16Ty(),
-      IRB.getInt16Ty(), IRB.getInt8PtrTy(), IRB.getInt8PtrTy());
-  TrecAlloca = M.getOrInsertFunction("__trec_alloca", Attr, IRB.getVoidTy(),
-                                     IRB.getInt8PtrTy(), IRB.getInt64Ty());
+      "__trec_func_exit_param", Attr, IRB.getVoidTy(), IRB.getInt64Ty(),
+      IRB.getInt8PtrTy(), IRB.getInt64Ty());
 }
 
 static bool isVtableAccess(Instruction *I) {
@@ -435,35 +732,34 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   // within the module constructor.
   if (F.getName() == kTrecModuleCtorName)
     return false;
-  // If we cannot find the source file, then this function must not be written
-  // by user. Do not instrument it.
+  // If we cannot find the source file, then this function may not be written by
+  // user.
+  // Do not instrument it.
   if (F.getSubprogram() == nullptr || F.getSubprogram()->getFile() == nullptr)
     return false;
 
-  // Some cases that we do not instrument
-
-  // Naked functions can not have prologue/epilogue
-  // (__trec_func_entry/__trec_func_exit) generated, so don't
-  // instrument them at all.
-  if (F.hasFnAttribute(Attribute::Naked))
-    return false;
-
   initialize(*F.getParent());
-  FuncCallOrders.clear();
-  FuncCallOrderCounter = F.arg_size() + 1;
-  SmallVector<InstructionInfo> AllStores;
-  SmallVector<InstructionInfo> AllLoads;
+  VarOrders.clear();
+  VarOrderCounter = 1;
+  int arg_size = F.arg_size();
+  for (int idx = 0; idx < arg_size; idx++) {
+    VarOrders[F.getArg(idx)] = VarOrderCounter++;
+  }
+  StoresToBeInstrumented.clear();
+  LoadsToBeInstrumented.clear();
+  AddrAllStores.clear();
+  SeperatedExits.clear();
   SmallVector<Instruction *> AtomicAccesses;
   SmallVector<Instruction *> MemIntrinCalls;
   SmallVector<Instruction *> Branches;
-  SmallVector<Instruction *> ParamFuncCalls;
-  SmallVector<Instruction *> NoVoidFuncCalls;
+  SmallVector<Instruction *> FuncCalls;
   SmallVector<Instruction *> Returns;
-  SmallVector<Instruction *> AllAllocas;
 
   bool Res = false;
   const DataLayout &DL = F.getParent()->getDataLayout();
 
+  // We must instrument atomic and mem-intrinsic instructions first.
+  // The later on __trec_func_entry/__trec_func_exit needs to instrument them.
   for (auto &BB : F) {
     for (auto &Inst : BB) {
       if (isAtomic(&Inst))
@@ -481,25 +777,34 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     for (auto Inst : MemIntrinCalls) {
       Res |= instrumentMemIntrinsic(Inst);
     }
-  // Traverse all instructions, collect loads/stores/returns, check for calls.
+
+  // Traverse all instructions, collect loads/stores/calls/branches.
   for (auto &BB : F) {
     for (auto &Inst : BB) {
       if (isa<LoadInst>(Inst)) {
-        AllLoads.emplace_back(InstructionInfo(&Inst));
-      } else if (isa<StoreInst>(Inst))
-        AllStores.emplace_back(InstructionInfo(&Inst));
-      else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst) ||
-               isa<CallBrInst>(Inst)) {
-        if (!dyn_cast<CallBase>(&Inst)
-                 ->getFunctionType()
-                 ->getReturnType()
-                 ->isVoidTy() ||
-            dyn_cast<CallBase>(&Inst)->arg_size())
-          ParamFuncCalls.push_back(&Inst);
+        LoadInst *LI = dyn_cast<LoadInst>(&Inst);
+        if (isa<GlobalVariable>(LI->getPointerOperand()) ||
+            ClForceInstrumentAllMemoryAccesses)
+          LoadsToBeInstrumented.insert(LI);
+        NumAllReads++;
+      } else if (isa<StoreInst>(Inst)) {
+        StoreInst *SI = dyn_cast<StoreInst>(&Inst);
+        if (isa<GlobalVariable>(SI->getPointerOperand()) ||
+            ClForceInstrumentAllMemoryAccesses)
+          StoresToBeInstrumented.insert(SI);
+        NumAllWrites++;
+      } else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) {
+        FuncCalls.push_back(&Inst);
 
-        if (dyn_cast<CallBase>(&Inst)->getCalledFunction() == nullptr) {
-          Branches.push_back(&Inst);
-        }
+        // Although these are also branches, we do not instrument them because
+        // we cannot get to know the exact conditional variable that causes the
+        // branch choosing (as the branch choosing may be caused by exceptions
+        // inside the called function, which cannot be seen at this point).
+
+        // if (isa<InvokeInst>(Inst) ||
+        //     dyn_cast<CallBase>(&Inst)->getCalledFunction() == nullptr) {
+        //   Branches.push_back(&Inst);
+        // }
 
         if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, &TLI);
@@ -507,295 +812,253 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       } else if (isa<BranchInst>(Inst) &&
                  dyn_cast<BranchInst>(&Inst)->isConditional()) {
         Branches.push_back(&Inst); // conditional branch
-
       } else if (isa<SwitchInst>(Inst)) {
         Branches.push_back(&Inst); // switch
+      } else if (isa<IndirectBrInst>(Inst)) {
+        Branches.push_back(&Inst);
       } else if (isa<ReturnInst>(Inst)) {
         Returns.push_back(&Inst); // function return
-      } else if (isa<AllocaInst>(Inst)) {
-        AllAllocas.push_back(&Inst);
       }
     }
   }
 
-  // We have collected all loads and stores.
-  // FIXME: many of these accesses do not need to be checked for races
-  // (e.g. variables that do not escape, etc).
-
-  // Instrument atomic memory accesses in any case (they can be used to
-  // implement synchronization).
-
+  // branches must be instrumented before function entries/exits
+  if (ClInstrumentFuncParam) {
+    for (auto Inst : FuncCalls) {
+      Res |= instrumentFunctionCall(Inst);
+    }
+    for (auto Inst : Returns) {
+      Res |= instrumentReturn(Inst);
+    }
+  }
   if (ClInstrumentBranch)
     for (auto Inst : Branches) {
       Res |= instrumentBranch(Inst, DL);
     }
-  if (ClInstrumentFuncParam) {
-    for (auto Inst : ParamFuncCalls) {
-      Res |= instrumentFunctionParamCall(Inst);
-    }
-    for (auto Inst : Returns) {
-      Res |= instrumentFunctionReturn(Inst);
-    }
+
+  // deal with cpp name mangling
+  // getName() may return the name after mangling.
+  // use getSubprogram()->getName() if possible
+  StringRef FuncName = F.getName();
+  int line = 0;
+  if (F.getSubprogram()) {
+    FuncName = F.getSubprogram()->getName();
+    line = F.getSubprogram()->getLine();
   }
 
-  // Instrument memory accesses only if we want to report bugs in the
-  // function.
-  if (ClInstrumentMemoryAccesses) {
-    if (ClInstrumentMemoryWrites)
-      for (const auto &II : AllStores) {
-        Res |= instrumentLoadStore(II, DL);
-      }
-    if (ClInstrumentMemoryReads)
-      for (const auto &II : AllLoads) {
-        Res |= instrumentLoadStore(II, DL);
-      }
-  }
-  if (ClInstrumentAllocas) {
-    for (const auto Inst : AllAllocas)
-      Res |= instrumentAlloca(Inst, DL);
-  }
-  // Instrument function entry/exit points if there were instrumented
-  // accesses.
-  if (Res && ClInstrumentFuncEntryExit) {
-    IRBuilder<> IRB(F.getEntryBlock().getFirstNonPHI());
-    StringRef FuncName = F.getName();
-    if (ClTrecAddDebugInfo && F.getSubprogram() &&
-        F.getSubprogram()->getFile()) {
-      std::string CurrentFileName =
+  // The main function has no parent function.
+  // So explicitly record its entry and exit(s).
+  // For the main function, we cannot figure out where its parameters come from.
+  // So we only record __trec_func_entry and __trec_func_exit.
+  if (F.getSubprogram() && F.getSubprogram()->getName() == "main") {
+    IRBuilder<> IRB(&*F.getEntryBlock().getFirstInsertionPt());
+    std::string CurrentFileName = "";
+    if (F.getSubprogram()->getFile()) {
+      CurrentFileName =
           concatFileName(F.getSubprogram()->getFile()->getDirectory().str(),
                          F.getSubprogram()->getFile()->getFilename().str());
-      FuncName = F.getSubprogram()->getName();
-      if (FuncName == "main") {
-        Value *func_name, *file_name;
-        if (VarNames.count(FuncName.str())) {
-          func_name = VarNames.find(FuncName.str())->second;
-        } else {
-          func_name = IRB.CreateGlobalStringPtr(FuncName);
-          VarNames.insert(std::make_pair(FuncName.str(), func_name));
-        }
-        if (VarNames.count(CurrentFileName)) {
-          file_name = VarNames.find(CurrentFileName)->second;
-        } else {
-          file_name = IRB.CreateGlobalStringPtr(CurrentFileName);
-          VarNames.insert(std::make_pair(CurrentFileName, file_name));
-        }
-        IRB.CreateCall(TrecInstDebugInfo,
-                       {IRB.getInt16(F.getSubprogram()->getLine()),
-                        IRB.getInt16(0), func_name, file_name});
-      }
     }
+    int nameA = debuger.getVarID(FuncName.str().c_str());
+    int nameB = debuger.getFileID(CurrentFileName.c_str());
+    int col = 0;
+    uint64_t debugID =
+        debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
 
-    Value *name_ptr;
-    if (VarNames.count(FuncName.str())) {
-      name_ptr = VarNames.find(FuncName.str())->second;
-    } else {
-      name_ptr = IRB.CreateGlobalStringPtr(FuncName.str());
-      VarNames.insert(std::make_pair(FuncName.str(), name_ptr));
-    }
-
-    IRB.CreateCall(TrecFuncEntry, {name_ptr});
+    IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(1), IRB.getInt16(F.arg_size()),
+                                   IRB.getInt64(debugID)});
 
     EscapeEnumerator EE(F);
     while (IRBuilder<> *AtExit = EE.Next()) {
-      AtExit->CreateCall(TrecFuncExit, {});
+      AtExit->CreateCall(TrecFuncExit, {AtExit->getInt64(debugID)});
     }
+    Res |= true;
+  }
+
+  if (ClInstrumentMemoryAccesses) {
+    std::set<Instruction *> instrumentedStores, instrumentedLoads;
+    while (instrumentedStores != StoresToBeInstrumented ||
+           instrumentedLoads != LoadsToBeInstrumented) {
+      for (auto item : StoresToBeInstrumented) {
+        if (!instrumentedStores.count(item)) {
+          Res |= instrumentLoadStore(InstructionInfo(item), DL);
+          instrumentedStores.insert(item);
+        }
+      }
+      for (auto item : LoadsToBeInstrumented) {
+        if (!instrumentedLoads.count(item)) {
+          Res |= instrumentLoadStore(InstructionInfo(item), DL);
+          instrumentedLoads.insert(item);
+        }
+      }
+    }
+  }
+  return Res;
+}
+
+bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL) {
+  if (I->getDebugLoc().isImplicitCode())
+    return false;
+  IRBuilder<> IRB(I);
+  bool Res = false;
+  Function *F = I->getParent()->getParent();
+  if (isa<BranchInst>(I)) {
+    BranchInst *Br = dyn_cast<BranchInst>(I);
+    Value *cond = Br->getCondition();
+    int nameA = debuger.getVarID(cond->getName().str().c_str());
+    int nameB = 0;
+    int line = Br->getDebugLoc().getLine();
+    int col = Br->getDebugLoc().getCol();
+    uint64_t debugID =
+        debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+    ValSourceInfo VSI = getSource(cond, F);
+    IRB.CreateCall(TrecBranch,
+                   {IRB.CreateBitOrPointerCast(cond, IRB.getInt8PtrTy()),
+                    VSI.Reform(IRB), IRB.getInt64(debugID)});
+    Res |= true;
+  } else if (isa<SwitchInst>(I)) {
+    SwitchInst *sw = dyn_cast<SwitchInst>(I);
+    Value *cond = sw->getCondition();
+    int nameA = debuger.getVarID(cond->getName().str().c_str());
+    int nameB = 0;
+    int line = sw->getDebugLoc().getLine();
+    int col = sw->getDebugLoc().getCol();
+    uint64_t debugID =
+        debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+    ValSourceInfo VSI = getSource(cond, F);
+    IRB.CreateCall(TrecBranch,
+                   {IRB.CreateBitOrPointerCast(cond, IRB.getInt8PtrTy()),
+                    VSI.Reform(IRB), IRB.getInt64(debugID)});
+    Res |= true;
+  } else if (isa<IndirectBrInst>(I)) {
+    IndirectBrInst *IBr = dyn_cast<IndirectBrInst>(I);
+    Value *cond = IBr->getAddress();
+    int nameA = debuger.getVarID(cond->getName().str().c_str());
+    int nameB = 0;
+    int line = IBr->getDebugLoc().getLine();
+    int col = IBr->getDebugLoc().getCol();
+    uint64_t debugID =
+        debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+    ValSourceInfo VSI = getSource(cond, F);
+    IRB.CreateCall(TrecBranch,
+                   {IRB.CreateBitOrPointerCast(cond, IRB.getInt8PtrTy()),
+                    VSI.Reform(IRB), IRB.getInt64(debugID)});
     Res |= true;
   }
   return Res;
 }
-bool TraceRecorder::instrumentAlloca(Instruction *I, const DataLayout &DL) {
-  IRBuilder<> IRB(I->getNextNode());
-  AllocaInst *AI = dyn_cast<AllocaInst>(I);
-  auto size = AI->getAllocationSizeInBits(DL);
-  bool res = false;
-  if (size) {
-    res = true;
-    uint64_t sz = (*size + 7) / 8;
-    IRB.CreateCall(
-        TrecAlloca,
-        {IRB.CreateBitOrPointerCast(AI, IRB.getInt8PtrTy()), IRB.getInt64(sz)});
-  }
-  return res;
-}
 
-bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL) {
-  IRBuilder<> IRB(I);
-  Value *var_name, *file_name;
-
-  if (VarNames.count("")) {
-    var_name = VarNames.find("")->second;
-    file_name = VarNames.find("")->second;
-  } else {
-    var_name = IRB.CreateGlobalStringPtr("");
-    VarNames.insert(std::make_pair("", var_name));
-    file_name = var_name;
-  }
-  Function &F = *(I->getParent()->getParent());
-  std::string FuncName = F.getSubprogram() ? F.getSubprogram()->getName().str()
-                                           : F.getName().str();
-  if (VarNames.count(FuncName))
-    var_name = VarNames.find(FuncName)->second;
-  else {
-    var_name = IRB.CreateGlobalStringPtr(FuncName);
-    VarNames.insert(std::make_pair(FuncName, var_name));
-  }
-
-  if (F.getSubprogram() && F.getSubprogram()->getFile()) {
-    std::string CurrentFileName =
-        concatFileName(F.getSubprogram()->getFile()->getDirectory().str(),
-                       F.getSubprogram()->getFile()->getFilename().str());
-    if (VarNames.count(CurrentFileName))
-      file_name = VarNames.find(CurrentFileName)->second;
-    else {
-      file_name = IRB.CreateGlobalStringPtr(CurrentFileName);
-      VarNames.insert(std::make_pair(CurrentFileName, file_name));
-    }
-  }
-  if (isa<BranchInst>(I)) {
-    BranchInst *Br = dyn_cast<BranchInst>(I);
-    Value *cond = Br->getCondition();
-
-    IRB.CreateCall(TrecInstDebugInfo,
-                   {IRB.getInt16(!I->getDebugLoc().isImplicitCode()
-                                     ? I->getDebugLoc().getLine()
-                                     : 0),
-                    IRB.getInt16(!I->getDebugLoc().isImplicitCode()
-                                     ? I->getDebugLoc().getCol()
-                                     : 0),
-                    var_name, file_name});
-    if (cond->getType()->isIntegerTy()) {
-      IRB.CreateCall(TrecBranch,
-                     {IRB.CreateIntCast(cond, IRB.getInt64Ty(), false)});
-    } else {
-      IRB.CreateCall(TrecBranch, {IRB.getInt64(0)});
-    }
-    return true;
-  } else if (isa<SwitchInst>(I)) {
-    SwitchInst *sw = dyn_cast<SwitchInst>(I);
-    Value *cond = sw->getCondition();
-
-    IRB.CreateCall(TrecInstDebugInfo,
-                   {IRB.getInt16(!I->getDebugLoc().isImplicitCode()
-                                     ? I->getDebugLoc().getLine()
-                                     : 0),
-                    IRB.getInt16(!I->getDebugLoc().isImplicitCode()
-                                     ? I->getDebugLoc().getCol()
-                                     : 0),
-                    var_name, file_name});
-    if (cond->getType()->isIntegerTy()) {
-      IRB.CreateCall(TrecBranch,
-                     {IRB.CreateIntCast(cond, IRB.getInt64Ty(), false)});
-    } else {
-      IRB.CreateCall(TrecBranch, {IRB.getInt64(0)});
-    }
-    return true;
-  }
-  return false;
-}
-
-bool TraceRecorder::instrumentFunctionReturn(Instruction *I) {
+bool TraceRecorder::instrumentReturn(Instruction *I) {
   IRBuilder<> IRB(I);
   ValSourceInfo VSI_val;
   Value *RetVal = dyn_cast<ReturnInst>(I)->getReturnValue();
   bool res = false;
   if (RetVal) {
-    getSource(RetVal, I->getParent()->getParent(), VSI_val);
+    auto VSI_val = getSource(RetVal, I->getParent()->getParent());
     VSI_val.Reform(IRB);
-    Value *RetValInst = RetVal;
-    if (RetValInst->getType()->isIntegerTy())
-      RetValInst = IRB.CreateIntToPtr(RetValInst, IRB.getInt8PtrTy());
-    else if (RetValInst->getType()->isPointerTy())
-      RetValInst = IRB.CreatePointerCast(RetValInst, IRB.getInt8PtrTy());
+    Value *RetValInst = nullptr;
+    if (RetVal->getType()->isPointerTy() || RetVal->getType()->isIntegerTy())
+      RetValInst = IRB.CreateBitOrPointerCast(RetVal, IRB.getInt8PtrTy());
     else
-      RetValInst =
-          IRB.CreateIntToPtr(IRB.getInt64(0x123456789), IRB.getInt8PtrTy());
-
-    IRB.CreateCall(TrecFuncExitParam,
-                   {VSI_val.AddrInst, VSI_val.IdxInst, RetValInst});
-    res = true;
+      RetValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getInt8PtrTy());
+    if (RetValInst) {
+      int nameA = debuger.getVarID(RetVal->getName().str().c_str());
+      int nameB = 0;
+      int line = I->getDebugLoc().getLine();
+      int col = I->getDebugLoc().getCol();
+      uint64_t debugID =
+          debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+      IRB.CreateCall(TrecFuncExitParam,
+                     {VSI_val.Reform(IRB), RetValInst, IRB.getInt64(debugID)});
+      res = true;
+    }
   }
   return res;
 }
 
-bool TraceRecorder::instrumentFunctionParamCall(Instruction *I) {
+bool TraceRecorder::instrumentFunctionCall(Instruction *I) {
   IRBuilder<> IRB(I);
   CallBase *CI = dyn_cast<CallBase>(I);
-  if (CI->getCalledFunction() &&
-      (CI->getCalledFunction()->hasFnAttribute(Attribute::Naked) ||
-       CI->getCalledFunction()->getName().startswith("llvm.dbg")))
+  if (!CI->getCalledFunction() ||
+      CI->getCalledFunction()->hasFnAttribute(Attribute::Naked) ||
+      CI->getCalledFunction()->hasFnAttribute(Attribute::NoReturn) ||
+      CI->getCalledFunction()->getName().startswith("llvm.dbg") ||
+      I->getDebugLoc().isImplicitCode())
     return false;
+  unsigned int order = 0;
+  if (!CI->getFunctionType()->getReturnType()->isVoidTy()) {
+    order = VarOrderCounter++;
+    VarOrders.insert(std::make_pair(I, order));
+  }
   unsigned int arg_size = CI->arg_size();
-  IRB.CreateCall(TrecFuncParam,
-                 {IRB.getInt16(0),
-                  IRB.CreateIntToPtr(IRB.getInt32(FuncCallOrderCounter),
-                                     IRB.getInt8PtrTy()),
-                  IRB.getInt16(arg_size),
-                  IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getInt8PtrTy())});
-  FuncCallOrders.insert(std::make_pair(I, FuncCallOrderCounter++));
-
+  Function *F = I->getParent()->getParent();
   for (unsigned int i = 0; i < arg_size; i++) {
-    ValSourceInfo VSI;
-    getSource(CI->getArgOperand(i), I->getParent()->getParent(), VSI);
-    if (VSI.Addr || VSI.Idx) {
+    ValSourceInfo VSI = getSource(CI->getArgOperand(i), F);
+    if (!VSI.isNull()) {
       Value *ValInst;
-      if (CI->getArgOperand(i)->getType()->isIntegerTy())
-        ValInst = IRB.CreateIntToPtr(CI->getArgOperand(i), IRB.getInt8PtrTy());
-      else if (CI->getArgOperand(i)->getType()->isPointerTy())
-        ValInst =
-            IRB.CreatePointerCast(CI->getArgOperand(i), IRB.getInt8PtrTy());
+      if (CI->getArgOperand(i)->getType()->isIntegerTy() ||
+          CI->getArgOperand(i)->getType()->isPointerTy())
+        ValInst = IRB.CreateBitOrPointerCast(CI->getArgOperand(i),
+                                             IRB.getInt8PtrTy());
       else
         ValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getInt8PtrTy());
-      VSI.Reform(IRB);
-      IRB.CreateCall(TrecFuncParam,
-                     {IRB.getInt16(i + 1), VSI.AddrInst, VSI.IdxInst, ValInst});
+      int nameA =
+          debuger.getVarID(CI->getArgOperand(i)->getName().str().c_str());
+      int nameB = 0;
+      int line = I->getDebugLoc().getLine();
+      int col = I->getDebugLoc().getCol();
+      uint64_t debugID =
+          debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+      IRB.CreateCall(TrecFuncParam, {IRB.getInt16(i + 1), VSI.Reform(IRB),
+                                     ValInst, IRB.getInt64(debugID)});
     }
   }
-  Function *F = CI->getCalledFunction();
+  Function *CalledF = CI->getCalledFunction();
+  StringRef CalledFName = CalledF->getName();
+  std::string CurrentFileName = "";
+  if (CalledF->getSubprogram()) {
+    CalledFName = CalledF->getSubprogram()->getName();
+    if (CalledF->getSubprogram()->getFile()) {
+      CurrentFileName = concatFileName(
+          CalledF->getSubprogram()->getFile()->getDirectory().str(),
+          CalledF->getSubprogram()->getFile()->getFilename().str());
+    }
+  }
 
-  if (ClTrecAddDebugInfo) {
-    std::string CurrentFileName = "";
-    if (CI->getDebugLoc().get())
-      CurrentFileName =
-          concatFileName((CI->getDebugLoc()->getScope()->getDirectory().str()),
-                         (CI->getDebugLoc()->getScope()->getFilename().str()));
-    StringRef FuncName = "";
-    if (F)
-      FuncName =
-          (F->getSubprogram()) ? F->getSubprogram()->getName() : F->getName();
-    if (FuncName == "pthread_create") {
-      Function *called = dyn_cast<Function>(CI->getArgOperand(2));
-      FuncName = (called && called->getSubprogram())
-                     ? called->getSubprogram()->getName()
-                     : "";
+  int nameA = debuger.getVarID(CalledFName.str().c_str());
+  int nameB = debuger.getFileID(CurrentFileName.c_str());
+  int line = I->getDebugLoc().getLine();
+  int col = I->getDebugLoc().getCol();
+  uint64_t debugID =
+      debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+  IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
+                                 IRB.getInt64(debugID)});
+  if (I->getNextNode()) {
+    IRBuilder<> IRB2(I->getNextNode());
+    auto exitInst = IRB2.CreateCall(TrecFuncExit, {IRB.getInt64(debugID)});
+    exitInst->setDebugLoc(I->getDebugLoc());
+  } else {
+    for (auto b = succ_begin(I->getParent()), e = succ_end(I->getParent());
+         b != e; b++) {
+      if (!SeperatedExits.count(&*((*b)->getFirstInsertionPt()))) {
+        IRBuilder<> IRB2(&*((*b)->getFirstInsertionPt()));
+        auto exitInst = IRB2.CreateCall(TrecFuncExit, {IRB.getInt64(debugID)});
+        exitInst->setDebugLoc(I->getDebugLoc());
+        SeperatedExits.insert(exitInst);
+      } else {
+        IRBuilder<> IRB2(&*((*b)->getFirstInsertionPt()));
+        CallInst *exitInst =
+            dyn_cast<CallInst>(&*((*b)->getFirstInsertionPt()));
+        auto prev_debug = dyn_cast<ConstantInt>(exitInst->getArgOperand(0));
+        if (*prev_debug->getValue().getRawData() != debugID)
+          exitInst->setArgOperand(0, IRB2.getInt64(0));
+      }
     }
-    Value *func_name, *file_name;
-    if (VarNames.count(FuncName.str())) {
-      func_name = VarNames.find(FuncName.str())->second;
-    } else {
-      func_name = IRB.CreateGlobalStringPtr(FuncName);
-      VarNames.insert(std::make_pair(FuncName.str(), func_name));
-    }
-    if (VarNames.count(CurrentFileName)) {
-      file_name = VarNames.find(CurrentFileName)->second;
-    } else {
-      file_name = IRB.CreateGlobalStringPtr(CurrentFileName);
-      VarNames.insert(std::make_pair(CurrentFileName, file_name));
-    }
-    IRB.CreateCall(TrecInstDebugInfo,
-                   {IRB.getInt16(!I->getDebugLoc().isImplicitCode()
-                                     ? I->getDebugLoc().getLine()
-                                     : 0),
-                    IRB.getInt16(!I->getDebugLoc().isImplicitCode()
-                                     ? I->getDebugLoc().getCol()
-                                     : 0),
-                    func_name, file_name});
   }
   return true;
 }
 
 bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
                                         const DataLayout &DL) {
-  IRBuilder<> IRB(II.Inst);
   const bool IsWrite = isa<StoreInst>(*II.Inst);
   Value *Addr = IsWrite ? cast<StoreInst>(II.Inst)->getPointerOperand()
                         : cast<LoadInst>(II.Inst)->getPointerOperand();
@@ -809,7 +1072,7 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
   if (Idx < 0 || Idx >= 4)
     return false;
   // never instrument vtable update/read operations
-  if (isVtableAccess(II.Inst)) {
+  if (isVtableAccess(II.Inst) || II.Inst->getDebugLoc().isImplicitCode()) {
     return false;
   }
 
@@ -818,7 +1081,6 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
                                  : cast<LoadInst>(II.Inst)->getAlign().value();
   const bool isPtrTy = isa<PointerType>(OrigTy);
   const uint32_t TypeSize = DL.getTypeStoreSizeInBits(OrigTy);
-  Type *ValType = Type::getIntNTy(II.Inst->getContext(), (1 << Idx) * 8);
   FunctionCallee OnAccessFunc = nullptr;
   if (Alignment == 0 || Alignment >= 8 || (Alignment % (TypeSize / 8)) == 0) {
     OnAccessFunc = IsWrite ? TrecWrite[Idx] : TrecRead[Idx];
@@ -826,200 +1088,237 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
     OnAccessFunc = IsWrite ? TrecUnalignedWrite[Idx] : TrecUnalignedRead[Idx];
   }
 
-  ValSourceInfo VSI_addr;
-  getSource(Addr, II.Inst->getParent()->getParent(), VSI_addr);
-
-  std::string AddrName, ValName;
-  AddrName = Addr->getName().str();
+  ValSourceInfo VSI_addr = getSource(Addr, II.Inst->getParent()->getParent());
 
   if (IsWrite) {
+    IRBuilder<> IRB(II.Inst);
     Value *StoredValue = cast<StoreInst>(II.Inst)->getValueOperand();
-    ValName = StoredValue->getName().str();
 
-    if (ClTrecAddDebugInfo && (ValName != "" || AddrName != "" ||
-                               !II.Inst->getDebugLoc().isImplicitCode())) {
-      Value *ptr_to_valname, *ptr_to_addrname;
-      if (VarNames.count(ValName)) {
-        ptr_to_valname = VarNames.find(ValName)->second;
-      } else {
-        ptr_to_valname = IRB.CreateGlobalStringPtr(ValName);
-        VarNames.insert(std::make_pair(ValName, ptr_to_valname));
-      }
+    if (StoredValue->getType()->isIntOrPtrTy() &&
+        (Addr->getName() != "" || StoredValue->getName() != "")) {
+      int nameA = debuger.getVarID(Addr->getName().str().c_str());
+      int nameB = debuger.getVarID(StoredValue->getName().str().c_str());
+      int line = II.Inst->getDebugLoc().getLine();
+      int col = II.Inst->getDebugLoc().getCol();
+      int debugID =
+          debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
 
-      if (VarNames.count(AddrName)) {
-        ptr_to_addrname = VarNames.find(AddrName)->second;
-      } else {
-        ptr_to_addrname = IRB.CreateGlobalStringPtr(AddrName);
-        VarNames.insert(std::make_pair(AddrName, ptr_to_addrname));
-      }
-      IRB.CreateCall(TrecInstDebugInfo,
-                     {IRB.getInt16(!II.Inst->getDebugLoc().isImplicitCode()
-                                       ? II.Inst->getDebugLoc().getLine()
-                                       : 0),
-                      IRB.getInt16(!II.Inst->getDebugLoc().isImplicitCode()
-                                       ? II.Inst->getDebugLoc().getCol()
-                                       : 0),
-                      ptr_to_valname, ptr_to_addrname});
+      ValSourceInfo VSI_val =
+          getSource(StoredValue, II.Inst->getParent()->getParent());
+      StoredValue = IRB.CreateBitOrPointerCast(StoredValue, IRB.getInt8PtrTy());
+      auto newInst = IRB.CreateCall(
+          OnAccessFunc,
+          {IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
+           IRB.getInt1(isPtrTy), StoredValue, VSI_addr.Reform(IRB),
+           VSI_val.Reform(IRB), IRB.getInt64(debugID)});
+      newInst->setDebugLoc(II.Inst->getDebugLoc());
+
+      NumInstrumentedWrites++;
     }
-    ValSourceInfo VSI_val;
-    getSource(StoredValue, II.Inst->getParent()->getParent(), VSI_val);
-    if (isa<VectorType>(StoredValue->getType()))
-      StoredValue = IRB.CreateBitCast(StoredValue, ValType);
-
-    if (!StoredValue->getType()->isIntegerTy()) {
-      StoredValue = IRB.CreateBitOrPointerCast(StoredValue, ValType);
-    }
-    StoredValue = IRB.CreateIntToPtr(StoredValue, IRB.getInt8PtrTy());
-    VSI_addr.Reform(IRB);
-    VSI_val.Reform(IRB);
-    IRB.CreateCall(OnAccessFunc,
-                   {IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
-                    IRB.getInt1(isPtrTy), StoredValue, VSI_addr.AddrInst,
-                    VSI_addr.IdxInst, VSI_val.AddrInst, VSI_val.IdxInst});
-
-    NumInstrumentedWrites++;
   } else {
-    // just for recording the PC number
-    IRB.CreateCall(OnAccessFunc,
-                   {IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
-                    IRB.getInt1(isPtrTy),
-                    IRB.CreateIntToPtr(IRB.getInt8(0), IRB.getInt8PtrTy()),
-                    IRB.CreateIntToPtr(IRB.getInt8(0), IRB.getInt8PtrTy()),
-                    IRB.getInt16(0)});
-
     // read inst should not be the last inst in a BB, thus no need to check
     // for nullptr
-    IRBuilder<> IRB2(II.Inst->getNextNode());
+    IRBuilder<> IRB(II.Inst->getNextNode());
     Value *LoadedValue = II.Inst;
-    ValName = II.Inst->getName().str();
-    if (ClTrecAddDebugInfo && (ValName != "" || AddrName != "" ||
-                               !II.Inst->getDebugLoc().isImplicitCode())) {
-      Value *ptr_to_valname, *ptr_to_addrname;
-      if (VarNames.count(ValName)) {
-        ptr_to_valname = VarNames.find(ValName)->second;
-      } else {
-        ptr_to_valname = IRB2.CreateGlobalStringPtr(ValName);
-        VarNames.insert(std::make_pair(ValName, ptr_to_valname));
-      }
-      if (VarNames.count(AddrName)) {
-        ptr_to_addrname = VarNames.find(AddrName)->second;
-      } else {
-        ptr_to_addrname = IRB2.CreateGlobalStringPtr(AddrName);
-        VarNames.insert(std::make_pair(AddrName, ptr_to_addrname));
-      }
-      IRB2.CreateCall(TrecInstDebugInfo,
-                      {IRB2.getInt16(!II.Inst->getDebugLoc().isImplicitCode()
-                                         ? II.Inst->getDebugLoc().getLine()
-                                         : 0),
-                       IRB2.getInt16(!II.Inst->getDebugLoc().isImplicitCode()
-                                         ? II.Inst->getDebugLoc().getCol()
-                                         : 0),
-                       ptr_to_valname, ptr_to_addrname});
+    if (LoadedValue->getType()->isIntOrPtrTy() &&
+        (Addr->getName() != "" || LoadedValue->getName() != "")) {
+      int nameA = debuger.getVarID(Addr->getName().str().c_str());
+      int nameB = debuger.getVarID(LoadedValue->getName().str().c_str());
+      int line = II.Inst->getDebugLoc().getLine();
+      int col = II.Inst->getDebugLoc().getCol();
+      int debugID =
+          debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+      LoadedValue = IRB.CreateBitOrPointerCast(LoadedValue, IRB.getInt8PtrTy());
+      auto newInst = IRB.CreateCall(
+          OnAccessFunc, {IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
+                         IRB.getInt1(isPtrTy), LoadedValue,
+                         VSI_addr.Reform(IRB), IRB.getInt64(debugID)});
+      newInst->setDebugLoc(II.Inst->getDebugLoc());
+      NumInstrumentedReads++;
     }
-    if (isa<VectorType>(LoadedValue->getType())) {
-      LoadedValue = IRB2.CreateBitCast(LoadedValue, ValType);
-    }
-
-    if (!LoadedValue->getType()->isIntegerTy()) {
-      LoadedValue = IRB2.CreateBitOrPointerCast(LoadedValue, ValType);
-    }
-    LoadedValue = IRB2.CreateIntToPtr(LoadedValue, IRB2.getInt8PtrTy());
-    VSI_addr.Reform(IRB2);
-    IRB2.CreateCall(OnAccessFunc,
-                    {IRB2.CreatePointerCast(Addr, IRB2.getInt8PtrTy()),
-                     IRB2.getInt1(isPtrTy), LoadedValue, VSI_addr.AddrInst,
-                     VSI_addr.IdxInst});
-
-    NumInstrumentedReads++;
   }
   return true;
 }
 
-void TraceRecorder::getSource(Value *Val, Function *F,
-                              TraceRecorder::ValSourceInfo &VSI) {
-  VSI.Addr = nullptr;
-  VSI.Idx = 0;
-  VSI.offset = 0;
-  size_t arg_num = F->arg_size();
-  SmallVector<std::pair<Value *, uint16_t>> possibleValues;
-  possibleValues.push_back(std::make_pair(Val, 0));
-  while (!possibleValues.empty()) {
-    Value *SrcValue = possibleValues.back().first;
-    uint16_t offset = possibleValues.back().second;
-    possibleValues.pop_back();
+TraceRecorder::ValSourceInfo TraceRecorder::getSource(Value *Val, Function *F) {
+  ValSourceInfo VSI;
 
-    while (isa<LoadInst>(SrcValue) || isa<CastInst>(SrcValue) ||
-           isa<GetElementPtrInst>(SrcValue) || isa<BinaryOperator>(SrcValue)) {
-      if (isa<LoadInst>(SrcValue)) {
-        // get source address
-        VSI.Addr = dyn_cast<LoadInst>(SrcValue)->getPointerOperand();
-        VSI.offset = offset;
-        return;
-      } else if (isa<CastInst>(SrcValue)) {
-        // cast inst, get its source value
-        SrcValue = dyn_cast<CastInst>(SrcValue)->getOperand(0);
-      } else if (isa<GetElementPtrInst>(SrcValue)) {
-        // GEP inst, get its source value
-        APInt Offset(64, 0, false);
-        if (dyn_cast<GetElementPtrInst>(SrcValue)->accumulateConstantOffset(
-                F->getParent()->getDataLayout(), Offset)) {
-          offset += *Offset.getRawData();
-        }
-        SrcValue = dyn_cast<GetElementPtrInst>(SrcValue)->getPointerOperand();
-      } else if (isa<BinaryOperator>(SrcValue)) {
-        BinaryOperator *I = dyn_cast<BinaryOperator>(SrcValue);
-        if (!isa<ConstantInt>(I->getOperand(0)) &&
-            !isa<ConstantInt>(I->getOperand(1))) {
-          possibleValues.push_back(std::make_pair(I->getOperand(1), offset));
-          possibleValues.push_back(std::make_pair(I->getOperand(0), offset));
-        } else if (isa<ConstantInt>(I->getOperand(0)) &&
-                   isa<ConstantInt>(I->getOperand(1))) {
-          break;
-        } else {
-
-          if (I->getOpcode() == Instruction::BinaryOps::Add) {
-            ConstantInt *cons = isa<ConstantInt>(I->getOperand(1))
-                                    ? dyn_cast<ConstantInt>(I->getOperand(1))
-                                    : dyn_cast<ConstantInt>(I->getOperand(0));
-            offset += *cons->getValue().getRawData();
-            possibleValues.push_back(std::make_pair(
-                I->getOperand(isa<ConstantInt>(I->getOperand(1)) ? 0 : 1),
-                offset));
-          } else if (I->getOpcode() == Instruction::BinaryOps::Sub &&
-                     isa<ConstantInt>(I->getOperand(1))) {
-            ConstantInt *cons = dyn_cast<ConstantInt>(I->getOperand(1));
-            offset -= *cons->getValue().getRawData();
-            possibleValues.push_back(std::make_pair(I->getOperand(0), offset));
-          }
-        }
+  Value *SrcValue = Val;
+  APInt offset = APInt(14, 0);
+  bool Res;
+  do {
+    Res = false;
+    APInt Off(64, 0);
+    Value *NewSrcValue, *LastNewSrcValue;
+    for (NewSrcValue = SrcValue, LastNewSrcValue = nullptr;
+         NewSrcValue != LastNewSrcValue; LastNewSrcValue = NewSrcValue) {
+      NewSrcValue = NewSrcValue->stripPointerCastsForAliasAnalysis();
+      NewSrcValue = NewSrcValue->stripPointerCastsAndAliases();
+      NewSrcValue = NewSrcValue->stripAndAccumulateConstantOffsets(
+          F->getParent()->getDataLayout(), Off, true);
+      NewSrcValue = StripCastsAndAccumulateConstantBinaryOffsets(
+          NewSrcValue, Off, F->getParent()->getDataLayout());
+    }
+    Res |= (SrcValue != NewSrcValue);
+    SrcValue = NewSrcValue;
+    offset += Off.trunc(14);
+    if (isa<GlobalVariable>(SrcValue)) {
+      VSI.setAddr(SrcValue, offset, true);
+      break;
+    } else if (!isa<LoadInst>(SrcValue)) {
+      if (!VarOrders.count(SrcValue)) {
+        VarOrders[SrcValue] = VarOrderCounter++;
+      }
+      VSI.setIdx(VarOrders.at(SrcValue), offset, true);
+      break;
+    } else {
+      // LoadInst
+      LoadInst *LI = dyn_cast<LoadInst>(SrcValue);
+      Value *Addr = LI->getPointerOperand();
+      if (isa<GlobalVariable>(Addr)) {
+        VSI.setAddr(Addr, offset, false);
         break;
-      }
-    }
-
-    if (isa<CallInst>(SrcValue) || isa<InvokeInst>(SrcValue) ||
-        isa<CallBrInst>(SrcValue)) {
-      if (FuncCallOrders.count(dyn_cast<Instruction>(SrcValue))) {
-        VSI.Idx = FuncCallOrders.lookup(dyn_cast<Instruction>(SrcValue));
-        VSI.offset = offset;
-        return;
-      }
-    } else if (!isa<Instruction>(SrcValue) && arg_num) {
-      for (unsigned int i = 0; i < arg_num; i++) {
-        Value *arg = F->getArg(i);
-        if (SrcValue == arg) {
-          VSI.Idx = i + 1;
-          VSI.offset = offset;
-          return;
+      } else {
+        auto stores = getAllStoresToAddr(Addr, F);
+        std::vector<StoreInst *> reachableStore;
+        std::copy_if(stores.begin(), stores.end(),
+                     std::back_inserter(reachableStore),
+                     [&](StoreInst *s) { return isReachable(s, LI); });
+        if (reachableStore.size() == 0) {
+          // cannot find a reachable store
+          if (!VarOrders.count(SrcValue)) {
+            VarOrders[SrcValue] = VarOrderCounter++;
+          }
+          VSI.setIdx(VarOrders.at(SrcValue), offset, true);
+          break;
+        } else if (reachableStore.size() == 1) {
+          // find the only store
+          // continue searching
+          StoreInst *S = reachableStore.at(0);
+          SrcValue = S->getValueOperand();
+          Res |= true;
+        } else {
+          // find multiple stores
+          // instrument this address
+          for (auto item : reachableStore)
+            StoresToBeInstrumented.insert(item);
+          LoadsToBeInstrumented.insert(LI);
+          break;
         }
       }
     }
-  }
+  } while (Res);
 
-  if (mode == Mode::Verification) {
-    VSI.Addr = Val;
-    VSI.Idx = 0xffff;
+  return VSI;
+}
+
+std::vector<StoreInst *> TraceRecorder::getAllStoresToAddr(Value *Addr,
+                                                           Function *F) {
+  if (!AddrAllStores.count(Addr)) {
+    std::vector<StoreInst *> res;
+    for (auto i = Addr->use_begin(), e = Addr->use_end(); i != e; ++i) {
+      if (isa<Instruction>(*i)) {
+        assert(dyn_cast<Instruction>(*i)->getParent()->getParent() == F);
+        Instruction *I = dyn_cast<Instruction>(*i);
+        if (isa<StoreInst>(I) &&
+            dyn_cast<StoreInst>(I)->getPointerOperand() == Addr) {
+          res.push_back(dyn_cast<StoreInst>(I));
+        }
+      }
+    }
+    AddrAllStores[Addr] = res;
   }
-  return;
+  return AddrAllStores.at(Addr);
+}
+
+bool TraceRecorder::isReachable(Instruction *From, Instruction *To) {
+  assert(From && To);
+  assert(isa<StoreInst>(From));
+  assert(isa<LoadInst>(To));
+  Instruction *cur = To;
+  while (cur = cur->getPrevNonDebugInstruction(), cur) {
+    // previous instruction in the same basic block
+    if (From == cur)
+      return true;
+  }
+  BasicBlock *BBFrom = From->getParent();
+  std::set<BasicBlock *> Visited;
+  std::queue<BasicBlock *> ToVisit;
+  ToVisit.push(To->getParent());
+  Visited.insert(To->getParent());
+  while (!ToVisit.empty()) {
+    BasicBlock *BBcur = ToVisit.front();
+    ToVisit.pop();
+    for (auto it = pred_begin(BBcur), et = pred_end(BBcur); it != et; ++it) {
+      BasicBlock *predecessor = *it;
+      if (!Visited.count(predecessor)) {
+        if (predecessor == BBFrom)
+          return true;
+        Visited.insert(predecessor);
+        ToVisit.push(predecessor);
+      }
+    }
+  }
+  return false;
+}
+
+Value *TraceRecorder::StripCastsAndAccumulateConstantBinaryOffsets(
+    Value *SrcValue, APInt &offset, const llvm::DataLayout &DL) {
+  assert(offset.getBitWidth() == 64);
+  while (isa<CastInst>(SrcValue) || isa<BinaryOperator>(SrcValue) ||
+         isa<ICmpInst>(SrcValue)) {
+    if (isa<CastInst>(SrcValue)) {
+      SrcValue = dyn_cast<CastInst>(SrcValue)->getOperand(0);
+    } else if (isa<BinaryOperator>(SrcValue)) {
+      BinaryOperator *I = dyn_cast<BinaryOperator>(SrcValue);
+      if (!isa<Constant>(I->getOperand(0)) &&
+          !isa<Constant>(I->getOperand(1))) {
+        break;
+      } else if (isa<Constant>(I->getOperand(0)) &&
+                 isa<Constant>(I->getOperand(1))) {
+        break;
+      } else {
+        if (I->getOpcode() == Instruction::BinaryOps::Add &&
+            (isa<ConstantInt>(I->getOperand(0)) ||
+             isa<ConstantInt>(I->getOperand(1)))) {
+          ConstantInt *cons = isa<ConstantInt>(I->getOperand(1))
+                                  ? dyn_cast<ConstantInt>(I->getOperand(1))
+                                  : dyn_cast<ConstantInt>(I->getOperand(0));
+          offset += cons->getValue().getRawData()[0];
+          SrcValue = I->getOperand(isa<ConstantInt>(I->getOperand(1)) ? 0 : 1);
+        } else if (I->getOpcode() == Instruction::BinaryOps::Sub &&
+                   isa<ConstantInt>(I->getOperand(1))) {
+          ConstantInt *cons = dyn_cast<ConstantInt>(I->getOperand(1));
+          offset -= cons->getValue().getRawData()[0];
+          SrcValue = I->getOperand(0);
+        } else if (isa<Constant>(I->getOperand(0)))
+          SrcValue = I->getOperand(1);
+        else if (isa<Constant>(I->getOperand(1)))
+          SrcValue = I->getOperand(0);
+        else {
+          break;
+        }
+      }
+    } else if (isa<ICmpInst>(SrcValue)) {
+      ICmpInst *I = dyn_cast<ICmpInst>(SrcValue);
+      if (!isa<Constant>(I->getOperand(0)) &&
+          !isa<Constant>(I->getOperand(1))) {
+        break;
+
+      } else if (isa<Constant>(I->getOperand(0)) &&
+                 isa<Constant>(I->getOperand(1))) {
+        break;
+      } else {
+        if (isa<Constant>(I->getOperand(0)))
+          SrcValue = I->getOperand(1);
+        else if (isa<Constant>(I->getOperand(1)))
+          SrcValue = I->getOperand(0);
+        else
+          break;
+      }
+    }
+  }
+  return SrcValue;
 }
 
 static ConstantInt *createOrdering(IRBuilder<> *IRB, AtomicOrdering ord) {
@@ -1094,15 +1393,21 @@ bool TraceRecorder::instrumentAtomic(Instruction *I, const DataLayout &DL) {
     Value *Addr = LI->getPointerOperand();
     Type *OrigTy = LI->getType();
     int Idx = getMemoryAccessFuncIndex(OrigTy, Addr, DL);
-    if (Idx < 0)
+    if (Idx < 0 || Idx > 4)
       return false;
     const unsigned ByteSize = 1U << Idx;
     const unsigned BitSize = ByteSize * 8;
     Type *Ty = Type::getIntNTy(IRB.getContext(), BitSize);
     Type *PtrTy = Ty->getPointerTo();
+    int nameA = debuger.getVarID(Addr->getName().str().c_str());
+    int nameB = debuger.getVarID(LI->getName().str().c_str());
+    int line = LI->getDebugLoc().getLine();
+    int col = LI->getDebugLoc().getCol();
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
                      createOrdering(&IRB, LI->getOrdering()),
-                     IRB.getInt1(OrigTy->isPointerTy())};
+                     IRB.getInt1(OrigTy->isPointerTy()),
+                     IRB.getInt64(debuger.ReformID(
+                         debuger.getDebugInfoID(nameA, nameB, line, col)))};
 
     CallInst *C = IRB.CreateCall(TrecAtomicLoad[Idx], Args);
     C->setDebugLoc(LI->getDebugLoc());
@@ -1112,17 +1417,23 @@ bool TraceRecorder::instrumentAtomic(Instruction *I, const DataLayout &DL) {
     Value *Addr = SI->getPointerOperand();
     int Idx =
         getMemoryAccessFuncIndex(SI->getValueOperand()->getType(), Addr, DL);
-    if (Idx < 0)
+    if (Idx < 0 || Idx > 4)
       return false;
     const unsigned ByteSize = 1U << Idx;
     const unsigned BitSize = ByteSize * 8;
     Type *Ty = Type::getIntNTy(IRB.getContext(), BitSize);
     Type *PtrTy = Ty->getPointerTo();
     Type *OrigTy = SI->getValueOperand()->getType();
+    int nameA = debuger.getVarID(Addr->getName().str().c_str());
+    int nameB = debuger.getVarID(SI->getName().str().c_str());
+    int line = SI->getDebugLoc().getLine();
+    int col = SI->getDebugLoc().getCol();
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
                      IRB.CreateBitOrPointerCast(SI->getValueOperand(), Ty),
                      createOrdering(&IRB, SI->getOrdering()),
-                     IRB.getInt1(OrigTy->isPointerTy())};
+                     IRB.getInt1(OrigTy->isPointerTy()),
+                     IRB.getInt64(debuger.ReformID(
+                         debuger.getDebugInfoID(nameA, nameB, line, col)))};
     CallInst *C = CallInst::Create(TrecAtomicStore[Idx], Args);
     C->setDebugLoc(SI->getDebugLoc());
     ReplaceInstWithInst(I, C);
@@ -1140,10 +1451,16 @@ bool TraceRecorder::instrumentAtomic(Instruction *I, const DataLayout &DL) {
     Type *Ty = Type::getIntNTy(IRB.getContext(), BitSize);
     Type *PtrTy = Ty->getPointerTo();
     Type *OrigTy = RMWI->getValOperand()->getType();
+    int nameA = debuger.getVarID(Addr->getName().str().c_str());
+    int nameB = debuger.getVarID(RMWI->getName().str().c_str());
+    int line = RMWI->getDebugLoc().getLine();
+    int col = RMWI->getDebugLoc().getCol();
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
                      IRB.CreateIntCast(RMWI->getValOperand(), Ty, false),
                      createOrdering(&IRB, RMWI->getOrdering()),
-                     IRB.getInt1(OrigTy->isPointerTy())};
+                     IRB.getInt1(OrigTy->isPointerTy()),
+                     IRB.getInt64(debuger.ReformID(
+                         debuger.getDebugInfoID(nameA, nameB, line, col)))};
     CallInst *C = CallInst::Create(F, Args);
     C->setDebugLoc(RMWI->getDebugLoc());
     ReplaceInstWithInst(I, C);
@@ -1162,12 +1479,18 @@ bool TraceRecorder::instrumentAtomic(Instruction *I, const DataLayout &DL) {
         IRB.CreateBitOrPointerCast(CASI->getCompareOperand(), Ty);
     Value *NewOperand =
         IRB.CreateBitOrPointerCast(CASI->getNewValOperand(), Ty);
+    int nameA = debuger.getVarID(Addr->getName().str().c_str());
+    int nameB = debuger.getVarID(NewOperand->getName().str().c_str());
+    int line = CASI->getDebugLoc().getLine();
+    int col = CASI->getDebugLoc().getCol();
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
                      CmpOperand,
                      NewOperand,
                      createOrdering(&IRB, CASI->getSuccessOrdering()),
                      createOrdering(&IRB, CASI->getFailureOrdering()),
-                     IRB.getInt1(OrigTy->isPointerTy())};
+                     IRB.getInt1(OrigTy->isPointerTy()),
+                     IRB.getInt64(debuger.ReformID(
+                         debuger.getDebugInfoID(nameA, nameB, line, col)))};
     CallInst *C = IRB.CreateCall(TrecAtomicCAS[Idx], Args);
     C->setDebugLoc(CASI->getDebugLoc());
     Value *Success = IRB.CreateICmpEQ(C, CmpOperand);
@@ -1200,8 +1523,7 @@ int TraceRecorder::getMemoryAccessFuncIndex(Type *OrigTy, Value *Addr,
                                             const DataLayout &DL) {
   assert(OrigTy->isSized());
   uint32_t TypeSize = DL.getTypeStoreSizeInBits(OrigTy);
-  if (TypeSize != 8 && TypeSize != 16 && TypeSize != 32 && TypeSize != 64 &&
-      TypeSize != 128) {
+  if (TypeSize != 8 && TypeSize != 16 && TypeSize != 32 && TypeSize != 64) {
     NumAccessesWithBadSize++;
     // Ignore all unusual sizes.
     return -1;

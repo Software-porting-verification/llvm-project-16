@@ -29,9 +29,7 @@ void AllocatorPrintStats();
 
 // For user allocations.
 void *user_alloc_internal(ThreadState *thr, __sanitizer::uptr pc, __sanitizer::uptr sz,
-                          __sanitizer::uptr align = kDefaultAlignment, bool signal = true,
-                          bool trace_record = false,
-                          const char *func = nullptr);
+                          __sanitizer::uptr align = kDefaultAlignment, bool signal = true);
 // Does not accept NULL.
 void user_free(ThreadState *thr, __sanitizer::uptr pc, void *p, bool signal = true,
                bool record_trace = false);

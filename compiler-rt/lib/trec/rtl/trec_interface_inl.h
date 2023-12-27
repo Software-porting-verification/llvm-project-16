@@ -16,127 +16,74 @@
 #include "trec_interface.h"
 #include "trec_rtl.h"
 
-#define CALLERPC \
+#define CALLERPC ((uptr)__builtin_return_address(0))
+#define PREVCALLERPC \
   (StackTrace::GetPreviousInstructionPc((uptr)__builtin_return_address(0)))
-
 using namespace __trec;
 using namespace __trec_metadata;
-void __trec_branch(u64 cond) { CondBranch(cur_thread(), CALLERPC, cond); }
-
-void __trec_func_param(u16 param_idx, void *src_addr, u16 src_idx, void *val) {
-  FuncParam(cur_thread(), param_idx, (uptr)src_addr, src_idx, (uptr)val);
+void __trec_branch(void *cond, __sanitizer::u64 sa, __sanitizer::u64 debugID) {
+  CondBranch(cur_thread(), CALLERPC, (uptr)cond, sa, debugID);
 }
 
-void __trec_func_exit_param(void *src_addr, u16 src_idx, void *val) {
-  FuncExitParam(cur_thread(), (uptr)src_addr, src_idx, (uptr)val);
+void __trec_func_param(u16 param_idx, __sanitizer::u64 sa, void *val,
+                       __sanitizer::u64 debugID) {
+  FuncParam(cur_thread(), param_idx, sa, (uptr)val, debugID);
 }
 
-void __trec_inst_debug_info(u32 line, u16 col, char *val_name,
-                            char *addr_name) {
-  if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.output_debug) &&
-      LIKELY(cur_thread()->ignore_interceptors == 0))
-    if ((ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3)) {
-      __trec_debug_info::InstDebugInfo info(
-          line, col,
-          min(internal_strlen(val_name),
-              (uptr)((1 << (8 * sizeof(info.name_len[0]))) - 1)),
-          min(internal_strlen(addr_name),
-              (uptr)((1 << (8 * sizeof(info.name_len[1]))) - 1)));
-      ThreadState *thr = cur_thread();
-
-      internal_memcpy(thr->tctx->dbg_temp_buffer, &info, sizeof(info));
-      internal_memcpy(thr->tctx->dbg_temp_buffer + sizeof(info), val_name,
-                      info.name_len[0]);
-      internal_memcpy(
-          thr->tctx->dbg_temp_buffer + sizeof(info) + info.name_len[0],
-          addr_name, info.name_len[1]);
-      thr->tctx->dbg_temp_buffer_size =
-          sizeof(info) + info.name_len[0] + info.name_len[1];
-    }
+void __trec_func_exit_param(__sanitizer::u64 sa, void *val,
+                            __sanitizer::u64 debugID) {
+  FuncExitParam(cur_thread(), sa, (uptr)val, debugID);
 }
 
-void __trec_alloca(void *addr, __sanitizer::u64 sz) {
-  if (LIKELY(ctx->flags.output_trace) &&
-      LIKELY(cur_thread()->ignore_interceptors == 0))
-    if (ctx->flags.trace_mode == 3) {
-      ThreadState *thr = cur_thread();
-      __trec_trace::Event e(
-          __trec_trace::EventType::Alloca, thr->tid,
-          atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed),
-          ((sz & 0xffff) << 48) | ((uptr)addr & 0xffffffffffff), 0, 0);
-
-      thr->tctx->put_trace(&e, sizeof(e));
-      thr->tctx->header.StateInc(__trec_header::RecordType::Alloca);
-    }
+void __trec_read1(void *addr, bool isPtr, void *val, u64 sai, u64 debugID) {
+  MemoryRead(cur_thread(), PREVCALLERPC, (uptr)addr, kSizeLog1, isPtr,
+             (uptr)val, sai, debugID);
 }
 
-void __trec_read1(void *addr, bool isPtr, void *val, void *addr_src_addr,
-                  u16 addr_src_idx) {
-  SourceAddressInfo SAI_addr(addr_src_idx, (uptr)addr_src_addr);
-  MemoryRead(cur_thread(), CALLERPC, (uptr)addr, kSizeLog1, isPtr, (uptr)val,
-             SAI_addr);
+void __trec_read2(void *addr, bool isPtr, void *val, u64 sai, u64 debugID) {
+  MemoryRead(cur_thread(), PREVCALLERPC, (uptr)addr, kSizeLog2, isPtr,
+             (uptr)val, sai, debugID);
 }
 
-void __trec_read2(void *addr, bool isPtr, void *val, void *addr_src_addr,
-                  u16 addr_src_idx) {
-  SourceAddressInfo SAI_addr(addr_src_idx, (uptr)addr_src_addr);
-  MemoryRead(cur_thread(), CALLERPC, (uptr)addr, kSizeLog2, isPtr, (uptr)val,
-             SAI_addr);
+void __trec_read4(void *addr, bool isPtr, void *val, u64 sai, u64 debugID) {
+  MemoryRead(cur_thread(), PREVCALLERPC, (uptr)addr, kSizeLog4, isPtr,
+             (uptr)val, sai, debugID);
 }
 
-void __trec_read4(void *addr, bool isPtr, void *val, void *addr_src_addr,
-                  u16 addr_src_idx) {
-  SourceAddressInfo SAI_addr(addr_src_idx, (uptr)addr_src_addr);
-  MemoryRead(cur_thread(), CALLERPC, (uptr)addr, kSizeLog4, isPtr, (uptr)val,
-             SAI_addr);
+void __trec_read8(void *addr, bool isPtr, void *val, u64 sai, u64 debugID) {
+  MemoryRead(cur_thread(), PREVCALLERPC, (uptr)addr, kSizeLog8, isPtr,
+             (uptr)val, sai, debugID);
 }
 
-void __trec_read8(void *addr, bool isPtr, void *val, void *addr_src_addr,
-                  u16 addr_src_idx) {
-  SourceAddressInfo SAI_addr(addr_src_idx, (uptr)addr_src_addr);
-  MemoryRead(cur_thread(), CALLERPC, (uptr)addr, kSizeLog8, isPtr, (uptr)val,
-             SAI_addr);
-}
-
-void __trec_write1(void *addr, bool isPtr, void *val, void *addr_src_addr,
-                   u16 addr_src_idx, void *val_src_addr, u16 val_src_idx) {
-  SourceAddressInfo SAI_addr(addr_src_idx, (uptr)addr_src_addr);
-  SourceAddressInfo SAI_val(val_src_idx, (uptr)val_src_addr);
+void __trec_write1(void *addr, bool isPtr, void *val, __sanitizer::u64 addr_sa,
+                   __sanitizer::u64 val_sa, __sanitizer::u64 debugID) {
   MemoryWrite(cur_thread(), CALLERPC, (uptr)addr, kSizeLog1, isPtr, (uptr)val,
-              SAI_addr, SAI_val);
+              addr_sa, val_sa, debugID);
 }
 
-void __trec_write2(void *addr, bool isPtr, void *val, void *addr_src_addr,
-                   u16 addr_src_idx, void *val_src_addr, u16 val_src_idx) {
-  SourceAddressInfo SAI_addr(addr_src_idx, (uptr)addr_src_addr);
-  SourceAddressInfo SAI_val(val_src_idx, (uptr)val_src_addr);
+void __trec_write2(void *addr, bool isPtr, void *val, __sanitizer::u64 addr_sa,
+                   __sanitizer::u64 val_sa, __sanitizer::u64 debugID) {
   MemoryWrite(cur_thread(), CALLERPC, (uptr)addr, kSizeLog2, isPtr, (uptr)val,
-              SAI_addr, SAI_val);
+              addr_sa, val_sa, debugID);
 }
 
-void __trec_write4(void *addr, bool isPtr, void *val, void *addr_src_addr,
-                   u16 addr_src_idx, void *val_src_addr, u16 val_src_idx) {
-  SourceAddressInfo SAI_addr(addr_src_idx, (uptr)addr_src_addr);
-  SourceAddressInfo SAI_val(val_src_idx, (uptr)val_src_addr);
+void __trec_write4(void *addr, bool isPtr, void *val, __sanitizer::u64 addr_sa,
+                   __sanitizer::u64 val_sa, __sanitizer::u64 debugID) {
   MemoryWrite(cur_thread(), CALLERPC, (uptr)addr, kSizeLog4, isPtr, (uptr)val,
-              SAI_addr, SAI_val);
+              addr_sa, val_sa, debugID);
 }
 
-void __trec_write8(void *addr, bool isPtr, void *val, void *addr_src_addr,
-                   u16 addr_src_idx, void *val_src_addr, u16 val_src_idx) {
-  SourceAddressInfo SAI_addr(addr_src_idx, (uptr)addr_src_addr);
-  SourceAddressInfo SAI_val(val_src_idx, (uptr)val_src_addr);
+void __trec_write8(void *addr, bool isPtr, void *val, __sanitizer::u64 addr_sa,
+                   __sanitizer::u64 val_sa, __sanitizer::u64 debugID) {
   MemoryWrite(cur_thread(), CALLERPC, (uptr)addr, kSizeLog8, isPtr, (uptr)val,
-              SAI_addr, SAI_val);
+              addr_sa, val_sa, debugID);
 }
 
-void __trec_func_entry(void *name) {
-  bool should_record = true;
-  RecordFuncEntry(cur_thread(), should_record, (char *)name,
-                  StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()));
+void __trec_func_entry(__sanitizer::u16 order, __sanitizer::u16 arg_cnt,
+                       __sanitizer::u64 debugID) {
+  RecordFuncEntry(cur_thread(), order, arg_cnt, debugID, CALLERPC);
 }
 
-void __trec_func_exit() {
-  bool should_record = true;
-  RecordFuncExit(cur_thread(), should_record, __func__);
+void __trec_func_exit(__sanitizer::u64 debugID) {
+  RecordFuncExit(cur_thread(), debugID, PREVCALLERPC);
 }
