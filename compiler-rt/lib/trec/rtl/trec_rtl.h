@@ -33,13 +33,13 @@
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_deadlock_detector_interface.h"
 #include "sanitizer_common/sanitizer_libignore.h"
+#include "sanitizer_common/sanitizer_mutex.h"
 #include "sanitizer_common/sanitizer_suppressions.h"
 #include "sanitizer_common/sanitizer_thread_registry.h"
 #include "sanitizer_common/sanitizer_vector.h"
 #include "trec_defs.h"
 #include "trec_flags.h"
 #include "trec_mman.h"
-#include "trec_mutexset.h"
 #include "trec_platform.h"
 using namespace __sanitizer;
 
@@ -136,7 +136,6 @@ struct ThreadState {
   bool is_dead;
   bool is_freeing;
   bool is_vptr_access;
-  bool should_record;
   ThreadContext *tctx;
 
   // Current wired Processor, or nullptr. Required to handle any events.
@@ -158,7 +157,7 @@ struct ThreadState {
 };
 
 #if !SANITIZER_GO
-#if SANITIZER_MAC || SANITIZER_ANDROID
+#if SANITIZER_APPLE || SANITIZER_ANDROID
 ThreadState *cur_thread();
 void set_cur_thread(ThreadState *thr);
 void cur_thread_finalize();
@@ -169,7 +168,7 @@ __attribute__((tls_model(
 inline ThreadState *cur_thread() {
   return reinterpret_cast<ThreadState *>(cur_thread_placeholder)->current;
 }
-inline ThreadState * cur_thread_init() {
+inline ThreadState *cur_thread_init() {
   ThreadState *thr = reinterpret_cast<ThreadState *>(cur_thread_placeholder);
   if (UNLIKELY(!thr->current))
     thr->current = thr;
@@ -179,32 +178,53 @@ inline void set_cur_thread(ThreadState *thr) {
   reinterpret_cast<ThreadState *>(cur_thread_placeholder)->current = thr;
 }
 inline void cur_thread_finalize() {}
-#endif  // SANITIZER_MAC || SANITIZER_ANDROID
+#endif  // SANITIZER_APPLE || SANITIZER_ANDROID
 #endif  // SANITIZER_GO
+class TrecMutexGuard {
+  __sanitizer::Mutex &m;
+
+ public:
+  TrecMutexGuard(__sanitizer::Mutex &_m) : m(_m) { m.Lock(); }
+  ~TrecMutexGuard() { m.Unlock(); }
+};
+class TraceWriter {
+  __sanitizer::u16 id;
+  char *trace_buffer = nullptr, *metadata_buffer = nullptr;
+  __sanitizer::u64 trace_len = 0, metadata_len = 0;
+  __trec_header::TraceHeader header;
+  __sanitizer::Mutex mtx;
+  DenseMap<__sanitizer::u16, __trec_metadata::FuncParamMeta> params;
+  bool is_end;
+  void put_trace(__trec_trace::Event &e);
+  void put_metadata(void *msg, __sanitizer::u16 len);
+  void flush_trace();
+  void flush_metadata();
+  void flush_header();
+
+ public:
+  TraceWriter(u16 tid);
+  ~TraceWriter();
+  void put_record(__trec_trace::EventType type, __sanitizer::u64 _oid,
+                  __sanitizer::u64 _pc, void *meta = nullptr,
+                  __sanitizer::u16 len = 0);
+
+  void flush_all();
+  void flush_module();
+  bool state_restore();
+  void reset();
+  void init_cmd();
+  void pend_param(__sanitizer::u16 idx, __trec_metadata::SourceAddressInfo sa,
+                  __sanitizer::u64 val, __sanitizer::u64 debugID);
+  const __trec_trace::Event *getLastEvent() const;
+  void setEnd();
+};
 
 class ThreadContext final : public ThreadContextBase {
  public:
   explicit ThreadContext(int tid);
   ~ThreadContext();
   ThreadState *thr;
-  char *trace_buffer = nullptr;
-  __sanitizer::u64 trace_buffer_size;
-  __sanitizer::u64 event_cnt;
-  char *metadata_buffer = nullptr;
-  __sanitizer::u64 metadata_buffer_size;
-  __sanitizer::u64 prev_read_pc;
-  __trec_header::TraceHeader header;
-  __sanitizer::u64 metadata_offset;
-  char *debug_buffer = nullptr;
-  __sanitizer::u64 debug_buffer_size;
-  __sanitizer::u64 debug_offset;
-  bool isFuncEnterMetaVaild = false;
-  __trec_metadata::FuncEnterMeta entry_meta;
-  __sanitizer::Vector<__trec_metadata::FuncParamMeta> parammetas;
-  bool isFuncExitMetaVaild = false;
-  __trec_metadata::FuncExitMeta exit_meta;
-  char dbg_temp_buffer[sizeof(__trec_debug_info::InstDebugInfo) + 512];
-  __sanitizer::u64 dbg_temp_buffer_size;
+  TraceWriter writer;
 
   // Override superclass callbacks.
   void OnDead() override;
@@ -214,18 +234,10 @@ class ThreadContext final : public ThreadContextBase {
   void OnCreated(void *arg) override;
   void OnReset() override;
   void OnDetached(void *arg) override;
-  void flush_trace();
-  void flush_metadata();
-  void flush_debug_info();
-  void flush_header();
-  void flush_module();
-  void put_trace(void *msg, uptr len);
-  void put_metadata(void *msg, uptr len);
-  void put_debug_info(void *msg, uptr len);
-  bool state_restore();
 };
 
-struct Context {
+class Context {
+ public:
   Context();
 
   bool initialized;
@@ -233,33 +245,20 @@ struct Context {
   pid_t ppid;
   atomic_uint64_t global_id;
   atomic_uint32_t forked_cnt;
-  char trace_dir[TREC_DIR_PATH_LEN];
   char *temp_dir_path;
-  Mutex open_dir_mutex;
-#if !SANITIZER_GO
-  bool after_multithreaded_fork;
-#endif
+  char trace_dir[TREC_DIR_PATH_LEN];
+  __sanitizer::Mutex open_dir_mutex;
 
   ThreadRegistry *thread_registry;
 
   Flags flags;
-  __seqc_summary::TraceInfo trace_summary;
-  char record_mode[64];
-  Mutex mutex;
-  Mutex seqc_mtx;
-  char *seqc_trace_buffer = nullptr;
-  u32 seqc_trace_buffer_size;
-  Vector<__sanitizer::u32> thread_event_cnt;
+  __sanitizer::Mutex mutex;
   bool thread_after_fork = false;
 
   void open_directory(const char *t);
-  void CopyDir(const char *path, int Maintid = -1);
+  void CopyDir(const char *path, int Maintid);
   int CopyFile(const char *src_path, const char *dest_path);
   void InheritDir(const char *path, uptr _pid);
-  void flush_seqc_trace();
-  void flush_seqc_summary();
-  void put_seqc_trace(void *msg, uptr len);
-  bool state_restore();
 };
 
 extern Context *ctx;  // The one and the only global runtime context.
@@ -301,31 +300,37 @@ void ForkChildAfter(ThreadState *thr, uptr pc);
 void Initialize(ThreadState *thr);
 int Finalize(ThreadState *thr);
 
-void OnUserAlloc(ThreadState *thr, uptr pc, uptr p, uptr sz, bool write,
-                 bool record_trace = false);
+void OnUserAlloc(ThreadState *thr, uptr pc, uptr p, uptr sz, bool write);
 void OnUserFree(ThreadState *thr, uptr pc, uptr p, bool write,
                 bool record_trace = false);
 
-void CondBranch(ThreadState *thr, uptr pc, u64 cond);
-void FuncParam(ThreadState *thr, u16 param_idx, uptr src_addr, u16 src_idx,
-               uptr val);
-void FuncExitParam(ThreadState *thr, uptr src_addr, u16 src_idx, uptr val);
+void Setjmp(ThreadState *thr, uptr pc, uptr jmpbuf);
+void Longjmp(ThreadState *thr, uptr pc, uptr jmpbuf);
+
+void CondBranch(ThreadState *thr, uptr pc, uptr cond,
+                __trec_metadata::SourceAddressInfo sa,
+                __sanitizer::u64 debugID);
+void FuncParam(ThreadState *thr, u16 param_idx,
+               __trec_metadata::SourceAddressInfo sa, uptr val,
+               __sanitizer::u64 debugID);
+void FuncExitParam(ThreadState *thr, __trec_metadata::SourceAddressInfo sa,
+                   uptr val, __sanitizer::u64 debugID);
 
 void MemoryAccess(ThreadState *thr, uptr pc, uptr addr, int kAccessSizeLog,
-                  bool kAccessIsWrite, bool kIsAtomic, bool isPtr = false,
-                  uptr val = 0,
-                  __trec_metadata::SourceAddressInfo SAI_addr = {0, 0},
-                  __trec_metadata::SourceAddressInfo SAI_val = {0, 0},
-                  bool isMemCpyFlag = false);
+                  bool kAccessIsWrite, bool kIsAtomic, bool isPtr, uptr val,
+                  __trec_metadata::SourceAddressInfo SAI_addr,
+                  __trec_metadata::SourceAddressInfo SAI_val,
+                  __sanitizer::u64 debugID);
 void MemoryAccessRange(ThreadState *thr, uptr pc, uptr addr, uptr size,
                        bool is_write,
-                       __trec_metadata::SourceAddressInfo SAI = {0, 0});
+                       __trec_metadata::SourceAddressInfo SAI = 0);
 
 void UnalignedMemoryAccess(ThreadState *thr, uptr pc, uptr addr, int size,
-                           bool kAccessIsWrite, bool kIsAtomic,
-                           bool isPtr = false, uptr val = 0,
-                           __trec_metadata::SourceAddressInfo SAI_addr = {0, 0},
-                           __trec_metadata::SourceAddressInfo SAI_val = {0, 0});
+                           bool kAccessIsWrite, bool kIsAtomic, bool isPtr,
+                           uptr val,
+                           __trec_metadata::SourceAddressInfo SAI_addr,
+                           __trec_metadata::SourceAddressInfo SAI_val,
+                           __sanitizer::u64 debugID);
 
 const int kSizeLog1 = 0;
 const int kSizeLog2 = 1;
@@ -334,46 +339,42 @@ const int kSizeLog8 = 3;
 
 void ALWAYS_INLINE MemoryRead(ThreadState *thr, uptr pc, uptr addr,
                               int kAccessSizeLog, bool isPtr, uptr val,
-                              __trec_metadata::SourceAddressInfo SAI_addr) {
-  if (thr->tctx->prev_read_pc == 0) {
-    // just record pc
-    thr->tctx->prev_read_pc = pc;
-    return;
-  } else {
-    MemoryAccess(thr, thr->tctx->prev_read_pc, addr, kAccessSizeLog, false,
-                 false, isPtr, (uptr)val, SAI_addr);
-    thr->tctx->prev_read_pc = 0;
-  }
+                              __trec_metadata::SourceAddressInfo SAI_addr,
+                              __sanitizer::u64 debugID) {
+  MemoryAccess(thr, pc, addr, kAccessSizeLog, false, false, isPtr, (uptr)val,
+               SAI_addr, 0, debugID);
 }
 
 void ALWAYS_INLINE MemoryWrite(ThreadState *thr, uptr pc, uptr addr,
                                int kAccessSizeLog, bool isPtr, uptr val,
                                __trec_metadata::SourceAddressInfo SAI_addr,
-                               __trec_metadata::SourceAddressInfo SAI_val) {
+                               __trec_metadata::SourceAddressInfo SAI_val,
+                               __sanitizer::u64 debugID) {
   MemoryAccess(thr, pc, addr, kAccessSizeLog, true, false, isPtr, val, SAI_addr,
-               SAI_val);
+               SAI_val, debugID);
 }
 
-void ALWAYS_INLINE
-MemoryReadAtomic(ThreadState *thr, uptr pc, uptr addr, int kAccessSizeLog,
-                 bool isPtr = false, uptr val = 0,
-                 __trec_metadata::SourceAddressInfo SAI_addr = {0, 0},
-                 __trec_metadata::SourceAddressInfo SAI_val = {0, 0}) {
+void ALWAYS_INLINE MemoryReadAtomic(ThreadState *thr, uptr pc, uptr addr,
+                                    int kAccessSizeLog, bool isPtr, uptr val,
+                                    __trec_metadata::SourceAddressInfo SAI_addr,
+                                    __sanitizer::u64 debugID) {
   MemoryAccess(thr, pc, addr, kAccessSizeLog, false, true, isPtr, val, SAI_addr,
-               SAI_val);
+               0, debugID);
 }
 
 void ALWAYS_INLINE MemoryWriteAtomic(
     ThreadState *thr, uptr pc, uptr addr, int kAccessSizeLog, bool isPtr,
-    uptr val, __trec_metadata::SourceAddressInfo SAI_addr = {0, 0},
-    __trec_metadata::SourceAddressInfo SAI_val = {0, 0}) {
+    uptr val, __trec_metadata::SourceAddressInfo SAI_addr,
+    __trec_metadata::SourceAddressInfo SAI_val, __sanitizer::u64 debugID) {
   MemoryAccess(thr, pc, addr, kAccessSizeLog, true, true, isPtr, val, SAI_addr,
-               SAI_val);
+               SAI_val, debugID);
 }
 
-void RecordFuncEntry(ThreadState *thr, bool &should_record, const char *name,
+void RecordFuncEntry(ThreadState *thr, __sanitizer::u16 order,
+                     __sanitizer::u16 arg_cnt, __sanitizer::u64 debugID,
                      __sanitizer::u64 pc);
-void RecordFuncExit(ThreadState *thr, bool &should_record, const char *name);
+void RecordFuncExit(ThreadState *thr, __sanitizer::u64 debugID,
+                    __sanitizer::u64 pc);
 
 int ThreadCreate(ThreadState *thr, uptr pc, uptr uid, bool detached);
 void ThreadStart(ThreadState *thr, int tid, tid_t os_id,
@@ -401,21 +402,25 @@ void MutexPreLock(ThreadState *thr, uptr pc, uptr addr, u32 flagz = 0);
 void MutexPostLock(ThreadState *thr, uptr pc, uptr addr,
                    __trec_metadata::SourceAddressInfo SAI, u32 flagz = 0,
                    int rec = 1);
+void MutexPostWriteLock(ThreadState *thr, uptr pc, uptr addr,
+                        __trec_metadata::SourceAddressInfo SAI, u32 flagz = 0,
+                        int rec = 1);
 int MutexUnlock(ThreadState *thr, uptr pc, uptr addr,
                 __trec_metadata::SourceAddressInfo SAI, u32 flagz = 0);
 void MutexPreReadLock(ThreadState *thr, uptr pc, uptr addr, u32 flagz = 0);
-void MutexPostReadLock(ThreadState *thr, uptr pc, uptr addr, u32 flagz = 0,
-                       __trec_metadata::SourceAddressInfo SAI = {0, 0});
-void MutexReadOrWriteUnlock(ThreadState *thr, uptr pc, uptr addr);
+void MutexPostReadLock(ThreadState *thr, uptr pc, uptr addr,
+                       __trec_metadata::SourceAddressInfo SAI, u32 flagz = 0);
+void MutexReadOrWriteUnlock(ThreadState *thr, uptr pc, uptr addr,
+                            bool is_writer,
+                            __trec_metadata::SourceAddressInfo sa);
 void MutexRepair(ThreadState *thr, uptr pc, uptr addr);  // call on EOWNERDEAD
 void MutexInvalidAccess(ThreadState *thr, uptr pc, uptr addr);
 
 void ReleaseStoreAcquire(ThreadState *thr, uptr pc, uptr addr);
 void ReleaseStore(ThreadState *thr, uptr pc, uptr addr);
 void AfterSleep(ThreadState *thr, uptr pc);
-void CondWait(ThreadState *thr, uptr pc, uptr cond, uptr mutex,
-              __trec_metadata::SourceAddressInfo cond_SAI,
-              __trec_metadata::SourceAddressInfo mutex_SAI);
+void CondWait(ThreadState *thr, uptr pc, uptr cond,
+              __trec_metadata::SourceAddressInfo cond_SAI);
 void CondSignal(ThreadState *thr, uptr pc, uptr cond, bool is_broadcase,
                 __trec_metadata::SourceAddressInfo SAI);
 
@@ -436,6 +441,8 @@ void LazyInitialize(ThreadState *thr) {
     Initialize(thr);
 #endif
 }
+
+void TrecFlushTraceOnDead();
 
 }  // namespace __trec
 

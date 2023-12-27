@@ -111,7 +111,7 @@ void *operator new[](__sanitizer::uptr size, std::align_val_t align,
     return;                                  \
   invoke_free_hook(ptr);                     \
   SCOPED_INTERCEPTOR_RAW(mangled_name, ptr); \
-  user_free(thr, caller_pc, ptr, true, true);
+  user_free(thr, pc, ptr, true, true);
 
 SANITIZER_INTERFACE_ATTRIBUTE
 void operator delete(void *ptr) NOEXCEPT;
