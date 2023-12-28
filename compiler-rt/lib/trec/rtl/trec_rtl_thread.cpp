@@ -435,8 +435,11 @@ void ThreadStart(ThreadState *thr, int tid, tid_t os_id,
   if (LIKELY(ctx->flags.output_trace)) {
     thr->tctx->writer.flush_module();
     thr->tctx->writer.reset();
-    thr->tctx->writer.put_record(__trec_trace::EventType::None,
-                                 __trec_trace::TREC_TRACE_VER, 0);
+
+    thr->tctx->writer.put_record(
+        __trec_trace::EventType::None, __trec_trace::TREC_TRACE_VER, 0,
+        (void *)__trec_metadata::TREC_METADATA_VER,
+        internal_strlen(__trec_metadata::TREC_METADATA_VER) + 1);
     thr->tctx->writer.init_cmd();
     thr->tctx->writer.put_record(__trec_trace::EventType::ThreadBegin, thr->tid,
                                  0);
