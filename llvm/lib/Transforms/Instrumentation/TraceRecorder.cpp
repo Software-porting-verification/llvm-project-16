@@ -300,10 +300,10 @@ void TraceRecorder::initialize(Module &M) {
   Attr = Attr.addFnAttribute(M.getContext(), Attribute::NoUnwind);
   // Initialize the callbacks.
   TrecFuncEntry =
-      M.getOrInsertFunction("__trec_func_entry", Attr, IRB.getVoidTy());
+      M.getOrInsertFunction("__trec_func_entry", Attr, IRB.getInt1Ty());
 
   TrecFuncExit =
-      M.getOrInsertFunction("__trec_func_exit", Attr, IRB.getVoidTy());
+      M.getOrInsertFunction("__trec_func_exit", Attr, IRB.getInt1Ty(), IRB.getVoidTy());
 
   TrecInstDebugInfo = M.getOrInsertFunction(
       "__trec_inst_debug_info", Attr, IRB.getVoidTy(), IRB.getInt64Ty(),
@@ -458,7 +458,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
                       IRB.getInt16(0), IRB.getInt64(0), IRB.getInt32(FileID),
                       IRB.getInt32(FuncID)});
 
-      IRB.CreateCall(TrecFuncEntry, {});
+      auto result = IRB.CreateCall(TrecFuncEntry, {});
       EscapeEnumerator EE(F);
       while (IRBuilder<> *AtExit = EE.Next()) {
         AtExit->CreateCall(TrecInstDebugInfo,
@@ -467,7 +467,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
                             AtExit->getInt16(0), AtExit->getInt64(0),
                             AtExit->getInt32(FileID),
                             AtExit->getInt32(FuncID)});
-        AtExit->CreateCall(TrecFuncExit, {});
+        AtExit->CreateCall(TrecFuncExit, {result});
       }
       for (auto &BB : F) {
         for (auto &Inst : BB) {

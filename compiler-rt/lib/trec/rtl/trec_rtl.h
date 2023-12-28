@@ -50,6 +50,8 @@ using namespace __sanitizer;
 
 namespace __trec {
 
+
+
 #if !SANITIZER_GO
 struct MapUnmapCallback;
 #if defined(__mips64) || defined(__aarch64__) || defined(__powerpc__) || \
@@ -301,6 +303,7 @@ void ForkChildAfter(ThreadState *thr, uptr pc);
 
 void Initialize(ThreadState *thr);
 int Finalize(ThreadState *thr);
+void SetSampleParameters();
 
 void OnUserAlloc(ThreadState *thr, uptr pc, uptr p, uptr sz, bool write,
                  bool record_trace = false);
@@ -329,12 +332,11 @@ const int kSizeLog1 = 0;
 const int kSizeLog2 = 1;
 const int kSizeLog4 = 2;
 const int kSizeLog8 = 3;
-
-void RecordFuncEntry(ThreadState *thr, bool &should_record,
+bool RecordFuncEntry(ThreadState *thr, bool &should_record,
                      __sanitizer::u64 pc);
 void RecordSetLongJmp(ThreadState *thr, bool &should_record, bool isSet, __sanitizer::u64 pc,
                       __sanitizer::u64 buf);
-void RecordFuncExit(ThreadState *thr, bool &should_record);
+void RecordFuncExit(ThreadState *thr, bool &should_record, bool &is_record_trace);
 void RecordBBLEntry(ThreadState *thr, bool &should_record);
 bool IsTrecBBL(ThreadState *thr, bool &should_record);
 

@@ -52,18 +52,18 @@ void __trec_longjmp(void *jmpbuf) {
   }
 }
 
-void __trec_func_entry() {
+bool __trec_func_entry() {
   bool should_record = true;
   if (!IsTrecBBL(cur_thread(), should_record)) {
-    RecordFuncEntry(cur_thread(), should_record,
+    return RecordFuncEntry(cur_thread(), should_record,
                     StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()));
   }
 }
 
-void __trec_func_exit() {
+void __trec_func_exit(bool is_record_trace) {
   bool should_record = true;
   if (!IsTrecBBL(cur_thread(), should_record)) {
-    RecordFuncExit(cur_thread(), should_record);
+    RecordFuncExit(cur_thread(), should_record, is_record_trace);
   }
 }
 

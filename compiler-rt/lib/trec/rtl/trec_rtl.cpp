@@ -12,8 +12,11 @@
 // Main file (entry points) for the TRec run-time.
 //===----------------------------------------------------------------------===//
 
+#include "trec_rtl.h"
+
 #include <dirent.h>
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/fcntl.h>
@@ -23,6 +26,7 @@
 
 #include "sanitizer_common/sanitizer_atomic.h"
 #include "sanitizer_common/sanitizer_common.h"
+#include "sanitizer_common/sanitizer_dense_map.h"
 #include "sanitizer_common/sanitizer_file.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_placement_new.h"
@@ -30,7 +34,6 @@
 #include "sanitizer_common/sanitizer_symbolizer.h"
 #include "trec_defs.h"
 #include "trec_platform.h"
-#include "trec_rtl.h"
 #include "ubsan/ubsan_init.h"
 
 #ifdef __SSE3__
@@ -44,6 +47,15 @@ typedef __m128i m128;
 #endif
 
 namespace __trec {
+
+using MyVec = __sanitizer::Vector<__sanitizer::Pair<int, double>>;
+MyVec *myVector;
+static char myVec[sizeof(
+    __sanitizer::Vector<__sanitizer::Pair<int, double>>)] ALIGNED(64);
+
+DenseMap<u32, u32> funcNameId_num;  // 统计在运行时funcnameId 出现的次数
+char seed_num[sizeof(u32)] ALIGNED(64);  // 以64字节对齐的种子值
+u32 *seed_ptr = nullptr;
 
 #if !SANITIZER_GO && !SANITIZER_MAC
 __attribute__((tls_model("initial-exec")))
@@ -68,7 +80,7 @@ static const u32 kThreadQuarantineSize = 64;
 Context::Context()
     : initialized(),
       pid(internal_getpid()),
-      thread_registry(new(thread_registry_placeholder) ThreadRegistry(
+      thread_registry(new (thread_registry_placeholder) ThreadRegistry(
           CreateThreadContext, kMaxTid, kThreadQuarantineSize, kMaxTidReuse)),
       seqc_trace_buffer(nullptr),
       seqc_trace_buffer_size(0),
@@ -473,6 +485,29 @@ void Initialize(ThreadState *thr) {
 #if !SANITIZER_GO
   Symbolizer::LateInitialize();
 #endif
+
+  myVector = new (myVec) MyVec;
+  seed_ptr = new (seed_num) u32;
+  SetSampleParameters();
+}
+
+void SetSampleParameters() {
+  myVector->PushBack(Pair<int, double>(10, 1.0));
+  myVector->PushBack(Pair<int, double>(20, 0.9));
+  myVector->PushBack(Pair<int, double>(30, 0.8));
+  myVector->PushBack(Pair<int, double>(40, 0.7));
+  myVector->PushBack(Pair<int, double>(50, 0.5));
+  myVector->PushBack(Pair<int, double>(60, 0.5));
+  myVector->PushBack(Pair<int, double>(70, 0.3));
+  myVector->PushBack(Pair<int, double>(80, 0.3));
+  myVector->PushBack(Pair<int, double>(90, 0.1));
+  myVector->PushBack(Pair<int, double>(100, 0.1));
+  const char *seed_str = GetEnv("SEED");
+  if (seed_str != nullptr) {
+    *seed_ptr = strtoul(seed_str, nullptr, 10);
+    printf("seed1:%d\n", *seed_ptr);
+  } 
+  return;
 }
 
 int Finalize(ThreadState *thr) {
@@ -611,88 +646,124 @@ ALWAYS_INLINE USED void RecordSetLongJmp(ThreadState *thr, bool &should_record,
   }
 }
 
-ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr, bool &should_record,
+ALWAYS_INLINE USED bool RecordFuncEntry(ThreadState *thr, bool &should_record,
                                         __sanitizer::u64 pc) {
-  if (LIKELY(ctx->flags.output_trace) &&
-      LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
-      thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
-    if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
-      timespec time_start, time_end;
-      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
-      __sanitizer::u64 oid =
-          (((thr->tctx->isFuncEnterMetaVaild ? thr->tctx->entry_meta.order : 0)
-            << 56) |
-           ((thr->tctx->isFuncEnterMetaVaild
-                 ? thr->tctx->entry_meta.parammeta_cnt
-                 : 0)
-            << 48) |
-           (ctx->flags.output_debug
-                ? (((((u64)1) << 48) - 1) & (thr->tctx->debug_offset))
-                : 0));
-      __trec_trace::Event e(
-          __trec_trace::EventType::FuncEnter, thr->tid,
-          atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
-          thr->tctx->parammetas.Size() ? thr->tctx->metadata_offset : 0, pc);
-      __trec_debug_info::InstDebugInfo &debug_info =
-          (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
+  bool is_random = false;
+  double random_value = 0;
+  int lower_bound = 0;  // 随机数下界，此处为100
+  int upper_bound = 1;  // 随机数上界，此处为999
 
-      u64 sec = time_start.tv_sec + thr->tctx->before_fork_time.tv_sec;
-      u64 nsec = time_start.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
-      debug_info.time = (sec * 1000000000 + nsec);
-      thr->tctx->dbg_temp_buffer_size =
-          sizeof(__trec_debug_info::InstDebugInfo);
-      thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
-                                thr->tctx->dbg_temp_buffer_size);
-
-      thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
-      thr->tctx->header.StateInc(__trec_header::RecordType::FuncEnter);
-      thr->tctx->isFuncEnterMetaVaild = false;
-      thr->tctx->isFuncExitMetaVaild = false;
-      thr->tctx->parammetas.Resize(0);
-      thr->tctx->dbg_temp_buffer_size = 0;
-      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
-      thr->tctx->before_fork_time.tv_sec -= time_end.tv_sec - time_start.tv_sec;
-      thr->tctx->before_fork_time.tv_nsec -=
-          time_end.tv_nsec - time_start.tv_nsec;
+  u32 &seed = *seed_ptr;
+  if (seed != 0) {
+    seed++;
+    random_value =
+        lower_bound + (double)(rand_r(&seed)) /
+                          ((double)(RAND_MAX / (upper_bound - lower_bound)));
+    is_random = true;
+  }
+  __trec_debug_info::InstDebugInfo &debug_info =
+      (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
+  u32 name_id = debug_info.nameID[0];
+  // 统计每个函数的运行次数
+  u32 &count = funcNameId_num[name_id];
+  count = (count <= 100) ? count + 1 : 0;
+  double sampling_rate = 1.0;
+  for (int i = 0; i < myVector->Size(); ++i) {
+    if (count < (*myVector)[i].first) {
+      sampling_rate = (*myVector)[i].second;
+      break;
     }
   }
-  return;
+
+  if (random_value < sampling_rate || !is_random) {
+    if (LIKELY(ctx->flags.output_trace) &&
+        LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
+        thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
+      if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
+        timespec time_start, time_end;
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
+        __sanitizer::u64 oid =
+            (((thr->tctx->isFuncEnterMetaVaild ? thr->tctx->entry_meta.order
+                                               : 0)
+              << 56) |
+             ((thr->tctx->isFuncEnterMetaVaild
+                   ? thr->tctx->entry_meta.parammeta_cnt
+                   : 0)
+              << 48) |
+             (ctx->flags.output_debug
+                  ? (((((u64)1) << 48) - 1) & (thr->tctx->debug_offset))
+                  : 0));
+        __trec_trace::Event e(
+            __trec_trace::EventType::FuncEnter, thr->tid,
+            atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
+            thr->tctx->parammetas.Size() ? thr->tctx->metadata_offset : 0, pc);
+        __trec_debug_info::InstDebugInfo &debug_info =
+            (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
+
+        u64 sec = time_start.tv_sec + thr->tctx->before_fork_time.tv_sec;
+        u64 nsec = time_start.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
+        debug_info.time = (sec * 1000000000 + nsec);
+        thr->tctx->dbg_temp_buffer_size =
+            sizeof(__trec_debug_info::InstDebugInfo);
+        thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
+                                  thr->tctx->dbg_temp_buffer_size);
+
+        thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
+        thr->tctx->header.StateInc(__trec_header::RecordType::FuncEnter);
+        thr->tctx->isFuncEnterMetaVaild = false;
+        thr->tctx->isFuncExitMetaVaild = false;
+        thr->tctx->parammetas.Resize(0);
+        thr->tctx->dbg_temp_buffer_size = 0;
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
+        thr->tctx->before_fork_time.tv_sec -=
+            time_end.tv_sec - time_start.tv_sec;
+        thr->tctx->before_fork_time.tv_nsec -=
+            time_end.tv_nsec - time_start.tv_nsec;
+      }
+    }
+    return true;
+  }
+  return false;
 }
 
-ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record) {
-  if (LIKELY(ctx->flags.output_trace) &&
-      LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
-      thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
-    if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
-      timespec time_start, time_end;
-      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
-      __sanitizer::u64 oid =
-          (((((u64)1) << 48) - 1) & (thr->tctx->debug_offset));
-      __trec_trace::Event e(
-          __trec_trace::EventType::FuncExit, thr->tid,
-          atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
-          thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
-      __trec_debug_info::InstDebugInfo &debug_info =
-          (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
-      u64 sec = time_start.tv_sec + thr->tctx->before_fork_time.tv_sec;
-      u64 nsec = time_start.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
-      debug_info.time = (sec * 1000000000 + nsec);
-      thr->tctx->dbg_temp_buffer_size =
-          sizeof(__trec_debug_info::InstDebugInfo);
-      thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
-                                thr->tctx->dbg_temp_buffer_size);
+ALWAYS_INLINE USED void RecordFuncExit(ThreadState *thr, bool &should_record,
+                                       bool &is_record_trace) {
+  if (is_record_trace) {
+    if (LIKELY(ctx->flags.output_trace) &&
+        LIKELY(ctx->flags.record_func_enter_exit) && should_record &&
+        thr->should_record && LIKELY(thr->ignore_interceptors == 0)) {
+      if (ctx->flags.trace_mode == 2 || ctx->flags.trace_mode == 3) {
+        timespec time_start, time_end;
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_start);
+        __sanitizer::u64 oid =
+            (((((u64)1) << 48) - 1) & (thr->tctx->debug_offset));
+        __trec_trace::Event e(
+            __trec_trace::EventType::FuncExit, thr->tid,
+            atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
+            thr->tctx->isFuncExitMetaVaild ? thr->tctx->metadata_offset : 0, 0);
+        __trec_debug_info::InstDebugInfo &debug_info =
+            (*(__trec_debug_info::InstDebugInfo *)thr->tctx->dbg_temp_buffer);
+        u64 sec = time_start.tv_sec + thr->tctx->before_fork_time.tv_sec;
+        u64 nsec = time_start.tv_nsec + thr->tctx->before_fork_time.tv_nsec;
+        debug_info.time = (sec * 1000000000 + nsec);
+        thr->tctx->dbg_temp_buffer_size =
+            sizeof(__trec_debug_info::InstDebugInfo);
+        thr->tctx->put_debug_info(thr->tctx->dbg_temp_buffer,
+                                  thr->tctx->dbg_temp_buffer_size);
 
-      thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
-      thr->tctx->header.StateInc(__trec_header::RecordType::FuncExit);
-      thr->tctx->isFuncEnterMetaVaild = false;
-      thr->tctx->isFuncExitMetaVaild = false;
-      thr->tctx->parammetas.Resize(0);
-      thr->tctx->dbg_temp_buffer_size = 0;
+        thr->tctx->put_trace(&e, sizeof(__trec_trace::Event));
+        thr->tctx->header.StateInc(__trec_header::RecordType::FuncExit);
+        thr->tctx->isFuncEnterMetaVaild = false;
+        thr->tctx->isFuncExitMetaVaild = false;
+        thr->tctx->parammetas.Resize(0);
+        thr->tctx->dbg_temp_buffer_size = 0;
 
-      clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
-      thr->tctx->before_fork_time.tv_sec -= time_end.tv_sec - time_start.tv_sec;
-      thr->tctx->before_fork_time.tv_nsec -=
-          time_end.tv_nsec - time_start.tv_nsec;
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time_end);
+        thr->tctx->before_fork_time.tv_sec -=
+            time_end.tv_sec - time_start.tv_sec;
+        thr->tctx->before_fork_time.tv_nsec -=
+            time_end.tv_nsec - time_start.tv_nsec;
+      }
     }
   }
   return;

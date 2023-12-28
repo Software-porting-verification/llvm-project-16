@@ -38,8 +38,8 @@ SANITIZER_INTERFACE_ATTRIBUTE void __trec_init();
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_inst_debug_info(
     __sanitizer::u64 fid, __sanitizer::u32 line, __sanitizer::u16 col,
     __sanitizer::u64 time, __sanitizer::u32 nameID1, __sanitizer::u32 nameID2);
-SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_entry();
-SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_exit();
+SANITIZER_INTERFACE_ATTRIBUTE bool __trec_func_entry();
+SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_exit(bool is_record_trace);
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_bbl_entry();
 SANITIZER_INTERFACE_ATTRIBUTE void __trec_bbl_exit();
 SANITIZER_INTERFACE_ATTRIBUTE bool __is_trec_bbl();
