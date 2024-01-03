@@ -62,11 +62,13 @@ const int kSigCount = 65;
 #endif
 
 #ifdef __mips__
-struct ucontext_t {
+struct ucontext_t
+{
   u64 opaque[768 / sizeof(u64) + 1];
 };
 #else
-struct ucontext_t {
+struct ucontext_t
+{
   // The size is determined by looking at sizeof of real ucontext_t on linux.
   u64 opaque[936 / sizeof(u64) + 1];
 };
@@ -155,70 +157,79 @@ const int SIG_SETMASK = 2;
 #define COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED \
   (cur_thread_init(), !cur_thread()->is_inited)
 
-namespace __trec {
-struct SignalDesc {
-  bool armed;
-  bool sigaction;
-  __sanitizer_siginfo siginfo;
-  ucontext_t ctx;
-};
+namespace __trec
+{
+  struct SignalDesc
+  {
+    bool armed;
+    bool sigaction;
+    __sanitizer_siginfo siginfo;
+    ucontext_t ctx;
+  };
 
-struct ThreadSignalContext {
-  int int_signal_send;
-  atomic_uintptr_t in_blocking_func;
-  atomic_uintptr_t have_pending_signals;
-  SignalDesc pending_signals[kSigCount];
-  // emptyset and oldset are too big for stack.
-  __sanitizer_sigset_t emptyset;
-  __sanitizer_sigset_t oldset;
-};
+  struct ThreadSignalContext
+  {
+    int int_signal_send;
+    atomic_uintptr_t in_blocking_func;
+    atomic_uintptr_t have_pending_signals;
+    SignalDesc pending_signals[kSigCount];
+    // emptyset and oldset are too big for stack.
+    __sanitizer_sigset_t emptyset;
+    __sanitizer_sigset_t oldset;
+  };
 
-// The sole reason trec wraps atexit callbacks is to establish synchronization
-// between callback setup and callback execution.
-struct AtExitCtx {
-  void (*f)();
-  void *arg;
-};
+  // The sole reason trec wraps atexit callbacks is to establish synchronization
+  // between callback setup and callback execution.
+  struct AtExitCtx
+  {
+    void (*f)();
+    void *arg;
+  };
 
-// InterceptorContext holds all global data required for interceptors.
-// It's explicitly constructed in InitializeInterceptors with placement new
-// and is never destroyed. This allows usage of members with non-trivial
-// constructors and destructors.
-struct InterceptorContext {
-  // The object is 64-byte aligned, because we want hot data to be located
-  // in a single cache line if possible (it's accessed in every interceptor).
-  ALIGNED(64) LibIgnore libignore;
-  __sanitizer_sigaction sigactions[kSigCount];
+  // InterceptorContext holds all global data required for interceptors.
+  // It's explicitly constructed in InitializeInterceptors with placement new
+  // and is never destroyed. This allows usage of members with non-trivial
+  // constructors and destructors.
+  struct InterceptorContext
+  {
+    // The object is 64-byte aligned, because we want hot data to be located
+    // in a single cache line if possible (it's accessed in every interceptor).
+    ALIGNED(64)
+    LibIgnore libignore;
+    __sanitizer_sigaction sigactions[kSigCount];
 #if !SANITIZER_APPLE && !SANITIZER_NETBSD
-  unsigned finalize_key;
+    unsigned finalize_key;
 #endif
 
-  __sanitizer::Mutex atexit_mu;
-  Vector<struct AtExitCtx *> AtExitStack;
+    __sanitizer::Mutex atexit_mu;
+    Vector<struct AtExitCtx *> AtExitStack;
 
-  InterceptorContext() : libignore(LINKER_INITIALIZED), AtExitStack() {}
-};
+    InterceptorContext() : libignore(LINKER_INITIALIZED), AtExitStack() {}
+  };
 
-static ALIGNED(64) char interceptor_placeholder[sizeof(InterceptorContext)];
-InterceptorContext *interceptor_ctx() {
-  return reinterpret_cast<InterceptorContext *>(&interceptor_placeholder[0]);
-}
+  static ALIGNED(64) char interceptor_placeholder[sizeof(InterceptorContext)];
+  InterceptorContext *interceptor_ctx()
+  {
+    return reinterpret_cast<InterceptorContext *>(&interceptor_placeholder[0]);
+  }
 
 // The following two hooks can be used by for cooperative scheduling when
 // locking.
 #ifdef TREC_EXTERNAL_HOOKS
-void OnPotentiallyBlockingRegionBegin();
-void OnPotentiallyBlockingRegionEnd();
+  void OnPotentiallyBlockingRegionBegin();
+  void OnPotentiallyBlockingRegionEnd();
 #else
-SANITIZER_WEAK_CXX_DEFAULT_IMPL void OnPotentiallyBlockingRegionBegin() {}
-SANITIZER_WEAK_CXX_DEFAULT_IMPL void OnPotentiallyBlockingRegionEnd() {}
+  SANITIZER_WEAK_CXX_DEFAULT_IMPL void OnPotentiallyBlockingRegionBegin() {}
+  SANITIZER_WEAK_CXX_DEFAULT_IMPL void OnPotentiallyBlockingRegionEnd() {}
 #endif
 
-}  // namespace __trec
+} // namespace __trec
 
-static ThreadSignalContext *SigCtx(ThreadState *thr) {
+static ThreadSignalContext *SigCtx(ThreadState *thr)
+{
   ThreadSignalContext *ctx = (ThreadSignalContext *)thr->signal_ctx;
-  if (ctx == 0 && !thr->is_dead) {
+  if (ctx == 0 && !thr->is_dead)
+  {
     ctx = (ThreadSignalContext *)MmapOrDie(sizeof(*ctx), "ThreadSignalContext");
     thr->signal_ctx = ctx;
   }
@@ -227,16 +238,19 @@ static ThreadSignalContext *SigCtx(ThreadState *thr) {
 
 ScopedInterceptor::ScopedInterceptor(ThreadState *thr, const char *fname,
                                      uptr pc)
-    : thr_(thr), pc_(pc) {
+    : thr_(thr), pc_(pc)
+{
   Initialize(thr);
   if (!thr_->is_inited)
     return;
 }
 
-ScopedInterceptor::~ScopedInterceptor() {
+ScopedInterceptor::~ScopedInterceptor()
+{
   if (!thr_->is_inited)
     return;
-  if (!thr_->ignore_interceptors) {
+  if (!thr_->ignore_interceptors)
+  {
     ProcessPendingSignals(thr_);
   }
 }
@@ -260,9 +274,12 @@ ScopedInterceptor::~ScopedInterceptor() {
 
 #define BLOCK_REAL(name) (BlockingCall(thr), REAL(name))
 
-struct BlockingCall {
-  explicit BlockingCall(ThreadState *thr) : thr(thr), ctx(SigCtx(thr)) {
-    for (;;) {
+struct BlockingCall
+{
+  explicit BlockingCall(ThreadState *thr) : thr(thr), ctx(SigCtx(thr))
+  {
+    for (;;)
+    {
       atomic_store(&ctx->in_blocking_func, 1, memory_order_relaxed);
       if (atomic_load(&ctx->have_pending_signals, memory_order_relaxed) == 0)
         break;
@@ -277,7 +294,8 @@ struct BlockingCall {
     thr->ignore_interceptors++;
   }
 
-  ~BlockingCall() {
+  ~BlockingCall()
+  {
     thr->ignore_interceptors--;
     atomic_store(&ctx->in_blocking_func, 0, memory_order_relaxed);
   }
@@ -286,46 +304,56 @@ struct BlockingCall {
   ThreadSignalContext *ctx;
 };
 
-TREC_INTERCEPTOR(unsigned, sleep, unsigned sec) {
+TREC_INTERCEPTOR(unsigned, sleep, unsigned sec)
+{
   SCOPED_TREC_INTERCEPTOR(sleep, sec);
   unsigned res = BLOCK_REAL(sleep)(sec);
   AfterSleep(thr, pc);
   return res;
 }
 
-TREC_INTERCEPTOR(int, usleep, long_t usec) {
+TREC_INTERCEPTOR(int, usleep, long_t usec)
+{
   SCOPED_TREC_INTERCEPTOR(usleep, usec);
   int res = BLOCK_REAL(usleep)(usec);
   AfterSleep(thr, pc);
   return res;
 }
 
-TREC_INTERCEPTOR(int, nanosleep, void *req, void *rem) {
+TREC_INTERCEPTOR(int, nanosleep, void *req, void *rem)
+{
   SCOPED_TREC_INTERCEPTOR(nanosleep, req, rem);
   int res = BLOCK_REAL(nanosleep)(req, rem);
   AfterSleep(thr, pc);
   return res;
 }
 
-TREC_INTERCEPTOR(int, pause, int fake) {
+TREC_INTERCEPTOR(int, pause, int fake)
+{
   SCOPED_TREC_INTERCEPTOR(pause, fake);
   return BLOCK_REAL(pause)(fake);
 }
 
-static void FlushStreams() {
+static void FlushStreams()
+{
   // Flushing all the streams here may freeze the process if a child thread is
   // performing file stream operations at the same time.
-  REAL(fflush)(stdout);
-  REAL(fflush)(stderr);
-  TrecFlushTraceOnDead();
+  REAL(fflush)
+  (stdout);
+  REAL(fflush)
+  (stderr);
 }
 
-static int OnExit(ThreadState *thr) {
+static int OnExit(ThreadState *thr)
+{
   int status = Finalize(thr);
+  FlushStreams();
+  TrecFlushTraceOnDead();
   return status;
 }
 
-static void at_exit_wrapper() {
+static void at_exit_wrapper()
+{
   AtExitCtx *ctx;
   {
     // Ensure thread-safety.
@@ -338,14 +366,13 @@ static void at_exit_wrapper() {
     interceptor_ctx()->atexit_mu.Unlock();
   }
   ((void (*)())ctx->f)();
-  FlushStreams();
   InternalFree(ctx);
 }
 
-static void cxa_at_exit_wrapper(void *arg) {
+static void cxa_at_exit_wrapper(void *arg)
+{
   AtExitCtx *ctx = (AtExitCtx *)arg;
   ((void (*)(void *arg))ctx->f)(ctx->arg);
-  FlushStreams();
   InternalFree(ctx);
 }
 
@@ -353,7 +380,8 @@ static int setup_at_exit_wrapper(ThreadState *thr, uptr pc, void (*f)(),
                                  void *arg, void *dso);
 
 #if !SANITIZER_ANDROID
-TREC_INTERCEPTOR(int, atexit, void (*f)()) {
+TREC_INTERCEPTOR(int, atexit, void (*f)())
+{
   // We want to setup the atexit callback even if we are in ignored lib
   // or after fork.
   SCOPED_INTERCEPTOR_RAW(atexit, f);
@@ -361,44 +389,53 @@ TREC_INTERCEPTOR(int, atexit, void (*f)()) {
 }
 #endif
 
-TREC_INTERCEPTOR(int, __cxa_atexit, void (*f)(void *a), void *arg, void *dso) {
+TREC_INTERCEPTOR(int, __cxa_atexit, void (*f)(void *a), void *arg, void *dso)
+{
   SCOPED_TREC_INTERCEPTOR(__cxa_atexit, f, arg, dso);
   return setup_at_exit_wrapper(thr, pc, (void (*)())f, arg, dso);
 }
 
 static int setup_at_exit_wrapper(ThreadState *thr, uptr pc, void (*f)(),
-                                 void *arg, void *dso) {
+                                 void *arg, void *dso)
+{
   AtExitCtx *ctx = (AtExitCtx *)InternalAlloc(sizeof(AtExitCtx));
   ctx->f = f;
   ctx->arg = arg;
   // Memory allocation in __cxa_atexit will race with free during exit,
   // because we do not see synchronization around atexit callback list.
   int res;
-  if (!dso) {
+  if (!dso)
+  {
     // NetBSD does not preserve the 2nd argument if dso is equal to 0
     // Store ctx in a local stack-like structure
     ScopedIgnoreInterceptors ignore;
     res = REAL(__cxa_atexit)((void (*)(void *a))at_exit_wrapper, 0, 0);
     // Push AtExitCtx on the top of the stack of callback functions
-    if (!res) {
+    if (!res)
+    {
       interceptor_ctx()->AtExitStack.PushBack(ctx);
     }
-  } else {
+  }
+  else
+  {
     res = REAL(__cxa_atexit)(cxa_at_exit_wrapper, ctx, dso);
   }
   return res;
 }
 
 #if !SANITIZER_APPLE && !SANITIZER_NETBSD
-static void on_exit_wrapper(int status, void *arg) {
+static void on_exit_wrapper(int status, void *arg)
+{
   ThreadState *thr = cur_thread();
   AtExitCtx *ctx = (AtExitCtx *)arg;
   ((void (*)(int status, void *arg))ctx->f)(status, ctx->arg);
   FlushStreams();
+  TrecFlushTraceOnDead();
   InternalFree(ctx);
 }
 
-TREC_INTERCEPTOR(int, on_exit, void (*f)(int, void *), void *arg) {
+TREC_INTERCEPTOR(int, on_exit, void (*f)(int, void *), void *arg)
+{
   SCOPED_TREC_INTERCEPTOR(on_exit, f, arg);
   AtExitCtx *ctx = (AtExitCtx *)InternalAlloc(sizeof(AtExitCtx));
   ctx->f = (void (*)())f;
@@ -417,7 +454,7 @@ TREC_INTERCEPTOR(int, on_exit, void (*f)(int, void *), void *arg) {
 TREC_INTERCEPTOR(int, setjmp, void *env);
 TREC_INTERCEPTOR(int, _setjmp, void *env);
 TREC_INTERCEPTOR(int, sigsetjmp, void *env);
-#else  // SANITIZER_APPLE
+#else // SANITIZER_APPLE
 
 #if SANITIZER_NETBSD
 #define setjmp_symname __setjmp14
@@ -427,40 +464,48 @@ TREC_INTERCEPTOR(int, sigsetjmp, void *env);
 #define sigsetjmp_symname sigsetjmp
 #endif
 
-TREC_INTERCEPTOR(void, setjmp_symname, uptr *env) {
+TREC_INTERCEPTOR(void, setjmp_symname, uptr *env)
+{
   {
     SCOPED_INTERCEPTOR_RAW(setjmp_symname, env);
     Setjmp(thr, pc, (uptr)env);
   }
-  REAL(setjmp_symname)(env);
+  REAL(setjmp_symname)
+  (env);
 }
 
-TREC_INTERCEPTOR(void, sigsetjmp_symname, uptr *env) {
+TREC_INTERCEPTOR(void, sigsetjmp_symname, uptr *env)
+{
   {
     SCOPED_INTERCEPTOR_RAW(sigsetjmp_symname, env);
     Setjmp(thr, pc, (uptr)env);
   }
-  REAL(sigsetjmp_symname)(env);
+  REAL(sigsetjmp_symname)
+  (env);
 }
 
-TREC_INTERCEPTOR(void, _setjmp, uptr *env) {
+TREC_INTERCEPTOR(void, _setjmp, uptr *env)
+{
   {
     SCOPED_INTERCEPTOR_RAW(_setjmp, env);
     Setjmp(thr, pc, (uptr)env);
   }
-  REAL(_setjmp)(env);
+  REAL(_setjmp)
+  (env);
 }
 #if !SANITIZER_NETBSD
-TREC_INTERCEPTOR(void, __sigsetjmp, uptr *env) {
+TREC_INTERCEPTOR(void, __sigsetjmp, uptr *env)
+{
   {
     SCOPED_INTERCEPTOR_RAW(__sigsetjmp, env);
     Setjmp(thr, pc, (uptr)env);
   }
-  REAL(__sigsetjmp)(env);
+  REAL(__sigsetjmp)
+  (env);
 }
 #endif
 
-#endif  // SANITIZER_APPLE
+#endif // SANITIZER_APPLE
 
 #if SANITIZER_NETBSD
 #define longjmp_symname __longjmp14
@@ -470,7 +515,8 @@ TREC_INTERCEPTOR(void, __sigsetjmp, uptr *env) {
 #define siglongjmp_symname siglongjmp
 #endif
 
-TREC_INTERCEPTOR(void, longjmp_symname, uptr *env, int val) {
+TREC_INTERCEPTOR(void, longjmp_symname, uptr *env, int val)
+{
   // Note: if we call REAL(longjmp) in the context of ScopedInterceptor,
   // bad things will happen. We will jump over ScopedInterceptor dtor and can
   // leave thr->in_ignored_lib set.
@@ -479,29 +525,35 @@ TREC_INTERCEPTOR(void, longjmp_symname, uptr *env, int val) {
     Longjmp(thr, pc, (uptr)env);
   }
 
-  REAL(longjmp_symname)(env, val);
+  REAL(longjmp_symname)
+  (env, val);
 }
 
-TREC_INTERCEPTOR(void, siglongjmp_symname, uptr *env, int val) {
+TREC_INTERCEPTOR(void, siglongjmp_symname, uptr *env, int val)
+{
   {
     SCOPED_INTERCEPTOR_RAW(siglongjmp_symname, env, val);
     Longjmp(thr, pc, (uptr)env);
   }
-  REAL(siglongjmp_symname)(env, val);
+  REAL(siglongjmp_symname)
+  (env, val);
 }
 
 #if SANITIZER_NETBSD
-TREC_INTERCEPTOR(void, _longjmp, uptr *env, int val) {
+TREC_INTERCEPTOR(void, _longjmp, uptr *env, int val)
+{
   {
     SCOPED_INTERCEPTOR_RAW(_longjmp, env, val);
     Longjmp(thr, pc, (uptr)env);
   }
-  REAL(_longjmp)(env, val);
+  REAL(_longjmp)
+  (env, val);
 }
 #endif
 
 #if !SANITIZER_APPLE
-TREC_INTERCEPTOR(void *, malloc, uptr size) {
+TREC_INTERCEPTOR(void *, malloc, uptr size)
+{
   void *p = 0;
   {
     SCOPED_INTERCEPTOR_RAW(malloc, size);
@@ -511,12 +563,14 @@ TREC_INTERCEPTOR(void *, malloc, uptr size) {
   return p;
 }
 
-TREC_INTERCEPTOR(void *, __libc_memalign, uptr align, uptr sz) {
+TREC_INTERCEPTOR(void *, __libc_memalign, uptr align, uptr sz)
+{
   SCOPED_TREC_INTERCEPTOR(__libc_memalign, align, sz);
   return user_memalign(thr, pc, align, sz);
 }
 
-TREC_INTERCEPTOR(void *, calloc, uptr size, uptr n) {
+TREC_INTERCEPTOR(void *, calloc, uptr size, uptr n)
+{
   void *p = 0;
   {
     SCOPED_INTERCEPTOR_RAW(calloc, size, n);
@@ -526,7 +580,8 @@ TREC_INTERCEPTOR(void *, calloc, uptr size, uptr n) {
   return p;
 }
 
-TREC_INTERCEPTOR(void *, realloc, void *p, uptr size) {
+TREC_INTERCEPTOR(void *, realloc, void *p, uptr size)
+{
   if (p)
     invoke_free_hook(p);
   {
@@ -537,7 +592,8 @@ TREC_INTERCEPTOR(void *, realloc, void *p, uptr size) {
   return p;
 }
 
-TREC_INTERCEPTOR(void *, reallocarray, void *p, uptr size, uptr n) {
+TREC_INTERCEPTOR(void *, reallocarray, void *p, uptr size, uptr n)
+{
   if (p)
     invoke_free_hook(p);
   {
@@ -548,7 +604,8 @@ TREC_INTERCEPTOR(void *, reallocarray, void *p, uptr size, uptr n) {
   return p;
 }
 
-TREC_INTERCEPTOR(void, free, void *p) {
+TREC_INTERCEPTOR(void, free, void *p)
+{
   if (p == 0)
     return;
   invoke_free_hook(p);
@@ -558,7 +615,8 @@ TREC_INTERCEPTOR(void, free, void *p) {
             ctx->flags.output_trace && LIKELY(ctx->flags.record_alloc_free));
 }
 
-TREC_INTERCEPTOR(void, cfree, void *p) {
+TREC_INTERCEPTOR(void, cfree, void *p)
+{
   if (p == 0)
     return;
   invoke_free_hook(p);
@@ -566,7 +624,8 @@ TREC_INTERCEPTOR(void, cfree, void *p) {
   user_free(thr, pc, p, true, true);
 }
 
-TREC_INTERCEPTOR(uptr, malloc_usable_size, void *p) {
+TREC_INTERCEPTOR(uptr, malloc_usable_size, void *p)
+{
   SCOPED_INTERCEPTOR_RAW(malloc_usable_size, p);
   if (allocator()->PointerIsMine(p))
     return allocator()->GetActuallyAllocatedSize(p);
@@ -575,7 +634,8 @@ TREC_INTERCEPTOR(uptr, malloc_usable_size, void *p) {
 
 #endif
 
-TREC_INTERCEPTOR(char *, strcpy, char *dst, const char *src) {
+TREC_INTERCEPTOR(char *, strcpy, char *dst, const char *src)
+{
   SCOPED_TREC_INTERCEPTOR(strcpy, dst, src);
   uptr srclen = internal_strlen(src);
   MemoryAccessRange(thr, pc, (uptr)src, srclen + 1, false, {1, 0, 0, 2});
@@ -586,7 +646,8 @@ TREC_INTERCEPTOR(char *, strcpy, char *dst, const char *src) {
   }
 }
 
-TREC_INTERCEPTOR(char *, strncpy, char *dst, char *src, uptr n) {
+TREC_INTERCEPTOR(char *, strncpy, char *dst, char *src, uptr n)
+{
   SCOPED_TREC_INTERCEPTOR(strncpy, dst, src, n);
   uptr srclen = internal_strnlen(src, n);
   MemoryAccessRange(thr, pc, (uptr)src, min(srclen + 1, n), false,
@@ -598,7 +659,8 @@ TREC_INTERCEPTOR(char *, strncpy, char *dst, char *src, uptr n) {
   }
 }
 
-TREC_INTERCEPTOR(char *, strdup, const char *str) {
+TREC_INTERCEPTOR(char *, strdup, const char *str)
+{
   SCOPED_TREC_INTERCEPTOR(strdup, str);
   // strdup will call malloc, so no instrumentation is required here.
   char *dst = REAL(strdup)(str);
@@ -609,7 +671,8 @@ TREC_INTERCEPTOR(char *, strdup, const char *str) {
 }
 
 #if SANITIZER_LINUX
-TREC_INTERCEPTOR(void *, memalign, uptr align, uptr sz) {
+TREC_INTERCEPTOR(void *, memalign, uptr align, uptr sz)
+{
   SCOPED_INTERCEPTOR_RAW(memalign, align, sz);
   return user_memalign(thr, pc, align, sz);
 }
@@ -619,19 +682,22 @@ TREC_INTERCEPTOR(void *, memalign, uptr align, uptr sz) {
 #endif
 
 #if !SANITIZER_APPLE
-TREC_INTERCEPTOR(void *, aligned_alloc, uptr align, uptr sz) {
+TREC_INTERCEPTOR(void *, aligned_alloc, uptr align, uptr sz)
+{
   SCOPED_INTERCEPTOR_RAW(aligned_alloc, align, sz);
   return user_aligned_alloc(thr, pc, align, sz);
 }
 
-TREC_INTERCEPTOR(void *, valloc, uptr sz) {
+TREC_INTERCEPTOR(void *, valloc, uptr sz)
+{
   SCOPED_INTERCEPTOR_RAW(valloc, sz);
   return user_valloc(thr, pc, sz);
 }
 #endif
 
 #if SANITIZER_LINUX
-TREC_INTERCEPTOR(void *, pvalloc, uptr sz) {
+TREC_INTERCEPTOR(void *, pvalloc, uptr sz)
+{
   SCOPED_INTERCEPTOR_RAW(pvalloc, sz);
   return user_pvalloc(thr, pc, sz);
 }
@@ -641,7 +707,8 @@ TREC_INTERCEPTOR(void *, pvalloc, uptr sz) {
 #endif
 
 #if !SANITIZER_APPLE
-TREC_INTERCEPTOR(int, posix_memalign, void **memptr, uptr align, uptr sz) {
+TREC_INTERCEPTOR(int, posix_memalign, void **memptr, uptr align, uptr sz)
+{
   SCOPED_INTERCEPTOR_RAW(posix_memalign, memptr, align, sz);
   return user_posix_memalign(thr, pc, memptr, align, sz);
 }
@@ -664,31 +731,38 @@ TREC_INTERCEPTOR(int, posix_memalign, void **memptr, uptr align, uptr sz) {
   extern "C" rettype INTERFACE_ATTRIBUTE name(__VA_ARGS__)
 #endif
 
-namespace __trec {
-void DestroyThreadState() {
-  ThreadState *thr = cur_thread();
-  Processor *proc = thr->proc();
-  ThreadFinish(thr);
-  ProcUnwire(proc, thr);
-  ProcDestroy(proc);
-  DTLS_Destroy();
-}
-
-void PlatformCleanUpThreadState(ThreadState *thr) {
-  ThreadSignalContext *sctx = thr->signal_ctx;
-  if (sctx) {
-    thr->signal_ctx = 0;
-    UnmapOrDie(sctx, sizeof(*sctx));
+namespace __trec
+{
+  void DestroyThreadState()
+  {
+    ThreadState *thr = cur_thread();
+    Processor *proc = thr->proc();
+    ThreadFinish(thr);
+    ProcUnwire(proc, thr);
+    ProcDestroy(proc);
+    DTLS_Destroy();
   }
-}
-}  // namespace __trec
+
+  void PlatformCleanUpThreadState(ThreadState *thr)
+  {
+    ThreadSignalContext *sctx = thr->signal_ctx;
+    if (sctx)
+    {
+      thr->signal_ctx = 0;
+      UnmapOrDie(sctx, sizeof(*sctx));
+    }
+  }
+} // namespace __trec
 
 #if !SANITIZER_APPLE && !SANITIZER_NETBSD && !SANITIZER_FREEBSD
-static void thread_finalize(void *v) {
+static void thread_finalize(void *v)
+{
   uptr iter = (uptr)v;
-  if (iter > 1) {
+  if (iter > 1)
+  {
     if (pthread_setspecific(interceptor_ctx()->finalize_key,
-                            (void *)(iter - 1))) {
+                            (void *)(iter - 1)))
+    {
       Printf("ThreadSanitizer: failed to set thread key\n");
       Die();
     }
@@ -698,33 +772,41 @@ static void thread_finalize(void *v) {
 }
 #endif
 
-struct ThreadParam {
+struct ThreadParam
+{
   void *(*callback)(void *arg);
   void *param;
   Tid tid;
+  TrecThreadCreateArgs *createdArgs;
   Semaphore created;
   Semaphore started;
 };
 
-extern "C" void *__trec_thread_start_func(void *arg) {
+extern "C" void *__trec_thread_start_func(void *arg)
+{
   ThreadParam *p = (ThreadParam *)arg;
   void *(*callback)(void *arg) = p->callback;
   void *param = p->param;
   {
     ThreadState *thr = cur_thread_init();
-    // Thread-local state is not initialized yet.
-    ScopedIgnoreInterceptors ignore;
+    {
+      // Thread-local state is not initialized yet.
+      ScopedIgnoreInterceptors ignore;
 #if !SANITIZER_APPLE && !SANITIZER_NETBSD && !SANITIZER_FREEBSD
-    if (pthread_setspecific(interceptor_ctx()->finalize_key,
-                            (void *)GetPthreadDestructorIterations())) {
-      Printf("ThreadSanitizer: failed to set thread key\n");
-      Die();
-    }
+      if (pthread_setspecific(interceptor_ctx()->finalize_key,
+                              (void *)GetPthreadDestructorIterations()))
+      {
+        Printf("ThreadSanitizer: failed to set thread key\n");
+        Die();
+      }
 #endif
-    p->created.Wait();
-    Processor *proc = ProcCreate();
-    ProcWire(proc, thr);
-    ThreadStart(thr, p->tid, GetTid(), ThreadType::Regular);
+      p->created.Wait();
+      Processor *proc = ProcCreate();
+      ProcWire(proc, thr);
+      ThreadStart(thr, p->tid, GetTid(), ThreadType::Regular);
+    }
+    FuncParam(thr, 1, {1, 0, 0, 4}, p->createdArgs->arg_val, p->createdArgs->arg_debugID);
+    RecordFuncEntry(thr, 0, 1, p->createdArgs->debugID, p->createdArgs->pc);
     p->started.Post();
   }
   void *res = callback(param);
@@ -736,26 +818,32 @@ extern "C" void *__trec_thread_start_func(void *arg) {
 }
 
 TREC_INTERCEPTOR(int, pthread_create, void *th, void *attr,
-                 void *(*callback)(void *), void *param) {
+                 void *(*callback)(void *), void *param)
+{
   ScopedIgnoreInterceptors ignore;
   SCOPED_INTERCEPTOR_RAW(pthread_create, th, attr, callback, param);
 
   int detached = 0;
-  if (attr) {
-    REAL(pthread_attr_getdetachstate)(attr, &detached);
+  if (attr)
+  {
+    REAL(pthread_attr_getdetachstate)
+    (attr, &detached);
   }
 
   ThreadParam p;
   p.callback = callback;
   p.param = param;
   p.tid = kMainTid;
+  p.createdArgs = thr->tctx->createArgs;
+  p.createdArgs->pc = pc;
 
   int res = -1;
   {
     // Otherwise we see false positives in pthread stack manipulation.
     res = REAL(pthread_create)(th, attr, __trec_thread_start_func, &p);
   }
-  if (res == 0) {
+  if (res == 0)
+  {
     int tid = ThreadCreate(thr, pc, *(uptr *)th, IsStateDetached(detached));
     CHECK_NE(tid, kMainTid);
     // Synchronization on p.tid serves two purposes:
@@ -769,14 +857,19 @@ TREC_INTERCEPTOR(int, pthread_create, void *th, void *attr,
     p.created.Post();
     p.started.Wait();
   }
+  if (thr->tctx->createArgs)
+    internal_free(thr->tctx->createArgs);
+  thr->tctx->createArgs = nullptr;
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_join, void *th, void **ret) {
+TREC_INTERCEPTOR(int, pthread_join, void *th, void **ret)
+{
   SCOPED_INTERCEPTOR_RAW(pthread_join, th, ret);
   int tid = ThreadConsumeTid(thr, pc, (uptr)th);
   int res = BLOCK_REAL(pthread_join)(th, ret);
-  if (res == 0) {
+  if (res == 0)
+  {
     ThreadJoin(thr, pc, tid);
   }
   return res;
@@ -784,17 +877,20 @@ TREC_INTERCEPTOR(int, pthread_join, void *th, void **ret) {
 
 DEFINE_REAL_PTHREAD_FUNCTIONS
 
-TREC_INTERCEPTOR(int, pthread_detach, void *th) {
+TREC_INTERCEPTOR(int, pthread_detach, void *th)
+{
   SCOPED_INTERCEPTOR_RAW(pthread_detach, th);
   int tid = ThreadConsumeTid(thr, pc, (uptr)th);
   int res = REAL(pthread_detach)(th);
-  if (res == 0) {
+  if (res == 0)
+  {
     ThreadDetach(thr, pc, tid);
   }
   return res;
 }
 
-TREC_INTERCEPTOR(void, pthread_exit, void *retval) {
+TREC_INTERCEPTOR(void, pthread_exit, void *retval)
+{
   {
     SCOPED_INTERCEPTOR_RAW(pthread_exit, retval);
 #if !SANITIZER_APPLE && !SANITIZER_ANDROID
@@ -802,11 +898,13 @@ TREC_INTERCEPTOR(void, pthread_exit, void *retval) {
 #endif
   }
   DestroyThreadState();
-  REAL(pthread_exit)(retval);
+  REAL(pthread_exit)
+  (retval);
 }
 
 #if SANITIZER_LINUX
-TREC_INTERCEPTOR(int, pthread_tryjoin_np, void *th, void **ret) {
+TREC_INTERCEPTOR(int, pthread_tryjoin_np, void *th, void **ret)
+{
   SCOPED_INTERCEPTOR_RAW(pthread_tryjoin_np, th, ret);
   int tid = ThreadConsumeTid(thr, pc, (uptr)th);
   int res = REAL(pthread_tryjoin_np)(th, ret);
@@ -818,7 +916,8 @@ TREC_INTERCEPTOR(int, pthread_tryjoin_np, void *th, void **ret) {
 }
 
 TREC_INTERCEPTOR(int, pthread_timedjoin_np, void *th, void **ret,
-                 const struct timespec *abstime) {
+                 const struct timespec *abstime)
+{
   SCOPED_INTERCEPTOR_RAW(pthread_timedjoin_np, th, ret, abstime);
   int tid = ThreadConsumeTid(thr, pc, (uptr)th);
   int res = BLOCK_REAL(pthread_timedjoin_np)(th, ret, abstime);
@@ -830,38 +929,42 @@ TREC_INTERCEPTOR(int, pthread_timedjoin_np, void *th, void **ret,
 }
 #endif
 
-namespace {
+namespace
+{
 
-template <class Fn>
-struct CondMutexUnlockCtx {
-  ScopedInterceptor *si;
-  ThreadState *thr;
-  uptr pc;
-  void *m;
-  void *c;
-  const Fn &fn;
+  template <class Fn>
+  struct CondMutexUnlockCtx
+  {
+    ScopedInterceptor *si;
+    ThreadState *thr;
+    uptr pc;
+    void *m;
+    void *c;
+    const Fn &fn;
 
-  int Cancel() const { return fn(); }
-  void Unlock() const;
-};
+    int Cancel() const { return fn(); }
+    void Unlock() const;
+  };
 
-template <class Fn>
-void CondMutexUnlockCtx<Fn>::Unlock() const {
-  // pthread_cond_wait interceptor has enabled async signal delivery
-  // (see BlockingCall below). Disable async signals since we are running
-  // trec code. Also ScopedInterceptor and BlockingCall destructors won't run
-  // since the thread is cancelled, so we have to manually execute them
-  // (the thread still can run some user code due to pthread_cleanup_push).
-  ThreadSignalContext *ctx = SigCtx(thr);
-  CHECK_EQ(atomic_load(&ctx->in_blocking_func, memory_order_relaxed), 1);
-  atomic_store(&ctx->in_blocking_func, 0, memory_order_relaxed);
-  // Undo BlockingCall ctor effects.
-  thr->ignore_interceptors--;
-  si->~ScopedInterceptor();
-}
-}  // namespace
+  template <class Fn>
+  void CondMutexUnlockCtx<Fn>::Unlock() const
+  {
+    // pthread_cond_wait interceptor has enabled async signal delivery
+    // (see BlockingCall below). Disable async signals since we are running
+    // trec code. Also ScopedInterceptor and BlockingCall destructors won't run
+    // since the thread is cancelled, so we have to manually execute them
+    // (the thread still can run some user code due to pthread_cleanup_push).
+    ThreadSignalContext *ctx = SigCtx(thr);
+    CHECK_EQ(atomic_load(&ctx->in_blocking_func, memory_order_relaxed), 1);
+    atomic_store(&ctx->in_blocking_func, 0, memory_order_relaxed);
+    // Undo BlockingCall ctor effects.
+    thr->ignore_interceptors--;
+    si->~ScopedInterceptor();
+  }
+} // namespace
 
-INTERCEPTOR(int, pthread_cond_init, void *c, void *a) {
+INTERCEPTOR(int, pthread_cond_init, void *c, void *a)
+{
   void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_init, cond, a);
   return REAL(pthread_cond_init)(cond, a);
@@ -869,7 +972,8 @@ INTERCEPTOR(int, pthread_cond_init, void *c, void *a) {
 
 template <class Fn>
 int cond_wait(ThreadState *thr, uptr pc, ScopedInterceptor *si, const Fn &fn,
-              void *c, void *m) {
+              void *c, void *m)
+{
   MutexUnlock(thr, pc, (uptr)m, {1, 0, 0, 2});
   CondWait(thr, pc, (uptr)c, {1, 0, 0, 1});
   int res = 0;
@@ -880,10 +984,12 @@ int cond_wait(ThreadState *thr, uptr pc, ScopedInterceptor *si, const Fn &fn,
     BlockingCall bc(thr);
     CondMutexUnlockCtx<Fn> arg = {si, thr, pc, m, c, fn};
     res = call_pthread_cancel_with_cleanup(
-        [](void *arg) -> int {
+        [](void *arg) -> int
+        {
           return ((const CondMutexUnlockCtx<Fn> *)arg)->Cancel();
         },
-        [](void *arg) { ((const CondMutexUnlockCtx<Fn> *)arg)->Unlock(); },
+        [](void *arg)
+        { ((const CondMutexUnlockCtx<Fn> *)arg)->Unlock(); },
         &arg);
   }
   if (res == errno_EOWNERDEAD)
@@ -892,31 +998,39 @@ int cond_wait(ThreadState *thr, uptr pc, ScopedInterceptor *si, const Fn &fn,
   return res;
 }
 
-INTERCEPTOR(int, pthread_cond_wait, void *c, void *m) {
+INTERCEPTOR(int, pthread_cond_wait, void *c, void *m)
+{
   void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_wait, cond, m);
   return cond_wait(
-      thr, pc, &si, [=]() { return REAL(pthread_cond_wait)(cond, m); }, cond,
+      thr, pc, &si, [=]()
+      { return REAL(pthread_cond_wait)(cond, m); },
+      cond,
       m);
 }
 
-INTERCEPTOR(int, pthread_cond_timedwait, void *c, void *m, void *abstime) {
+INTERCEPTOR(int, pthread_cond_timedwait, void *c, void *m, void *abstime)
+{
   void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_timedwait, cond, m, abstime);
   return cond_wait(
       thr, pc, &si,
-      [=]() { return REAL(pthread_cond_timedwait)(cond, m, abstime); }, cond,
+      [=]()
+      { return REAL(pthread_cond_timedwait)(cond, m, abstime); },
+      cond,
       m);
 }
 
 #if SANITIZER_LINUX
 INTERCEPTOR(int, pthread_cond_clockwait, void *c, void *m,
-            __sanitizer_clockid_t clock, void *abstime) {
+            __sanitizer_clockid_t clock, void *abstime)
+{
   void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_clockwait, cond, m, clock, abstime);
   return cond_wait(
       thr, pc, &si,
-      [=]() { return REAL(pthread_cond_clockwait)(cond, m, clock, abstime); },
+      [=]()
+      { return REAL(pthread_cond_clockwait)(cond, m, clock, abstime); },
       cond, m);
 }
 #define TREC_MAYBE_PTHREAD_COND_CLOCKWAIT TREC_INTERCEPT(pthread_cond_clockwait)
@@ -926,33 +1040,38 @@ INTERCEPTOR(int, pthread_cond_clockwait, void *c, void *m,
 
 #if SANITIZER_APPLE
 INTERCEPTOR(int, pthread_cond_timedwait_relative_np, void *c, void *m,
-            void *reltime) {
+            void *reltime)
+{
   void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_timedwait_relative_np, cond, m, reltime);
   return cond_wait(
       thr, pc, &si,
-      [=]() {
+      [=]()
+      {
         return REAL(pthread_cond_timedwait_relative_np)(cond, m, reltime);
       },
       cond, m);
 }
 #endif
 
-INTERCEPTOR(int, pthread_cond_signal, void *c) {
+INTERCEPTOR(int, pthread_cond_signal, void *c)
+{
   void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_signal, cond);
   CondSignal(thr, pc, (uptr)c, false, {1, 0, 0, 1});
   return REAL(pthread_cond_signal)(cond);
 }
 
-INTERCEPTOR(int, pthread_cond_broadcast, void *c) {
+INTERCEPTOR(int, pthread_cond_broadcast, void *c)
+{
   void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_broadcast, cond);
   CondSignal(thr, pc, (uptr)c, true, {1, 0, 0, 1});
   return REAL(pthread_cond_broadcast)(cond);
 }
 
-INTERCEPTOR(int, pthread_cond_destroy, void *c) {
+INTERCEPTOR(int, pthread_cond_destroy, void *c)
+{
   ScopedIgnoreInterceptors ignore;
   void *cond = c;
   SCOPED_TREC_INTERCEPTOR(pthread_cond_destroy, cond);
@@ -960,27 +1079,32 @@ INTERCEPTOR(int, pthread_cond_destroy, void *c) {
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_mutex_init, void *m, void *a) {
+TREC_INTERCEPTOR(int, pthread_mutex_init, void *m, void *a)
+{
   ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_mutex_init, m, a);
   int res = REAL(pthread_mutex_init)(m, a);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexCreate(thr, pc, (uptr)m);
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_mutex_destroy, void *m) {
+TREC_INTERCEPTOR(int, pthread_mutex_destroy, void *m)
+{
   ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_mutex_destroy, m);
   int res = REAL(pthread_mutex_destroy)(m);
-  if (res == 0 || res == errno_EBUSY) {
+  if (res == 0 || res == errno_EBUSY)
+  {
     MutexDestroy(thr, pc, (uptr)m);
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_mutex_lock, void *m) {
+TREC_INTERCEPTOR(int, pthread_mutex_lock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_mutex_lock, m);
   MutexPreLock(thr, pc, (uptr)m);
   int res = REAL(pthread_mutex_lock)(m);
@@ -993,7 +1117,8 @@ TREC_INTERCEPTOR(int, pthread_mutex_lock, void *m) {
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_mutex_trylock, void *m) {
+TREC_INTERCEPTOR(int, pthread_mutex_trylock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_mutex_trylock, m);
   int res = REAL(pthread_mutex_trylock)(m);
   if (res == errno_EOWNERDEAD)
@@ -1004,17 +1129,20 @@ TREC_INTERCEPTOR(int, pthread_mutex_trylock, void *m) {
 }
 
 #if !SANITIZER_APPLE
-TREC_INTERCEPTOR(int, pthread_mutex_timedlock, void *m, void *abstime) {
+TREC_INTERCEPTOR(int, pthread_mutex_timedlock, void *m, void *abstime)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_mutex_timedlock, m, abstime);
   int res = REAL(pthread_mutex_timedlock)(m, abstime);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexPostLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 #endif
 
-TREC_INTERCEPTOR(int, pthread_mutex_unlock, void *m) {
+TREC_INTERCEPTOR(int, pthread_mutex_unlock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_mutex_unlock, m);
   MutexUnlock(thr, pc, (uptr)m, {1, 0, 0, 1});
   int res = REAL(pthread_mutex_unlock)(m);
@@ -1024,46 +1152,55 @@ TREC_INTERCEPTOR(int, pthread_mutex_unlock, void *m) {
 }
 
 #if !SANITIZER_APPLE
-TREC_INTERCEPTOR(int, pthread_spin_init, void *m, int pshared) {
+TREC_INTERCEPTOR(int, pthread_spin_init, void *m, int pshared)
+{
   ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_spin_init, m, pshared);
   int res = REAL(pthread_spin_init)(m, pshared);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexCreate(thr, pc, (uptr)m);
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_spin_destroy, void *m) {
+TREC_INTERCEPTOR(int, pthread_spin_destroy, void *m)
+{
   ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_spin_destroy, m);
   int res = REAL(pthread_spin_destroy)(m);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexDestroy(thr, pc, (uptr)m);
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_spin_lock, void *m) {
+TREC_INTERCEPTOR(int, pthread_spin_lock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_spin_lock, m);
   MutexPreLock(thr, pc, (uptr)m);
   int res = REAL(pthread_spin_lock)(m);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexPostLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_spin_trylock, void *m) {
+TREC_INTERCEPTOR(int, pthread_spin_trylock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_spin_trylock, m);
   int res = REAL(pthread_spin_trylock)(m);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexPostLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_spin_unlock, void *m) {
+TREC_INTERCEPTOR(int, pthread_spin_unlock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_spin_unlock, m);
   MutexUnlock(thr, pc, (uptr)m, {1, 0, 0, 1});
   int res = REAL(pthread_spin_unlock)(m);
@@ -1071,133 +1208,161 @@ TREC_INTERCEPTOR(int, pthread_spin_unlock, void *m) {
 }
 #endif
 
-TREC_INTERCEPTOR(int, pthread_rwlock_init, void *m, void *a) {
+TREC_INTERCEPTOR(int, pthread_rwlock_init, void *m, void *a)
+{
   ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_init, m, a);
   int res = REAL(pthread_rwlock_init)(m, a);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexCreate(thr, pc, (uptr)m);
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_rwlock_destroy, void *m) {
+TREC_INTERCEPTOR(int, pthread_rwlock_destroy, void *m)
+{
   ScopedIgnoreInterceptors ignore;
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_destroy, m);
   int res = REAL(pthread_rwlock_destroy)(m);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexDestroy(thr, pc, (uptr)m);
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_rwlock_rdlock, void *m) {
+TREC_INTERCEPTOR(int, pthread_rwlock_rdlock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_rdlock, m);
   MutexPreReadLock(thr, pc, (uptr)m);
   int res = REAL(pthread_rwlock_rdlock)(m);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexPostReadLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_rwlock_tryrdlock, void *m) {
+TREC_INTERCEPTOR(int, pthread_rwlock_tryrdlock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_tryrdlock, m);
   int res = REAL(pthread_rwlock_tryrdlock)(m);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexPostReadLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 
 #if !SANITIZER_APPLE
-TREC_INTERCEPTOR(int, pthread_rwlock_timedrdlock, void *m, void *abstime) {
+TREC_INTERCEPTOR(int, pthread_rwlock_timedrdlock, void *m, void *abstime)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_timedrdlock, m, abstime);
   int res = REAL(pthread_rwlock_timedrdlock)(m, abstime);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexPostReadLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 #endif
 
-TREC_INTERCEPTOR(int, pthread_rwlock_wrlock, void *m) {
+TREC_INTERCEPTOR(int, pthread_rwlock_wrlock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_wrlock, m);
   MutexPreLock(thr, pc, (uptr)m);
   int res = REAL(pthread_rwlock_wrlock)(m);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexPostWriteLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_rwlock_trywrlock, void *m) {
+TREC_INTERCEPTOR(int, pthread_rwlock_trywrlock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_trywrlock, m);
   int res = REAL(pthread_rwlock_trywrlock)(m);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexPostWriteLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 
 #if !SANITIZER_APPLE
-TREC_INTERCEPTOR(int, pthread_rwlock_timedwrlock, void *m, void *abstime) {
+TREC_INTERCEPTOR(int, pthread_rwlock_timedwrlock, void *m, void *abstime)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_timedwrlock, m, abstime);
   int res = REAL(pthread_rwlock_timedwrlock)(m, abstime);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexPostWriteLock(thr, pc, (uptr)m, {1, 0, 0, 1});
   }
   return res;
 }
 #endif
 
-TREC_INTERCEPTOR(int, pthread_rwlock_unlock, void *m) {
+TREC_INTERCEPTOR(int, pthread_rwlock_unlock, void *m)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_rwlock_unlock, m);
   bool is_write;
   {
     ScopedIgnoreInterceptors ignore;
     int ret = REAL(pthread_rwlock_tryrdlock)(m);
-    if (ret == 0) {
+    if (ret == 0)
+    {
       // reader lock
       is_write = false;
-      REAL(pthread_rwlock_unlock)(m);
-    } else if (ret == errno_EBUSY) {
+      REAL(pthread_rwlock_unlock)
+      (m);
+    }
+    else if (ret == errno_EBUSY)
+    {
       // writer lock
       is_write = true;
-    } else {
+    }
+    else
+    {
       Report("cannot detect lock type in pthread_rwlock_unlock: errno %d\n",
              ret);
       Die();
     }
   }
   int res = REAL(pthread_rwlock_unlock)(m);
-  if (res == 0) {
+  if (res == 0)
+  {
     MutexReadOrWriteUnlock(thr, pc, (uptr)m, is_write, {1, 0, 0, 1});
   }
   return res;
 }
 
 #if !SANITIZER_APPLE
-TREC_INTERCEPTOR(int, pthread_barrier_init, void *b, void *a, unsigned count) {
+TREC_INTERCEPTOR(int, pthread_barrier_init, void *b, void *a, unsigned count)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_barrier_init, b, a, count);
   int res = REAL(pthread_barrier_init)(b, a, count);
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_barrier_destroy, void *b) {
+TREC_INTERCEPTOR(int, pthread_barrier_destroy, void *b)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_barrier_destroy, b);
   int res = REAL(pthread_barrier_destroy)(b);
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_barrier_wait, void *b) {
+TREC_INTERCEPTOR(int, pthread_barrier_wait, void *b)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_barrier_wait, b);
   int res = REAL(pthread_barrier_wait)(b);
   return res;
 }
 #endif
 
-TREC_INTERCEPTOR(int, pthread_once, void *o, void (*f)()) {
+TREC_INTERCEPTOR(int, pthread_once, void *o, void (*f)())
+{
   SCOPED_INTERCEPTOR_RAW(pthread_once, o, f);
   if (o == 0 || f == 0)
     return errno_EINVAL;
@@ -1211,11 +1376,15 @@ TREC_INTERCEPTOR(int, pthread_once, void *o, void (*f)()) {
 
   u32 v = atomic_load(a, memory_order_acquire);
   if (v == 0 &&
-      atomic_compare_exchange_strong(a, &v, 1, memory_order_relaxed)) {
+      atomic_compare_exchange_strong(a, &v, 1, memory_order_relaxed))
+  {
     (*f)();
     atomic_store(a, 2, memory_order_release);
-  } else {
-    while (v != 2) {
+  }
+  else
+  {
+    while (v != 2)
+    {
       internal_sched_yield();
       v = atomic_load(a, memory_order_acquire);
     }
@@ -1223,86 +1392,100 @@ TREC_INTERCEPTOR(int, pthread_once, void *o, void (*f)()) {
   return 0;
 }
 
-TREC_INTERCEPTOR(void, abort, int fake) {
+TREC_INTERCEPTOR(void, abort, int fake)
+{
   SCOPED_TREC_INTERCEPTOR(abort, fake);
   FlushStreams();
-  REAL(abort)(fake);
+  TrecFlushTraceOnDead();
+  REAL(abort)
+  (fake);
 }
 
 // The following functions are intercepted merely to process pending signals.
 // If program blocks signal X, we must deliver the signal before the function
 // returns. Similarly, if program unblocks a signal (or returns from sigsuspend)
 // it's better to deliver the signal straight away.
-TREC_INTERCEPTOR(int, sigsuspend, const __sanitizer_sigset_t *mask) {
+TREC_INTERCEPTOR(int, sigsuspend, const __sanitizer_sigset_t *mask)
+{
   SCOPED_TREC_INTERCEPTOR(sigsuspend, mask);
   return REAL(sigsuspend)(mask);
 }
 
-TREC_INTERCEPTOR(int, sigblock, int mask) {
+TREC_INTERCEPTOR(int, sigblock, int mask)
+{
   SCOPED_TREC_INTERCEPTOR(sigblock, mask);
   return REAL(sigblock)(mask);
 }
 
-TREC_INTERCEPTOR(int, sigsetmask, int mask) {
+TREC_INTERCEPTOR(int, sigsetmask, int mask)
+{
   SCOPED_TREC_INTERCEPTOR(sigsetmask, mask);
   return REAL(sigsetmask)(mask);
 }
 
 TREC_INTERCEPTOR(int, pthread_sigmask, int how, const __sanitizer_sigset_t *set,
-                 __sanitizer_sigset_t *oldset) {
+                 __sanitizer_sigset_t *oldset)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_sigmask, how, set, oldset);
   return REAL(pthread_sigmask)(how, set, oldset);
 }
 
-namespace __trec {
+namespace __trec
+{
 
-static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
-                                  bool sigact, int sig,
-                                  __sanitizer_siginfo *info, void *uctx) {
-  __sanitizer_sigaction *sigactions = interceptor_ctx()->sigactions;
-  // Ensure that the handler does not spoil errno.
-  const int saved_errno = errno;
-  errno = 99;
-  // This code races with sigaction. Be careful to not read sa_sigaction twice.
-  // Also need to remember pc for reporting before the call,
-  // because the handler can reset it.
-  volatile uptr pc =
-      sigact ? (uptr)sigactions[sig].sigaction : (uptr)sigactions[sig].handler;
-  if (pc != sig_dfl && pc != sig_ign) {
-    if (sigact)
-      ((__sanitizer_sigactionhandler_ptr)pc)(sig, info, uctx);
-    else
-      ((__sanitizer_sighandler_ptr)pc)(sig);
-  }
-  errno = saved_errno;
-}
-
-void ProcessPendingSignals(ThreadState *thr) {
-  ThreadSignalContext *sctx = SigCtx(thr);
-  if (sctx == 0 ||
-      atomic_load(&sctx->have_pending_signals, memory_order_relaxed) == 0)
-    return;
-  atomic_store(&sctx->have_pending_signals, 0, memory_order_relaxed);
-  atomic_fetch_add(&thr->in_signal_handler, 1, memory_order_relaxed);
-  internal_sigfillset(&sctx->emptyset);
-  int res = REAL(pthread_sigmask)(SIG_SETMASK, &sctx->emptyset, &sctx->oldset);
-  CHECK_EQ(res, 0);
-  for (int sig = 0; sig < kSigCount; sig++) {
-    SignalDesc *signal = &sctx->pending_signals[sig];
-    if (signal->armed) {
-      signal->armed = false;
-      CallUserSignalHandler(thr, false, true, signal->sigaction, sig,
-                            &signal->siginfo, &signal->ctx);
+  static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
+                                    bool sigact, int sig,
+                                    __sanitizer_siginfo *info, void *uctx)
+  {
+    __sanitizer_sigaction *sigactions = interceptor_ctx()->sigactions;
+    // Ensure that the handler does not spoil errno.
+    const int saved_errno = errno;
+    errno = 99;
+    // This code races with sigaction. Be careful to not read sa_sigaction twice.
+    // Also need to remember pc for reporting before the call,
+    // because the handler can reset it.
+    volatile uptr pc =
+        sigact ? (uptr)sigactions[sig].sigaction : (uptr)sigactions[sig].handler;
+    if (pc != sig_dfl && pc != sig_ign)
+    {
+      if (sigact)
+        ((__sanitizer_sigactionhandler_ptr)pc)(sig, info, uctx);
+      else
+        ((__sanitizer_sighandler_ptr)pc)(sig);
     }
+    errno = saved_errno;
   }
-  res = REAL(pthread_sigmask)(SIG_SETMASK, &sctx->oldset, 0);
-  CHECK_EQ(res, 0);
-  atomic_fetch_add(&thr->in_signal_handler, -1, memory_order_relaxed);
-}
 
-}  // namespace __trec
+  void ProcessPendingSignals(ThreadState *thr)
+  {
+    ThreadSignalContext *sctx = SigCtx(thr);
+    if (sctx == 0 ||
+        atomic_load(&sctx->have_pending_signals, memory_order_relaxed) == 0)
+      return;
+    atomic_store(&sctx->have_pending_signals, 0, memory_order_relaxed);
+    atomic_fetch_add(&thr->in_signal_handler, 1, memory_order_relaxed);
+    internal_sigfillset(&sctx->emptyset);
+    int res = REAL(pthread_sigmask)(SIG_SETMASK, &sctx->emptyset, &sctx->oldset);
+    CHECK_EQ(res, 0);
+    for (int sig = 0; sig < kSigCount; sig++)
+    {
+      SignalDesc *signal = &sctx->pending_signals[sig];
+      if (signal->armed)
+      {
+        signal->armed = false;
+        CallUserSignalHandler(thr, false, true, signal->sigaction, sig,
+                              &signal->siginfo, &signal->ctx);
+      }
+    }
+    res = REAL(pthread_sigmask)(SIG_SETMASK, &sctx->oldset, 0);
+    CHECK_EQ(res, 0);
+    atomic_fetch_add(&thr->in_signal_handler, -1, memory_order_relaxed);
+  }
 
-static bool is_sync_signal(ThreadSignalContext *sctx, int sig) {
+} // namespace __trec
+
+static bool is_sync_signal(ThreadSignalContext *sctx, int sig)
+{
   return sig == SIGSEGV || sig == SIGBUS || sig == SIGILL || sig == SIGTRAP ||
          sig == SIGABRT || sig == SIGFPE || sig == SIGPIPE || sig == SIGSYS ||
          // If we are sending signal to ourselves, we must process it now.
@@ -1311,11 +1494,13 @@ static bool is_sync_signal(ThreadSignalContext *sctx, int sig) {
 
 void ALWAYS_INLINE rtl_generic_sighandler(bool sigact, int sig,
                                           __sanitizer_siginfo *info,
-                                          void *ctx) {
+                                          void *ctx)
+{
   cur_thread_init();
   ThreadState *thr = cur_thread();
   ThreadSignalContext *sctx = SigCtx(thr);
-  if (sig < 0 || sig >= kSigCount) {
+  if (sig < 0 || sig >= kSigCount)
+  {
     VPrintf(1, "TraceRecorder: ignoring signal %d\n", sig);
     return;
   }
@@ -1325,13 +1510,17 @@ void ALWAYS_INLINE rtl_generic_sighandler(bool sigact, int sig,
       // If we are in blocking function, we can safely process it now
       // (but check if we are in a recursive interceptor,
       // i.e. pthread_join()->munmap()).
-      (sctx && atomic_load(&sctx->in_blocking_func, memory_order_relaxed))) {
+      (sctx && atomic_load(&sctx->in_blocking_func, memory_order_relaxed)))
+  {
     atomic_fetch_add(&thr->in_signal_handler, 1, memory_order_relaxed);
-    if (sctx && atomic_load(&sctx->in_blocking_func, memory_order_relaxed)) {
+    if (sctx && atomic_load(&sctx->in_blocking_func, memory_order_relaxed))
+    {
       atomic_store(&sctx->in_blocking_func, 0, memory_order_relaxed);
       CallUserSignalHandler(thr, sync, true, sigact, sig, info, ctx);
       atomic_store(&sctx->in_blocking_func, 1, memory_order_relaxed);
-    } else {
+    }
+    else
+    {
       // Be very conservative with when we do acquire in this case.
       // It's unsafe to do acquire in async handlers, because ThreadState
       // can be in inconsistent state.
@@ -1347,7 +1536,8 @@ void ALWAYS_INLINE rtl_generic_sighandler(bool sigact, int sig,
   if (sctx == 0)
     return;
   SignalDesc *signal = &sctx->pending_signals[sig];
-  if (signal->armed == false) {
+  if (signal->armed == false)
+  {
     signal->armed = true;
     signal->sigaction = sigact;
     if (info)
@@ -1358,15 +1548,18 @@ void ALWAYS_INLINE rtl_generic_sighandler(bool sigact, int sig,
   }
 }
 
-static void rtl_sighandler(int sig) {
+static void rtl_sighandler(int sig)
+{
   rtl_generic_sighandler(false, sig, 0, 0);
 }
 
-static void rtl_sigaction(int sig, __sanitizer_siginfo *info, void *ctx) {
+static void rtl_sigaction(int sig, __sanitizer_siginfo *info, void *ctx)
+{
   rtl_generic_sighandler(true, sig, info, ctx);
 }
 
-TREC_INTERCEPTOR(int, raise, int sig) {
+TREC_INTERCEPTOR(int, raise, int sig)
+{
   SCOPED_TREC_INTERCEPTOR(raise, sig);
   ThreadSignalContext *sctx = SigCtx(thr);
   CHECK_NE(sctx, 0);
@@ -1378,46 +1571,54 @@ TREC_INTERCEPTOR(int, raise, int sig) {
   return res;
 }
 
-TREC_INTERCEPTOR(int, kill, int pid, int sig) {
+TREC_INTERCEPTOR(int, kill, int pid, int sig)
+{
   SCOPED_TREC_INTERCEPTOR(kill, pid, sig);
   ThreadSignalContext *sctx = SigCtx(thr);
   CHECK_NE(sctx, 0);
   int prev = sctx->int_signal_send;
-  if (pid == (int)internal_getpid()) {
+  if (pid == (int)internal_getpid())
+  {
     sctx->int_signal_send = sig;
   }
   int res = REAL(kill)(pid, sig);
-  if (pid == (int)internal_getpid()) {
+  if (pid == (int)internal_getpid())
+  {
     CHECK_EQ(sctx->int_signal_send, sig);
     sctx->int_signal_send = prev;
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, pthread_kill, void *tid, int sig) {
+TREC_INTERCEPTOR(int, pthread_kill, void *tid, int sig)
+{
   SCOPED_TREC_INTERCEPTOR(pthread_kill, tid, sig);
   ThreadSignalContext *sctx = SigCtx(thr);
   CHECK_NE(sctx, 0);
   int prev = sctx->int_signal_send;
-  if (tid == pthread_self()) {
+  if (tid == pthread_self())
+  {
     sctx->int_signal_send = sig;
   }
   int res = REAL(pthread_kill)(tid, sig);
-  if (tid == pthread_self()) {
+  if (tid == pthread_self())
+  {
     CHECK_EQ(sctx->int_signal_send, sig);
     sctx->int_signal_send = prev;
   }
   return res;
 }
 
-TREC_INTERCEPTOR(int, gettimeofday, void *tv, void *tz) {
+TREC_INTERCEPTOR(int, gettimeofday, void *tv, void *tz)
+{
   SCOPED_TREC_INTERCEPTOR(gettimeofday, tv, tz);
   // It's intercepted merely to process pending signals.
   return REAL(gettimeofday)(tv, tz);
 }
 
 TREC_INTERCEPTOR(int, getaddrinfo, void *node, void *service, void *hints,
-                 void *rv) {
+                 void *rv)
+{
   SCOPED_TREC_INTERCEPTOR(getaddrinfo, node, service, hints, rv);
   // We miss atomic synchronization in getaddrinfo,
   // and can report false race between malloc and free
@@ -1426,7 +1627,8 @@ TREC_INTERCEPTOR(int, getaddrinfo, void *node, void *service, void *hints,
   return res;
 }
 
-TREC_INTERCEPTOR(int, fork, int fake) {
+TREC_INTERCEPTOR(int, fork, int fake)
+{
   SCOPED_INTERCEPTOR_RAW(fork, fake);
   ForkBefore(thr, pc);
   int pid;
@@ -1437,20 +1639,26 @@ TREC_INTERCEPTOR(int, fork, int fake) {
     pid = REAL(fork)(fake);
   }
 
-  if (pid == 0) {
+  if (pid == 0)
+  {
     // child
     ForkChildAfter(thr, pc);
-  } else if (pid > 0) {
+  }
+  else if (pid > 0)
+  {
     // parent
     ForkParentAfter(thr, pc);
-  } else {
+  }
+  else
+  {
     // error
     ForkParentAfter(thr, pc);
   }
   return pid;
 }
 
-TREC_INTERCEPTOR(int, vfork, int fake) {
+TREC_INTERCEPTOR(int, vfork, int fake)
+{
   // Some programs (e.g. openjdk) call close for all file descriptors
   // in the child process. Under trec it leads to false positives, because
   // address space is shared, so the parent process also thinks that
@@ -1467,13 +1675,15 @@ TREC_INTERCEPTOR(int, vfork, int fake) {
   return WRAP(fork)(fake);
 }
 
-struct TrecInterceptorContext {
+struct TrecInterceptorContext
+{
   ThreadState *thr;
   const uptr pc;
 };
 
 #if !SANITIZER_APPLE
-static void HandleRecvmsg(ThreadState *thr, uptr pc, __sanitizer_msghdr *msg) {
+static void HandleRecvmsg(ThreadState *thr, uptr pc, __sanitizer_msghdr *msg)
+{
   int fds[64];
   int cnt = ExtractRecvmsgFDs(msg, fds, ARRAY_SIZE(fds));
 }
@@ -1518,16 +1728,20 @@ static void HandleRecvmsg(ThreadState *thr, uptr pc, __sanitizer_msghdr *msg) {
   (void)ctx;
 
 #define COMMON_INTERCEPTOR_FD_ACQUIRE(ctx, fd) \
-  {}
+  {                                            \
+  }
 
 #define COMMON_INTERCEPTOR_FD_RELEASE(ctx, fd) \
-  {}
+  {                                            \
+  }
 
 #define COMMON_INTERCEPTOR_FD_ACCESS(ctx, fd) \
-  {}
+  {                                           \
+  }
 
 #define COMMON_INTERCEPTOR_FD_SOCKET_ACCEPT(ctx, fd, newfd) \
-  {}
+  {                                                         \
+  }
 
 #define COMMON_INTERCEPTOR_SET_THREAD_NAME(ctx, name) \
   ThreadSetName(((TrecInterceptorContext *)ctx)->thr, name)
@@ -1548,10 +1762,13 @@ static void HandleRecvmsg(ThreadState *thr, uptr pc, __sanitizer_msghdr *msg) {
 #endif
 
 #define COMMON_INTERCEPTOR_GET_TLS_RANGE(begin, end) \
-  if (TrecThread *t = GetCurrentThread()) {          \
+  if (TrecThread *t = GetCurrentThread())            \
+  {                                                  \
     *begin = t->tls_begin();                         \
     *end = t->tls_end();                             \
-  } else {                                           \
+  }                                                  \
+  else                                               \
+  {                                                  \
     *begin = *end = 0;                               \
   }
 
@@ -1578,7 +1795,8 @@ static void HandleRecvmsg(ThreadState *thr, uptr pc, __sanitizer_msghdr *msg) {
 
 #define COMMON_INTERCEPTOR_MEMCPY_IMPL(ctx, dst, src, size)           \
   {                                                                   \
-    if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED) {                  \
+    if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED)                    \
+    {                                                                 \
       return internal_memmove(dst, src, size);                        \
     }                                                                 \
     COMMON_INTERCEPTOR_ENTER(ctx, memcpy, dst, src, size);            \
@@ -1622,17 +1840,22 @@ static __sanitizer_sighandler_ptr signal_impl(int sig,
                                               __sanitizer_sighandler_ptr h);
 
 #define SIGNAL_INTERCEPTOR_SIGACTION_IMPL(signo, act, oldact) \
-  { return sigaction_impl(signo, act, oldact); }
+  {                                                           \
+    return sigaction_impl(signo, act, oldact);                \
+  }
 
-#define SIGNAL_INTERCEPTOR_SIGNAL_IMPL(func, signo, handler) \
-  { return (uptr)signal_impl(signo, (__sanitizer_sighandler_ptr)handler); }
+#define SIGNAL_INTERCEPTOR_SIGNAL_IMPL(func, signo, handler)              \
+  {                                                                       \
+    return (uptr)signal_impl(signo, (__sanitizer_sighandler_ptr)handler); \
+  }
 
 #define SIGNAL_INTERCEPTOR_ENTER() LazyInitialize(cur_thread_init())
 
 #include "sanitizer_common/sanitizer_signal_interceptors.inc"
 
 int sigaction_impl(int sig, const __sanitizer_sigaction *act,
-                   __sanitizer_sigaction *old) {
+                   __sanitizer_sigaction *old)
+{
   // Note: if we call REAL(sigaction) directly for any reason without proxying
   // the signal handler through rtl_sigaction, very bad things will happen.
   // The handler will run synchronously and corrupt trec per-thread state.
@@ -1642,7 +1865,8 @@ int sigaction_impl(int sig, const __sanitizer_sigaction *act,
   if (old)
     internal_memcpy(&old_stored, &sigactions[sig], sizeof(old_stored));
   __sanitizer_sigaction newact;
-  if (act) {
+  if (act)
+  {
     // Copy act into sigactions[sig].
     // Can't use struct copy, because compiler can emit call to memcpy.
     // Can't use internal_memcpy, because it copies byte-by-byte,
@@ -1659,7 +1883,8 @@ int sigaction_impl(int sig, const __sanitizer_sigaction *act,
 #endif
     internal_memcpy(&newact, act, sizeof(newact));
     internal_sigfillset(&newact.sa_mask);
-    if ((uptr)act->handler != sig_ign && (uptr)act->handler != sig_dfl) {
+    if ((uptr)act->handler != sig_ign && (uptr)act->handler != sig_dfl)
+    {
       if (newact.sa_flags & SA_SIGINFO)
         newact.sigaction = rtl_sigaction;
       else
@@ -1669,9 +1894,11 @@ int sigaction_impl(int sig, const __sanitizer_sigaction *act,
     act = &newact;
   }
   int res = REAL(sigaction)(sig, act, old);
-  if (res == 0 && old) {
+  if (res == 0 && old)
+  {
     uptr cb = (uptr)old->sigaction;
-    if (cb == (uptr)rtl_sigaction || cb == (uptr)rtl_sighandler) {
+    if (cb == (uptr)rtl_sigaction || cb == (uptr)rtl_sighandler)
+    {
       internal_memcpy(old, &old_stored, sizeof(*old));
     }
   }
@@ -1679,7 +1906,8 @@ int sigaction_impl(int sig, const __sanitizer_sigaction *act,
 }
 
 static __sanitizer_sighandler_ptr signal_impl(int sig,
-                                              __sanitizer_sighandler_ptr h) {
+                                              __sanitizer_sighandler_ptr h)
+{
   __sanitizer_sigaction act;
   act.handler = h;
   internal_memset(&act.sa_mask, -1, sizeof(act.sa_mask));
@@ -1697,7 +1925,8 @@ static __sanitizer_sighandler_ptr signal_impl(int sig,
     return;                        \
   ScopedSyscall scoped_syscall(thr) /**/
 
-struct ScopedSyscall {
+struct ScopedSyscall
+{
   ThreadState *thr;
 
   explicit ScopedSyscall(ThreadState *thr) : thr(thr) { Initialize(thr); }
@@ -1706,34 +1935,44 @@ struct ScopedSyscall {
 };
 
 #if !SANITIZER_FREEBSD && !SANITIZER_APPLE
-static void syscall_access_range(uptr pc, uptr p, uptr s, bool write) {
+static void syscall_access_range(uptr pc, uptr p, uptr s, bool write)
+{
   TREC_SYSCALL();
 }
 
-static USED void syscall_acquire(uptr pc, uptr addr) {
+static USED void syscall_acquire(uptr pc, uptr addr)
+{
   TREC_SYSCALL();
   DPrintf("syscall_acquire(%p)\n", addr);
 }
 
-static USED void syscall_release(uptr pc, uptr addr) {
+static USED void syscall_release(uptr pc, uptr addr)
+{
   TREC_SYSCALL();
   DPrintf("syscall_release(%p)\n", addr);
 }
 
-static void syscall_pre_fork(uptr pc) {
+static void syscall_pre_fork(uptr pc)
+{
   TREC_SYSCALL();
   ForkBefore(thr, pc);
 }
 
-static void syscall_post_fork(uptr pc, int pid) {
+static void syscall_post_fork(uptr pc, int pid)
+{
   TREC_SYSCALL();
-  if (pid == 0) {
+  if (pid == 0)
+  {
     // child
     ForkChildAfter(thr, pc);
-  } else if (pid > 0) {
+  }
+  else if (pid > 0)
+  {
     // parent
     ForkParentAfter(thr, pc);
-  } else {
+  }
+  else
+  {
     // error
     ForkParentAfter(thr, pc);
   }
@@ -1749,13 +1988,15 @@ static void syscall_post_fork(uptr pc, int pid) {
                        ##__VA_ARGS__)
 
 #define COMMON_SYSCALL_POST_READ_RANGE(p, s) \
-  do {                                       \
+  do                                         \
+  {                                          \
     (void)(p);                               \
     (void)(s);                               \
   } while (false)
 
 #define COMMON_SYSCALL_POST_WRITE_RANGE(p, s) \
-  do {                                        \
+  do                                          \
+  {                                           \
     (void)(p);                                \
     (void)(s);                                \
   } while (false)
@@ -1774,10 +2015,12 @@ static void syscall_post_fork(uptr pc, int pid) {
 #include "sanitizer_common/sanitizer_syscalls_netbsd.inc"
 
 #if SANITIZER_NETBSD
-TREC_INTERCEPTOR(void, _lwp_exit) {
+TREC_INTERCEPTOR(void, _lwp_exit)
+{
   SCOPED_TREC_INTERCEPTOR(_lwp_exit);
   DestroyThreadState();
-  REAL(_lwp_exit)();
+  REAL(_lwp_exit)
+  ();
 }
 #define TREC_MAYBE_INTERCEPT__LWP_EXIT TREC_INTERCEPT(_lwp_exit)
 #else
@@ -1785,7 +2028,8 @@ TREC_INTERCEPTOR(void, _lwp_exit) {
 #endif
 
 #if SANITIZER_FREEBSD
-TREC_INTERCEPTOR(void, thr_exit, tid_t *state) {
+TREC_INTERCEPTOR(void, thr_exit, tid_t *state)
+{
   SCOPED_TREC_INTERCEPTOR(thr_exit, state);
   DestroyThreadState();
   REAL(thr_exit(state));
@@ -1814,170 +2058,178 @@ TREC_INTERCEPTOR_NETBSD_ALIAS_THR(int, once, void *o, void (*f)())
 TREC_INTERCEPTOR_NETBSD_ALIAS_THR2(int, sigsetmask, sigmask, int a, void *b,
                                    void *c)
 
-namespace __trec {
+namespace __trec
+{
 
-static void finalize(void *arg) {
-  ThreadState *thr = cur_thread();
-  int status = OnExit(thr);
-  if (status)
-    Die();
-}
-
-#if !SANITIZER_APPLE && !SANITIZER_ANDROID
-static void unreachable() {
-  Report("FATAL: TraceRecorder: unreachable called\n");
-  Die();
-}
-#endif
-
-// Define default implementation since interception of libdispatch  is optional.
-SANITIZER_WEAK_ATTRIBUTE void InitializeLibdispatchInterceptors() {}
-
-void InitializeInterceptors() {
-#if !SANITIZER_APPLE
-  // We need to setup it early, because functions like dlsym() can call it.
-  REAL(memset) = internal_memset;
-  REAL(memcpy) = internal_memcpy;
-#endif
-
-  new (interceptor_ctx()) InterceptorContext();
-  InitializeCommonInterceptors();
-  InitializeSignalInterceptors();
-  InitializeLibdispatchInterceptors();
-
-  TREC_INTERCEPT(setjmp_symname);
-  TREC_INTERCEPT(_setjmp);
-  TREC_INTERCEPT(sigsetjmp_symname);
-#if !SANITIZER_NETBSD
-  TREC_INTERCEPT(__sigsetjmp);
-#endif
-  TREC_INTERCEPT(longjmp_symname);
-  TREC_INTERCEPT(siglongjmp_symname);
-#if SANITIZER_NETBSD
-  TREC_INTERCEPT(_longjmp);
-#endif
-
-  TREC_INTERCEPT(malloc);
-  TREC_INTERCEPT(__libc_memalign);
-  TREC_INTERCEPT(calloc);
-  TREC_INTERCEPT(realloc);
-  TREC_INTERCEPT(reallocarray);
-  TREC_INTERCEPT(free);
-  TREC_INTERCEPT(cfree);
-  TREC_MAYBE_INTERCEPT_MEMALIGN;
-  TREC_INTERCEPT(valloc);
-  TREC_MAYBE_INTERCEPT_PVALLOC;
-  TREC_INTERCEPT(posix_memalign);
-
-  TREC_INTERCEPT(strcpy);
-  TREC_INTERCEPT(strncpy);
-  TREC_INTERCEPT(strdup);
-
-  TREC_INTERCEPT(pthread_create);
-  TREC_INTERCEPT(pthread_join);
-  TREC_INTERCEPT(pthread_detach);
-  TREC_INTERCEPT(pthread_exit);
-#if SANITIZER_LINUX
-  TREC_INTERCEPT(pthread_tryjoin_np);
-  TREC_INTERCEPT(pthread_timedjoin_np);
-#endif
-
-  TREC_INTERCEPT(pthread_cond_init);
-  TREC_INTERCEPT(pthread_cond_signal);
-  TREC_INTERCEPT(pthread_cond_broadcast);
-  TREC_INTERCEPT(pthread_cond_wait);
-  TREC_INTERCEPT(pthread_cond_timedwait);
-  TREC_INTERCEPT(pthread_cond_destroy);
-
-  TREC_MAYBE_PTHREAD_COND_CLOCKWAIT;
-
-  TREC_INTERCEPT(pthread_mutex_init);
-  TREC_INTERCEPT(pthread_mutex_destroy);
-  TREC_INTERCEPT(pthread_mutex_lock);
-  TREC_INTERCEPT(pthread_mutex_trylock);
-  TREC_INTERCEPT(pthread_mutex_timedlock);
-  TREC_INTERCEPT(pthread_mutex_unlock);
-
-  TREC_INTERCEPT(pthread_spin_init);
-  TREC_INTERCEPT(pthread_spin_destroy);
-  TREC_INTERCEPT(pthread_spin_lock);
-  TREC_INTERCEPT(pthread_spin_trylock);
-  TREC_INTERCEPT(pthread_spin_unlock);
-
-  TREC_INTERCEPT(pthread_rwlock_init);
-  TREC_INTERCEPT(pthread_rwlock_destroy);
-  TREC_INTERCEPT(pthread_rwlock_rdlock);
-  TREC_INTERCEPT(pthread_rwlock_tryrdlock);
-  TREC_INTERCEPT(pthread_rwlock_timedrdlock);
-  TREC_INTERCEPT(pthread_rwlock_wrlock);
-  TREC_INTERCEPT(pthread_rwlock_trywrlock);
-  TREC_INTERCEPT(pthread_rwlock_timedwrlock);
-  TREC_INTERCEPT(pthread_rwlock_unlock);
-
-  TREC_INTERCEPT(pthread_barrier_init);
-  TREC_INTERCEPT(pthread_barrier_destroy);
-  TREC_INTERCEPT(pthread_barrier_wait);
-
-  TREC_INTERCEPT(pthread_once);
-
-  TREC_INTERCEPT(sigsuspend);
-  TREC_INTERCEPT(sigblock);
-  TREC_INTERCEPT(sigsetmask);
-  TREC_INTERCEPT(pthread_sigmask);
-  TREC_INTERCEPT(raise);
-  TREC_INTERCEPT(kill);
-  TREC_INTERCEPT(pthread_kill);
-  TREC_INTERCEPT(sleep);
-  TREC_INTERCEPT(usleep);
-  TREC_INTERCEPT(nanosleep);
-  TREC_INTERCEPT(pause);
-  TREC_INTERCEPT(gettimeofday);
-  TREC_INTERCEPT(getaddrinfo);
-
-  TREC_INTERCEPT(fork);
-  TREC_INTERCEPT(vfork);
-  TREC_MAYBE_INTERCEPT_ON_EXIT;
-  TREC_INTERCEPT(__cxa_atexit);
-  TREC_INTERCEPT(_exit);
-
-  TREC_MAYBE_INTERCEPT__LWP_EXIT;
-  TREC_MAYBE_INTERCEPT_THR_EXIT;
+  static void finalize(void *arg)
+  {
+    ThreadState *thr = cur_thread();
+    int status = OnExit(thr);
+    if (status)
+      Die();
+  }
 
 #if !SANITIZER_APPLE && !SANITIZER_ANDROID
-  // Need to setup it, because interceptors check that the function is resolved.
-  // But atexit is emitted directly into the module, so can't be resolved.
-  REAL(atexit) = (int (*)(void (*)()))unreachable;
-#endif
-
-  if (REAL(__cxa_atexit)(&finalize, 0, 0)) {
-    Printf("TraceRecorder: failed to setup atexit callback\n");
+  static void unreachable()
+  {
+    Report("FATAL: TraceRecorder: unreachable called\n");
     Die();
   }
+#endif
+
+  // Define default implementation since interception of libdispatch  is optional.
+  SANITIZER_WEAK_ATTRIBUTE void InitializeLibdispatchInterceptors() {}
+
+  void InitializeInterceptors()
+  {
+#if !SANITIZER_APPLE
+    // We need to setup it early, because functions like dlsym() can call it.
+    REAL(memset) = internal_memset;
+    REAL(memcpy) = internal_memcpy;
+#endif
+
+    new (interceptor_ctx()) InterceptorContext();
+    InitializeCommonInterceptors();
+    InitializeSignalInterceptors();
+    InitializeLibdispatchInterceptors();
+
+    TREC_INTERCEPT(setjmp_symname);
+    TREC_INTERCEPT(_setjmp);
+    TREC_INTERCEPT(sigsetjmp_symname);
+#if !SANITIZER_NETBSD
+    TREC_INTERCEPT(__sigsetjmp);
+#endif
+    TREC_INTERCEPT(longjmp_symname);
+    TREC_INTERCEPT(siglongjmp_symname);
+#if SANITIZER_NETBSD
+    TREC_INTERCEPT(_longjmp);
+#endif
+
+    TREC_INTERCEPT(malloc);
+    TREC_INTERCEPT(__libc_memalign);
+    TREC_INTERCEPT(calloc);
+    TREC_INTERCEPT(realloc);
+    TREC_INTERCEPT(reallocarray);
+    TREC_INTERCEPT(free);
+    TREC_INTERCEPT(cfree);
+    TREC_MAYBE_INTERCEPT_MEMALIGN;
+    TREC_INTERCEPT(valloc);
+    TREC_MAYBE_INTERCEPT_PVALLOC;
+    TREC_INTERCEPT(posix_memalign);
+
+    TREC_INTERCEPT(abort);
+
+    TREC_INTERCEPT(strcpy);
+    TREC_INTERCEPT(strncpy);
+    TREC_INTERCEPT(strdup);
+
+    TREC_INTERCEPT(pthread_create);
+    TREC_INTERCEPT(pthread_join);
+    TREC_INTERCEPT(pthread_detach);
+    TREC_INTERCEPT(pthread_exit);
+#if SANITIZER_LINUX
+    TREC_INTERCEPT(pthread_tryjoin_np);
+    TREC_INTERCEPT(pthread_timedjoin_np);
+#endif
+
+    TREC_INTERCEPT(pthread_cond_init);
+    TREC_INTERCEPT(pthread_cond_signal);
+    TREC_INTERCEPT(pthread_cond_broadcast);
+    TREC_INTERCEPT(pthread_cond_wait);
+    TREC_INTERCEPT(pthread_cond_timedwait);
+    TREC_INTERCEPT(pthread_cond_destroy);
+
+    TREC_MAYBE_PTHREAD_COND_CLOCKWAIT;
+
+    TREC_INTERCEPT(pthread_mutex_init);
+    TREC_INTERCEPT(pthread_mutex_destroy);
+    TREC_INTERCEPT(pthread_mutex_lock);
+    TREC_INTERCEPT(pthread_mutex_trylock);
+    TREC_INTERCEPT(pthread_mutex_timedlock);
+    TREC_INTERCEPT(pthread_mutex_unlock);
+
+    TREC_INTERCEPT(pthread_spin_init);
+    TREC_INTERCEPT(pthread_spin_destroy);
+    TREC_INTERCEPT(pthread_spin_lock);
+    TREC_INTERCEPT(pthread_spin_trylock);
+    TREC_INTERCEPT(pthread_spin_unlock);
+
+    TREC_INTERCEPT(pthread_rwlock_init);
+    TREC_INTERCEPT(pthread_rwlock_destroy);
+    TREC_INTERCEPT(pthread_rwlock_rdlock);
+    TREC_INTERCEPT(pthread_rwlock_tryrdlock);
+    TREC_INTERCEPT(pthread_rwlock_timedrdlock);
+    TREC_INTERCEPT(pthread_rwlock_wrlock);
+    TREC_INTERCEPT(pthread_rwlock_trywrlock);
+    TREC_INTERCEPT(pthread_rwlock_timedwrlock);
+    TREC_INTERCEPT(pthread_rwlock_unlock);
+
+    TREC_INTERCEPT(pthread_barrier_init);
+    TREC_INTERCEPT(pthread_barrier_destroy);
+    TREC_INTERCEPT(pthread_barrier_wait);
+
+    TREC_INTERCEPT(pthread_once);
+
+    TREC_INTERCEPT(sigsuspend);
+    TREC_INTERCEPT(sigblock);
+    TREC_INTERCEPT(sigsetmask);
+    TREC_INTERCEPT(pthread_sigmask);
+    TREC_INTERCEPT(raise);
+    TREC_INTERCEPT(kill);
+    TREC_INTERCEPT(pthread_kill);
+    TREC_INTERCEPT(sleep);
+    TREC_INTERCEPT(usleep);
+    TREC_INTERCEPT(nanosleep);
+    TREC_INTERCEPT(pause);
+    TREC_INTERCEPT(gettimeofday);
+    TREC_INTERCEPT(getaddrinfo);
+
+    TREC_INTERCEPT(fork);
+    TREC_INTERCEPT(vfork);
+    TREC_MAYBE_INTERCEPT_ON_EXIT;
+    TREC_INTERCEPT(__cxa_atexit);
+    TREC_INTERCEPT(_exit);
+
+    TREC_MAYBE_INTERCEPT__LWP_EXIT;
+    TREC_MAYBE_INTERCEPT_THR_EXIT;
+
+#if !SANITIZER_APPLE && !SANITIZER_ANDROID
+    // Need to setup it, because interceptors check that the function is resolved.
+    // But atexit is emitted directly into the module, so can't be resolved.
+    REAL(atexit) = (int (*)(void (*)()))unreachable;
+#endif
+
+    if (REAL(__cxa_atexit)(&finalize, 0, 0))
+    {
+      Printf("TraceRecorder: failed to setup atexit callback\n");
+      Die();
+    }
 
 #if !SANITIZER_APPLE && !SANITIZER_NETBSD && !SANITIZER_FREEBSD
-  if (pthread_key_create(&interceptor_ctx()->finalize_key, &thread_finalize)) {
-    Printf("TraceRecorder: failed to create thread key\n");
-    Die();
-  }
+    if (pthread_key_create(&interceptor_ctx()->finalize_key, &thread_finalize))
+    {
+      Printf("TraceRecorder: failed to create thread key\n");
+      Die();
+    }
 #endif
 
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(cond_init);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(cond_signal);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(cond_broadcast);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(cond_wait);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(cond_destroy);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(mutex_init);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(mutex_destroy);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(mutex_trylock);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_init);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_destroy);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_rdlock);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_tryrdlock);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_wrlock);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_trywrlock);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_unlock);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS_THR(once);
-  TREC_MAYBE_INTERCEPT_NETBSD_ALIAS_THR(sigsetmask);
-}
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(cond_init);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(cond_signal);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(cond_broadcast);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(cond_wait);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(cond_destroy);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(mutex_init);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(mutex_destroy);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(mutex_trylock);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_init);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_destroy);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_rdlock);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_tryrdlock);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_wrlock);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_trywrlock);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS(rwlock_unlock);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS_THR(once);
+    TREC_MAYBE_INTERCEPT_NETBSD_ALIAS_THR(sigsetmask);
+  }
 
-}  // namespace __trec
+} // namespace __trec
