@@ -1275,9 +1275,8 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
       int nameB = debuger.getVarID(StoredValue->getName().str().c_str());
       int line = II.Inst->getDebugLoc().getLine();
       int col = II.Inst->getDebugLoc().getCol();
-      int debugID =
+      uint64_t debugID =
           debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
-
       ValSourceInfo VSI_val =
           getSource(StoredValue, II.Inst->getParent()->getParent());
       StoredValue = IRB.CreateBitOrPointerCast(StoredValue, IRB.getInt8PtrTy());
@@ -1304,7 +1303,7 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
       int nameB = debuger.getVarID(LoadedValue->getName().str().c_str());
       int line = II.Inst->getDebugLoc().getLine();
       int col = II.Inst->getDebugLoc().getCol();
-      int debugID =
+      uint64_t debugID =
           debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
       LoadedValue = IRB.CreateBitOrPointerCast(LoadedValue, IRB.getInt8PtrTy());
       auto newInst = IRB.CreateCall(
