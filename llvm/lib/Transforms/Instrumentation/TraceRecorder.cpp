@@ -110,14 +110,16 @@ namespace
     int DBID;
     std::filesystem::path DBDirPath;
     std::map<std::string, uint32_t> KnownFileNames, KnownVarNames;
-    std::string sql;
+    int insertName(const char *table, const char *name,
+                   std::map<std::string, uint32_t> &m);
+    int insertDebugInfo(int nameA, int nameB, int line, int col);
+    int insertFileName(const char *name);
+    int insertVarName(const char *name);
+    int queryMaxID(const char *table);
     int queryFileID(const char *name);
     int queryVarID(const char *name);
     int queryID(const char *table, const char *name);
     int queryDebugInfoID(int nameA, int nameB, int line, int col);
-    void insertName(const char *table, const char *name,
-                    std::map<std::string, uint32_t> &m);
-    void insertDebugInfo(int nameA, int nameB, int line, int col);
 
   public:
     SqliteDebugWriter();
@@ -125,10 +127,10 @@ namespace
     int getFileID(const char *name);
     int getVarID(const char *name);
     int getDebugInfoID(int nameA, int nameB, int line, int col);
-    void insertFileName(const char *name);
-    void insertVarName(const char *name);
-    void commitSQL();
     uint64_t ReformID(int ID);
+    void commitSQL();
+
+    void beginSQL();
   };
 
   /// TraceRecorder: instrument the code in module to record traces.
@@ -167,6 +169,7 @@ namespace
 
   private:
     SmallDenseMap<Value *, unsigned int> VarOrders;
+    std::map<unsigned int, bool> outsideVars;
     unsigned int VarOrderCounter;
     std::set<Instruction *> SeperatedExits;
 
@@ -259,6 +262,9 @@ namespace
         return IRB.getInt64(0);
       }
       bool isNull() { return !isValid; }
+      auto getisDirect() const { return isDirect; }
+      auto getisRealAddr() const { return isRealAddr; }
+      auto getIdx() const { return Idx; }
     };
 
     // return the source of Val
@@ -319,6 +325,61 @@ namespace
     return 0;
   }
 
+  int SqliteDebugWriter::insertName(const char *table, const char *name,
+                                    std::map<std::string, uint32_t> &m)
+  {
+    char buf[4096];
+    snprintf(buf, 2047, "INSERT INTO %s VALUES (NULL, \"%s\");", table, name);
+    char *errmsg;
+    int status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
+    if (status != SQLITE_OK)
+    {
+      printf("query error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+    sqlite3_free(errmsg);
+    return queryMaxID(table);
+  }
+
+  int SqliteDebugWriter::insertDebugInfo(int nameA, int nameB, int line,
+                                         int col)
+  {
+    char buf[4096];
+    snprintf(buf, 2047, "INSERT INTO DEBUGINFO VALUES (NULL, %d, %d, %d, %d);",
+             nameA, nameB, line, col);
+    char *errmsg;
+    int status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
+    if (status != SQLITE_OK)
+    {
+      printf("query error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+    sqlite3_free(errmsg);
+    return queryMaxID("DEBUGINFO");
+  }
+
+  int SqliteDebugWriter::queryMaxID(const char *table)
+  {
+    char *errmsg;
+    char buf[4096];
+    int ID = -1;
+    snprintf(buf, 4095, "select seq from sqlite_sequence where name='%s';",
+             table);
+    int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
+    if (status != SQLITE_OK)
+    {
+      printf("query error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+    sqlite3_free(errmsg);
+    if (ID == -1)
+    {
+      printf("query error: cannot query last inserted ID for table %s\n", table);
+      exit(1);
+    }
+    return ID;
+  }
+
   int SqliteDebugWriter::queryFileID(const char *name)
   {
     return queryID("DEBUGFILENAME", name);
@@ -366,45 +427,32 @@ namespace
     return ID;
   }
 
-  void SqliteDebugWriter::insertName(const char *table, const char *name,
-                                     std::map<std::string, uint32_t> &m)
-  {
-    char buf[4096];
-    int ID = queryID(table, name);
-    if (ID == -1)
-    {
-      snprintf(buf, 2047, "INSERT INTO %s VALUES (NULL, \"%s\");", table, name);
-      sql += std::string(buf);
-    }
-  }
-
-  void SqliteDebugWriter::insertDebugInfo(int nameA, int nameB, int line,
-                                          int col)
-  {
-    char buf[4096];
-    int ID = queryDebugInfoID(nameA, nameB, line, col);
-    if (ID == -1)
-    {
-      snprintf(buf, 2047, "INSERT INTO DEBUGINFO VALUES (NULL, %d, %d, %d, %d);",
-               nameA, nameB, line, col);
-      sql += std::string(buf);
-    }
-  }
-
   void SqliteDebugWriter::commitSQL()
   {
     char *errmsg;
     int status;
-    sql += "END;";
-    while ((status = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &errmsg)) ==
+    while ((status = sqlite3_exec(db, "COMMIT;", nullptr, nullptr, &errmsg)) ==
            SQLITE_BUSY)
-      ;
+      sqlite3_free(errmsg);
+    sqlite3_free(errmsg);
     if (status != SQLITE_OK)
     {
-      printf("insert sql instructions error(%d): %s\n", status, errmsg);
+      printf("commit sqlite error(%d): %s\n", status, errmsg);
       exit(status);
     };
-    sql = "BEGIN;";
+    sqlite3_free(errmsg);
+  }
+
+  void SqliteDebugWriter::beginSQL()
+  {
+    char *errmsg;
+    int status = sqlite3_exec(db, "BEGIN;", nullptr, nullptr, &errmsg);
+    if (status != SQLITE_OK)
+    {
+      printf("begin sqlite error(%d): %s\n", status, errmsg);
+      exit(status);
+    };
+    sqlite3_free(errmsg);
   }
 
   uint64_t SqliteDebugWriter::ReformID(int ID)
@@ -448,9 +496,10 @@ namespace
       exit(status);
     }
 
-    status = sqlite3_exec(
-        db, "CREATE TABLE MANAGER (ID INTEGER PRIMARY KEY, PID INTEGER UNIQUE);",
-        nullptr, nullptr, &errmsg);
+    status = sqlite3_exec(db,
+                          "CREATE TABLE MANAGER (ID INTEGER PRIMARY KEY "
+                          "AUTOINCREMENT, PID INTEGER);",
+                          nullptr, nullptr, &errmsg);
     if (status != SQLITE_OK &&
         !(status == SQLITE_ERROR &&
           strcmp(errmsg, "table MANAGER already exists") == 0))
@@ -479,6 +528,7 @@ namespace
         printf("query manager table error(%d): %s\n", status, errmsg);
         exit(status);
       };
+      sqlite3_free(errmsg);
       if (DBID == -1)
       {
         // no empty entry
@@ -487,12 +537,14 @@ namespace
                  "INSERT INTO MANAGER VALUES (NULL, NULL);");
         while ((status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg)) ==
                SQLITE_BUSY)
-          ;
+          sqlite3_free(errmsg);
+        sqlite3_free(errmsg);
         if (status != SQLITE_OK)
         {
           printf("insert manager table error(%d): %s\n", status, errmsg);
           exit(status);
         };
+        sqlite3_free(errmsg);
       }
     }
     snprintf(buffer, sizeof(buffer), "UPDATE MANAGER SET PID=%d where ID=%d;",
@@ -503,6 +555,7 @@ namespace
       printf("update manager table error(%d): %s\n", status, errmsg);
       exit(status);
     };
+    sqlite3_free(errmsg);
 
     // release flock
     if ((status = flock(database_fd, LOCK_UN)) != 0)
@@ -537,16 +590,16 @@ namespace
     {
       status = sqlite3_exec(db,
                             "CREATE TABLE DEBUGINFO ("
-                            "ID INTEGER PRIMARY KEY,"
+                            "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
                             "NAMEIDA INTEGER NOT NULL,"
                             "NAMEIDB INTEGER NOT NULL,"
                             "LINE SMALLINT NOT NULL,"
                             "COL SMALLINT NOT NULL);"
                             "CREATE TABLE DEBUGVARNAME ("
-                            "ID INTEGER PRIMARY KEY,"
+                            "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
                             "NAME CHAR(256));"
                             "CREATE TABLE DEBUGFILENAME ("
-                            "ID INTEGER PRIMARY KEY,"
+                            "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
                             "NAME CHAR(2048));",
                             nullptr, nullptr, &errmsg);
       if (status)
@@ -554,8 +607,8 @@ namespace
         printf("create subtables failed %d:%s\n", status, sqlite3_errmsg(db));
         exit(status);
       }
+      sqlite3_free(errmsg);
     }
-    sql = "BEGIN;";
   }
   SqliteDebugWriter::~SqliteDebugWriter()
   {
@@ -587,6 +640,7 @@ namespace
       printf("update manager table error(%d): %s\n", status, errmsg);
       exit(status);
     };
+    sqlite3_free(errmsg);
 
     sqlite3_close(db);
     if ((status = flock(database_fd, LOCK_UN)) != 0)
@@ -600,13 +654,10 @@ namespace
   {
     if (!KnownFileNames.count(name))
     {
-      insertFileName(name);
-      commitSQL();
       int ID = queryFileID(name);
       if (ID == -1)
       {
-        printf("insert file name failed\n");
-        exit(-1);
+        ID = insertFileName(name);
       }
       KnownFileNames[name] = ID;
     }
@@ -616,13 +667,10 @@ namespace
   {
     if (!KnownVarNames.count(name))
     {
-      insertVarName(name);
-      commitSQL();
       int ID = queryVarID(name);
       if (ID == -1)
       {
-        printf("insert var name failed\n");
-        exit(-1);
+        ID = insertVarName(name);
       }
       KnownVarNames[name] = ID;
     }
@@ -632,20 +680,18 @@ namespace
   {
     int ID = queryDebugInfoID(nameA, nameB, line, col);
     if (ID == -1)
-    {
-      insertDebugInfo(nameA, nameB, line, col);
-      commitSQL();
-      ID = queryDebugInfoID(nameA, nameB, line, col);
-    }
+      ID = insertDebugInfo(nameA, nameB, line, col);
     return ID;
   }
-  void SqliteDebugWriter::insertFileName(const char *name)
+  int SqliteDebugWriter::insertFileName(const char *name)
   {
     insertName("DEBUGFILENAME", name, KnownFileNames);
+    return queryMaxID("DEBUGFILENAME");
   }
-  void SqliteDebugWriter::insertVarName(const char *name)
+  int SqliteDebugWriter::insertVarName(const char *name)
   {
     insertName("DEBUGVARNAME", name, KnownVarNames);
+    return queryMaxID("DEBUGVARNAME");
   }
 } // namespace
 
@@ -678,7 +724,9 @@ void TraceRecorder::initialize(Module &M)
                                         IRB.getInt16Ty(), IRB.getInt64Ty());
   TrecFuncExit = M.getOrInsertFunction("__trec_func_exit", Attr,
                                        IRB.getVoidTy(), IRB.getInt64Ty());
-  TrecThreadCreate = M.getOrInsertFunction("__trec_thread_create", Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(), IRB.getInt64Ty());
+  TrecThreadCreate =
+      M.getOrInsertFunction("__trec_thread_create", Attr, IRB.getVoidTy(),
+                            IRB.getInt8PtrTy(), IRB.getInt64Ty());
   IntegerType *OrdTy = IRB.getInt32Ty();
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i)
   {
@@ -811,14 +859,16 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   // Do not instrument it.
   if (F.getSubprogram() == nullptr || F.getSubprogram()->getFile() == nullptr)
     return false;
-
+  debuger.beginSQL();
   initialize(*F.getParent());
   VarOrders.clear();
   VarOrderCounter = 1;
   int arg_size = F.arg_size();
   for (int idx = 0; idx < arg_size; idx++)
   {
-    VarOrders[F.getArg(idx)] = VarOrderCounter++;
+    VarOrders[F.getArg(idx)] = VarOrderCounter;
+    outsideVars[VarOrderCounter] = true;
+    VarOrderCounter += 1;
   }
   StoresToBeInstrumented.clear();
   LoadsToBeInstrumented.clear();
@@ -865,8 +915,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       if (isa<LoadInst>(Inst))
       {
         LoadInst *LI = dyn_cast<LoadInst>(&Inst);
-        if (isa<GlobalVariable>(LI->getPointerOperand()) ||
-            ClForceInstrumentAllMemoryAccesses)
+        if (ClForceInstrumentAllMemoryAccesses)
           LoadsToBeInstrumented.insert(LI);
         NumAllReads++;
       }
@@ -1000,6 +1049,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
     }
   }
+  debuger.commitSQL();
   return Res;
 }
 
@@ -1069,6 +1119,11 @@ bool TraceRecorder::instrumentReturn(Instruction *I)
   bool res = false;
   if (RetVal)
   {
+    auto stores = getAllStoresToAddr(RetVal, I->getParent()->getParent());
+    for (auto &store : stores)
+    {
+      StoresToBeInstrumented.emplace(store);
+    }
     auto VSI_val = getSource(RetVal, I->getParent()->getParent());
     VSI_val.Reform(IRB);
     Value *RetValInst = nullptr;
@@ -1099,19 +1154,35 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
   if (!CI->getCalledFunction() ||
       CI->getCalledFunction()->hasFnAttribute(Attribute::Naked) ||
       CI->getCalledFunction()->hasFnAttribute(Attribute::NoReturn) ||
-      CI->getCalledFunction()->getName().startswith("llvm.dbg") ||
+      CI->getCalledFunction()->getName().startswith("llvm.") ||
       I->getDebugLoc().isImplicitCode())
     return false;
   unsigned int order = 0;
   if (!CI->getFunctionType()->getReturnType()->isVoidTy())
   {
-    order = VarOrderCounter++;
-    VarOrders.insert(std::make_pair(I, order));
+    if (!VarOrders.count(I))
+    {
+      VarOrders[I] = VarOrderCounter;
+      outsideVars[VarOrderCounter] = true;
+      VarOrderCounter += 1;
+    }
+    order = VarOrders.at(I);
   }
   unsigned int arg_size = CI->arg_size();
   Function *F = I->getParent()->getParent();
   for (unsigned int i = 0; i < arg_size; i++)
   {
+    if (!VarOrders.count(CI->getArgOperand(i)))
+    {
+      VarOrders[CI->getArgOperand(i)] = VarOrderCounter;
+      outsideVars[VarOrderCounter] = true;
+      VarOrderCounter += 1;
+    }
+    auto stores = getAllStoresToAddr(CI->getArgOperand(i), F);
+    for (auto &store : stores)
+    {
+      StoresToBeInstrumented.emplace(store);
+    }
     ValSourceInfo VSI = getSource(CI->getArgOperand(i), F);
     if (!VSI.isNull())
     {
@@ -1131,8 +1202,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
           varname = created->getSubprogram()->getName();
         }
       }
-      int nameA =
-          debuger.getVarID(varname.c_str());
+      int nameA = debuger.getVarID(varname.c_str());
       int nameB = 0;
       int line = I->getDebugLoc().getLine();
       int col = I->getDebugLoc().getCol();
@@ -1185,13 +1255,18 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
     }
     int creatednameA = debuger.getVarID(createdFuncName.c_str());
     int creatednameB = debuger.getFileID(createdFileName.c_str());
-    uint64_t createdDebugID = debuger.ReformID(debuger.getDebugInfoID(creatednameA, creatednameB, createdLine, createdCol));
+    uint64_t createdDebugID = debuger.ReformID(debuger.getDebugInfoID(
+        creatednameA, creatednameB, createdLine, createdCol));
 
-    int argnameA = debuger.getVarID(CI->getArgOperand(3)->getName().str().c_str());
+    int argnameA =
+        debuger.getVarID(CI->getArgOperand(3)->getName().str().c_str());
     int argnameB = 0;
-    uint64_t argDebugID = debuger.ReformID(debuger.getDebugInfoID(argnameA, argnameB, line, col));
-    IRB.CreateCall(TrecThreadCreate, {IRB.CreateBitOrPointerCast(CI->getArgOperand(3), IRB.getInt8PtrTy()),
-                                      IRB.getInt64(argDebugID), IRB.getInt64(createdDebugID)});
+    uint64_t argDebugID =
+        debuger.ReformID(debuger.getDebugInfoID(argnameA, argnameB, line, col));
+    IRB.CreateCall(
+        TrecThreadCreate,
+        {IRB.CreateBitOrPointerCast(CI->getArgOperand(3), IRB.getInt8PtrTy()),
+         IRB.getInt64(argDebugID), IRB.getInt64(createdDebugID)});
   }
   if (I->getNextNode())
   {
@@ -1267,9 +1342,7 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
   {
     IRBuilder<> IRB(II.Inst);
     Value *StoredValue = cast<StoreInst>(II.Inst)->getValueOperand();
-
-    if (StoredValue->getType()->isIntOrPtrTy() &&
-        (Addr->getName() != "" || StoredValue->getName() != ""))
+    if (StoredValue->getType()->isIntOrPtrTy())
     {
       int nameA = debuger.getVarID(Addr->getName().str().c_str());
       int nameB = debuger.getVarID(StoredValue->getName().str().c_str());
@@ -1296,8 +1369,7 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
     // for nullptr
     IRBuilder<> IRB(II.Inst->getNextNode());
     Value *LoadedValue = II.Inst;
-    if (LoadedValue->getType()->isIntOrPtrTy() &&
-        (Addr->getName() != "" || LoadedValue->getName() != ""))
+    if (LoadedValue->getType()->isIntOrPtrTy())
     {
       int nameA = debuger.getVarID(Addr->getName().str().c_str());
       int nameB = debuger.getVarID(LoadedValue->getName().str().c_str());
@@ -1351,7 +1423,9 @@ TraceRecorder::ValSourceInfo TraceRecorder::getSource(Value *Val, Function *F)
     {
       if (!VarOrders.count(SrcValue))
       {
-        VarOrders[SrcValue] = VarOrderCounter++;
+        VarOrders[SrcValue] = VarOrderCounter;
+        outsideVars[VarOrderCounter] = false;
+        VarOrderCounter += 1;
       }
       VSI.setIdx(VarOrders.at(SrcValue), offset, true);
       break;
@@ -1377,11 +1451,38 @@ TraceRecorder::ValSourceInfo TraceRecorder::getSource(Value *Val, Function *F)
         if (reachableStore.size() == 0)
         {
           // cannot find a reachable store
-          if (!VarOrders.count(SrcValue))
+
+          // check if the load address comes from an outside parameter
+          auto addrSource = getSource(Addr, F);
+          if (!addrSource.isNull())
           {
-            VarOrders[SrcValue] = VarOrderCounter++;
+            if (addrSource.getisDirect() && !addrSource.getisRealAddr() &&
+                !outsideVars.at(addrSource.getIdx()))
+            {
+              if (!VarOrders.count(SrcValue))
+              {
+                VarOrders[SrcValue] = VarOrderCounter;
+                outsideVars[VarOrderCounter] = false;
+                VarOrderCounter += 1;
+              }
+              VSI.setIdx(VarOrders.at(SrcValue), offset, true);
+            }
+            else
+            {
+              VSI.setAddr(Addr, offset, false);
+            }
           }
-          VSI.setIdx(VarOrders.at(SrcValue), offset, true);
+          else
+          {
+            if (!VarOrders.count(SrcValue))
+            {
+
+              VarOrders[SrcValue] = VarOrderCounter;
+              outsideVars[VarOrderCounter] = false;
+              VarOrderCounter += 1;
+            }
+            VSI.setIdx(VarOrders.at(SrcValue), offset, true);
+          }
           break;
         }
         else if (reachableStore.size() == 1)
@@ -1389,8 +1490,17 @@ TraceRecorder::ValSourceInfo TraceRecorder::getSource(Value *Val, Function *F)
           // find the only store
           // continue searching
           StoreInst *S = reachableStore.at(0);
-          SrcValue = S->getValueOperand();
-          Res |= true;
+          if (!isReachable(LI, S))
+          {
+            SrcValue = S->getValueOperand();
+            Res |= true;
+          }
+          else
+          {
+            StoresToBeInstrumented.insert(S);
+            VSI.setAddr(Addr, offset, false);
+            break;
+          }
         }
         else
         {
@@ -1398,7 +1508,7 @@ TraceRecorder::ValSourceInfo TraceRecorder::getSource(Value *Val, Function *F)
           // instrument this address
           for (auto item : reachableStore)
             StoresToBeInstrumented.insert(item);
-          LoadsToBeInstrumented.insert(LI);
+          VSI.setAddr(Addr, offset, false);
           break;
         }
       }
@@ -1414,12 +1524,12 @@ std::vector<StoreInst *> TraceRecorder::getAllStoresToAddr(Value *Addr,
   if (!AddrAllStores.count(Addr))
   {
     std::vector<StoreInst *> res;
-    for (auto i = Addr->use_begin(), e = Addr->use_end(); i != e; ++i)
+    for (auto u : Addr->users())
     {
-      if (isa<Instruction>(*i))
+      if (isa<Instruction>(u) &&
+          dyn_cast<Instruction>(u)->getParent()->getParent() == F)
       {
-        assert(dyn_cast<Instruction>(*i)->getParent()->getParent() == F);
-        Instruction *I = dyn_cast<Instruction>(*i);
+        Instruction *I = dyn_cast<Instruction>(u);
         if (isa<StoreInst>(I) &&
             dyn_cast<StoreInst>(I)->getPointerOperand() == Addr)
         {
