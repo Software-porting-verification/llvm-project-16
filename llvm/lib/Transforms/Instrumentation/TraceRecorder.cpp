@@ -685,13 +685,13 @@ namespace
   }
   int SqliteDebugWriter::insertFileName(const char *name)
   {
-    insertName("DEBUGFILENAME", name, KnownFileNames);
-    return queryMaxID("DEBUGFILENAME");
+    
+    return insertName("DEBUGFILENAME", name, KnownFileNames);
   }
   int SqliteDebugWriter::insertVarName(const char *name)
   {
-    insertName("DEBUGVARNAME", name, KnownVarNames);
-    return queryMaxID("DEBUGVARNAME");
+    
+    return insertName("DEBUGVARNAME", name, KnownVarNames);
   }
 } // namespace
 
