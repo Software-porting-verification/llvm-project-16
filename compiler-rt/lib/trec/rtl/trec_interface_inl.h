@@ -37,6 +37,26 @@ void __trec_thread_create(void *arg_val, __sanitizer::u64 arg_debugID, __sanitiz
   RegisterThreadCreate(cur_thread(), (uptr)arg_val, arg_debugID, debugID);
 }
 
+void __trec_func_first_point()
+{
+  ThreadState *thr = cur_thread();
+  if (UNLIKELY(thr->tctx->writer.isNeedSymbolize()))
+  {
+    ScopedIgnoreInterceptors ignore;
+    BufferedStackTrace stack;
+    uptr bp = ((__sanitizer::uptr)__builtin_frame_address(0));
+    uptr pc = __sanitizer::StackTrace::GetCurrentPc();
+    stack.Unwind(pc, bp, 0, false, 5);
+    if (stack.size >= 2)
+    {
+      auto symbolizer = Symbolizer::GetOrInit();
+      auto frame = symbolizer->SymbolizePC(stack.trace[1]);
+      thr->tctx->writer.registerSymbolizeInfo(frame);
+    }
+  }
+  thr->tctx->writer.unsetNeedSymbolize();
+}
+
 void __trec_func_exit_param(__sanitizer::u64 sa, void *val,
                             __sanitizer::u64 debugID)
 {

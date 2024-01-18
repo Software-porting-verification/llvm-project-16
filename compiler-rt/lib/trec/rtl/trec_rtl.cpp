@@ -55,6 +55,7 @@ namespace __trec
   Context *ctx;
 
   static char thread_registry_placeholder[sizeof(ThreadRegistry)];
+  static char sqlite_writer_placeholder[sizeof(SqliteDebugWriter)];
 
   static ThreadContextBase *CreateThreadContext(u32 tid)
   {
@@ -74,6 +75,17 @@ namespace __trec
         thread_registry(new(thread_registry_placeholder) ThreadRegistry(
             CreateThreadContext, kMaxTid, kThreadQuarantineSize, kMaxTidReuse)),
         temp_dir_path(nullptr) {}
+  Context::~Context()
+  {
+    if (sqlitewriter)
+      delete sqlitewriter;
+  }
+  SqliteDebugWriter *Context::getOrInitSqliteWriter()
+  {
+    if (!sqlitewriter)
+      sqlitewriter = new (sqlite_writer_placeholder) SqliteDebugWriter();
+    return sqlitewriter;
+  }
 
   int Context::CopyFile(const char *src_path, const char *dest_path)
   {

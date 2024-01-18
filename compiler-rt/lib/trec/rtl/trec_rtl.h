@@ -37,10 +37,12 @@
 #include "sanitizer_common/sanitizer_suppressions.h"
 #include "sanitizer_common/sanitizer_thread_registry.h"
 #include "sanitizer_common/sanitizer_vector.h"
+#include "sanitizer_common/sanitizer_symbolizer.h"
 #include "trec_defs.h"
 #include "trec_flags.h"
 #include "trec_mman.h"
 #include "trec_platform.h"
+#include "sqlite3.h"
 using namespace __sanitizer;
 
 #if SANITIZER_WORDSIZE != 64 && !defined(__i386__) && !defined(__riscv)
@@ -205,6 +207,7 @@ namespace __trec
     __trec_header::TraceHeader header;
     __sanitizer::Mutex mtx;
     DenseMap<__sanitizer::u16, __trec_metadata::FuncParamMeta> params;
+    bool need_symbolize;
     bool is_end;
     void put_trace(__trec_trace::Event &e);
     void put_metadata(void *msg, __sanitizer::u16 len);
@@ -228,6 +231,19 @@ namespace __trec
                     __sanitizer::u64 val, __sanitizer::u64 debugID);
     const __trec_trace::Event *getLastEvent() const;
     void setEnd();
+    inline void setNeedSymbolize()
+    {
+      need_symbolize = true;
+    }
+    inline void unsetNeedSymbolize()
+    {
+      need_symbolize = false;
+    }
+    inline bool isNeedSymbolize() const
+    {
+      return need_symbolize;
+    }
+    void registerSymbolizeInfo(const __sanitizer::SymbolizedStack *frame);
   };
 
   struct TrecThreadCreateArgs
@@ -253,10 +269,37 @@ namespace __trec
     void OnDetached(void *arg) override;
   };
 
+  class SqliteDebugWriter
+  {
+    sqlite3 *db;
+    int DBID;
+    char DBDirPath[2048];
+    int insertName(const char *table, const char *name);
+    int insertDebugInfo(int nameA, int nameB, int line, int col);
+    int insertFileName(const char *name);
+    int insertVarName(const char *name);
+    int queryMaxID(const char *table);
+    int queryFileID(const char *name);
+    int queryVarID(const char *name);
+    int queryID(const char *table, const char *name);
+    int queryDebugInfoID(int nameA, int nameB, int line, int col);
+    bool isValid = false;
+    __sanitizer::Mutex mtx;
+
+  public:
+    SqliteDebugWriter();
+    ~SqliteDebugWriter();
+    int getFileID(const char *name);
+    int getVarID(const char *name);
+    int getDebugInfoID(int nameA, int nameB, int line, int col);
+    __sanitizer::u64 ReformID(int ID);
+  };
+
   class Context
   {
   public:
     Context();
+    ~Context();
 
     bool initialized;
     pid_t pid;
@@ -266,6 +309,7 @@ namespace __trec
     char *temp_dir_path;
     char trace_dir[TREC_DIR_PATH_LEN];
     __sanitizer::Mutex open_dir_mutex;
+    SqliteDebugWriter *sqlitewriter = nullptr;
 
     ThreadRegistry *thread_registry;
 
@@ -277,6 +321,7 @@ namespace __trec
     void CopyDir(const char *path, int Maintid);
     int CopyFile(const char *src_path, const char *dest_path);
     void InheritDir(const char *path, uptr _pid);
+    SqliteDebugWriter *getOrInitSqliteWriter();
   };
 
   extern Context *ctx; // The one and the only global runtime context.
@@ -334,7 +379,6 @@ namespace __trec
   void FuncParam(ThreadState *thr, u16 param_idx,
                  __trec_metadata::SourceAddressInfo sa, uptr val,
                  __sanitizer::u64 debugID);
-  void RegisterThreadCreate(ThreadState *thr, u64 arg_val, u64 arg_debugID, u64 debugID);
   void FuncExitParam(ThreadState *thr, __trec_metadata::SourceAddressInfo sa,
                      uptr val, __sanitizer::u64 debugID);
 
@@ -465,8 +509,7 @@ namespace __trec
     // any instrumented code except when tsan is used as a
     // shared library.
 #if (!SANITIZER_CAN_USE_PREINIT_ARRAY || defined(SANITIZER_SHARED))
-    if (UNLIKELY(!is_initialized))
-      Initialize(thr);
+    Initialize(thr);
 #endif
   }
 
