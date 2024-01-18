@@ -25,18 +25,32 @@ append_list_if(SANITIZER_LIMIT_FRAME_SIZE -Wframe-larger-than=1200
 append_list_if(COMPILER_RT_HAS_WGLOBAL_CONSTRUCTORS_FLAG -Wglobal-constructors
                TREC_RTL_CFLAGS)
 
+set(TREC_RTL_DYNAMIC_CFLAGS ${TREC_RTL_CFLAGS})
+list(REMOVE_ITEM TREC_RTL_DYNAMIC_CFLAGS -fPIE)
+
+set(TREC_DYNAMIC_LINK_LIBS
+  ${COMPILER_RT_UNWINDER_LINK_LIBS}
+  ${SANITIZER_CXX_ABI_LIBRARIES}
+  ${SANITIZER_COMMON_LINK_LIBS})
+
+append_list_if(COMPILER_RT_HAS_LIBDL dl TREC_DYNAMIC_LINK_LIBS)
+append_list_if(COMPILER_RT_HAS_LIBM m TREC_DYNAMIC_LINK_LIBS)
+append_list_if(COMPILER_RT_HAS_LIBPTHREAD pthread TREC_DYNAMIC_LINK_LIBS)
+
 set(TREC_SOURCES
   rtl/trec_flags.cpp
   rtl/trec_interceptors_posix.cpp
   rtl/trec_interface.cpp
   rtl/trec_interface_atomic.cpp
   rtl/trec_mman.cpp
-  rtl/trec_preinit.cpp
   rtl/trec_rtl.cpp
   rtl/trec_rtl_mutex.cpp
   rtl/trec_rtl_proc.cpp
   rtl/trec_rtl_thread.cpp
+  rtl/sqlite3.c
   )
+
+set(TREC_PREINIT_SOURCES rtl/trec_preinit.cpp)
 
 set(TREC_CXX_SOURCES
   rtl/trec_new_delete.cpp
@@ -60,10 +74,16 @@ set(TREC_HEADERS
   rtl/trec_mutex.h
   rtl/trec_mutexset.h
   rtl/trec_platform.h
-  rtl/trec_rtl.h)
+  rtl/trec_rtl.h
+  rtl/sqlite3.h
+  )
 
 set(TREC_RUNTIME_LIBRARIES)
 add_compiler_rt_component(trec)
+
+if("${CMAKE_C_FLAGS}" MATCHES "-Wno-(error=)?unused-command-line-argument")
+  set(EXTRA_CFLAGS "-Wno-error=unused-command-line-argument ${EXTRA_CFLAGS}")
+endif()
 
 if(APPLE)
   # Ideally we would check the SDK version for the actual platform we are
@@ -105,7 +125,7 @@ else()
     add_compiler_rt_runtime(clang_rt.trec
       STATIC
       ARCHS ${arch}
-      SOURCES ${TREC_SOURCES} 
+      SOURCES ${TREC_SOURCES} ${TREC_PREINIT_SOURCES} 
               $<TARGET_OBJECTS:RTInterception.${arch}>
               $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
               $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
@@ -122,7 +142,22 @@ else()
       CFLAGS ${TREC_RTL_CFLAGS}
       PARENT_TARGET trec)
     list(APPEND TREC_RUNTIME_LIBRARIES clang_rt.trec-${arch}
-                                       clang_rt.trec_cxx-${arch})
+      clang_rt.trec_cxx-${arch})
+    add_compiler_rt_runtime(clang_rt.trec
+      SHARED
+      ARCHS ${arch}
+      SOURCES ${TREC_SOURCES} 
+              $<TARGET_OBJECTS:RTInterception.${arch}>
+              $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
+              $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
+              $<TARGET_OBJECTS:RTSanitizerCommonCoverage.${arch}>
+              $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>
+      ADDITIONAL_HEADERS ${TREC_HEADERS}
+      CFLAGS ${TREC_RTL_DYNAMIC_CFLAGS}
+      DEFS SANITIZER_SHARED
+      LINK_LIBS ${TREC_DYNAMIC_LINK_LIBS}
+      LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS}
+      PARENT_TARGET trec)
     add_sanitizer_rt_symbols(clang_rt.trec
       ARCHS ${arch}
       EXTRA rtl/trec.syms.extra)
