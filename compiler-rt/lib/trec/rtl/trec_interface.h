@@ -47,6 +47,7 @@ extern "C"
 
     SANITIZER_INTERFACE_ATTRIBUTE void __trec_thread_create(void *arg_val, __sanitizer::u64 arg_debugID,
                                                             __sanitizer::u64 debugID);
+    SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_first_point();
 
     SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_exit_param(
         __sanitizer::u64 sa, void *val, __sanitizer::u64 debugID);

@@ -288,6 +288,7 @@ namespace
     FunctionCallee TrecFuncEntry;
     FunctionCallee TrecFuncExit;
     FunctionCallee TrecThreadCreate;
+    FunctionCallee TrecFuncFirstPoint;
     // Accesses sizes are powers of two: 1, 2, 4, 8.
     static const size_t kNumberOfAccessSizes = 4;
     FunctionCallee TrecRead[kNumberOfAccessSizes];
@@ -329,7 +330,7 @@ namespace
                                     std::map<std::string, uint32_t> &m)
   {
     char buf[4096];
-    snprintf(buf, 2047, "INSERT INTO %s VALUES (NULL, \"%s\");", table, name);
+    snprintf(buf, 2047, "INSERT INTO %s VALUES (NULL, '%s');", table, name);
     char *errmsg;
     int status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
     if (status != SQLITE_OK)
@@ -392,10 +393,12 @@ namespace
 
   int SqliteDebugWriter::queryID(const char *table, const char *name)
   {
+    if (strcmp(name, "") == 0)
+      return 1;
     char *errmsg;
     char buf[4096];
     int ID = -1;
-    snprintf(buf, 4095, "SELECT ID from %s where NAME=\"%s\";", table, name);
+    snprintf(buf, 4095, "SELECT ID from %s where NAME='%s';", table, name);
     int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
     if (status != SQLITE_OK)
     {
@@ -414,8 +417,8 @@ namespace
     int ID = -1;
     snprintf(
         buf, 4095,
-        "SELECT ID from DEBUGINFO where NAMEIDA=\"%d\" AND NAMEIDB=\"%d\" AND "
-        "LINE=\"%d\" AND COL=\"%d\";",
+        "SELECT ID from DEBUGINFO where NAMEIDA=%d AND NAMEIDB=%d AND "
+        "LINE=%d AND COL=%d;",
         nameA, nameB, line, col);
     int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
     if (status != SQLITE_OK)
@@ -600,7 +603,9 @@ namespace
                             "NAME CHAR(256));"
                             "CREATE TABLE DEBUGFILENAME ("
                             "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
-                            "NAME CHAR(2048));",
+                            "NAME CHAR(2048));"
+                            "INSERT INTO DEBUGVARNAME VALUES (NULL, '');"
+                            "INSERT INTO DEBUGFILENAME VALUES (NULL, '');",
                             nullptr, nullptr, &errmsg);
       if (status)
       {
@@ -685,12 +690,12 @@ namespace
   }
   int SqliteDebugWriter::insertFileName(const char *name)
   {
-    
+
     return insertName("DEBUGFILENAME", name, KnownFileNames);
   }
   int SqliteDebugWriter::insertVarName(const char *name)
   {
-    
+
     return insertName("DEBUGVARNAME", name, KnownVarNames);
   }
 } // namespace
@@ -727,6 +732,7 @@ void TraceRecorder::initialize(Module &M)
   TrecThreadCreate =
       M.getOrInsertFunction("__trec_thread_create", Attr, IRB.getVoidTy(),
                             IRB.getInt8PtrTy(), IRB.getInt64Ty());
+  TrecFuncFirstPoint = M.getOrInsertFunction("__trec_func_first_point", Attr, IRB.getVoidTy());
   IntegerType *OrdTy = IRB.getInt32Ty();
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i)
   {
@@ -999,7 +1005,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   // So explicitly record its entry and exit(s).
   // For the main function, we cannot figure out where its parameters come from.
   // So we only record __trec_func_entry and __trec_func_exit.
-  if (F.getSubprogram() && F.getSubprogram()->getName() == "main")
+  if (FuncName == "main")
   {
     IRBuilder<> IRB(&*F.getEntryBlock().getFirstInsertionPt());
     std::string CurrentFileName = "";
@@ -1048,6 +1054,11 @@ bool TraceRecorder::sanitizeFunction(Function &F,
         }
       }
     }
+  }
+
+  {
+    IRBuilder<> IRB(&*(F.getEntryBlock().getFirstInsertionPt()));
+    IRB.CreateCall(TrecFuncFirstPoint, {});
   }
   debuger.commitSQL();
   return Res;
@@ -1151,10 +1162,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
 {
   IRBuilder<> IRB(I);
   CallBase *CI = dyn_cast<CallBase>(I);
-  if (!CI->getCalledFunction() ||
-      CI->getCalledFunction()->hasFnAttribute(Attribute::Naked) ||
-      CI->getCalledFunction()->hasFnAttribute(Attribute::NoReturn) ||
-      CI->getCalledFunction()->getName().startswith("llvm.") ||
+  if ((CI->getCalledFunction() && CI->getCalledFunction()->getName().startswith("llvm.")) ||
       I->getDebugLoc().isImplicitCode())
     return false;
   unsigned int order = 0;
@@ -1213,24 +1221,29 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
     }
   }
   Function *CalledF = CI->getCalledFunction();
-  StringRef CalledFName = CalledF->getName();
+  StringRef CalledFName = CalledF ? CalledF->getName() : "";
   std::string CurrentFileName = "";
-  if (CalledF->getSubprogram())
+  if (CalledF)
   {
-    CalledFName = CalledF->getSubprogram()->getName();
-    if (CalledF->getSubprogram() && CalledF->getSubprogram()->getFile())
+    if (CalledF->getSubprogram())
     {
-      CurrentFileName = concatFileName(
-          CalledF->getSubprogram()->getFile()->getDirectory().str(),
-          CalledF->getSubprogram()->getFile()->getFilename().str());
+      CalledFName = CalledF->getSubprogram()->getName();
+      if (CalledF->getSubprogram() && CalledF->getSubprogram()->getFile())
+      {
+        CurrentFileName = concatFileName(
+            CalledF->getSubprogram()->getFile()->getDirectory().str(),
+            CalledF->getSubprogram()->getFile()->getFilename().str());
+      }
     }
   }
+
   int nameA = debuger.getVarID(CalledFName.str().c_str());
   int nameB = debuger.getFileID(CurrentFileName.c_str());
-  int line = CalledF->getSubprogram() ? CalledF->getSubprogram()->getLine() : 0;
+  int line = (CalledF && CalledF->getSubprogram()) ? CalledF->getSubprogram()->getLine() : 0;
   int col = 0;
-  uint64_t debugID =
-      debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+  uint64_t debugID = 0;
+  if (nameA != 1 || nameB != 1)
+    debugID = debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
   IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
                                  IRB.getInt64(debugID)});
   if (CalledFName == "pthread_create")
@@ -1255,8 +1268,10 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
     }
     int creatednameA = debuger.getVarID(createdFuncName.c_str());
     int creatednameB = debuger.getFileID(createdFileName.c_str());
-    uint64_t createdDebugID = debuger.ReformID(debuger.getDebugInfoID(
-        creatednameA, creatednameB, createdLine, createdCol));
+    uint64_t createdDebugID = 0;
+    if (creatednameA != 1 || creatednameB != 1)
+      createdDebugID = debuger.ReformID(debuger.getDebugInfoID(
+          creatednameA, creatednameB, createdLine, createdCol));
 
     int argnameA =
         debuger.getVarID(CI->getArgOperand(3)->getName().str().c_str());
