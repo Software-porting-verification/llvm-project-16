@@ -72,11 +72,11 @@ T func_xchg(volatile T *v, T op, uptr pc, bool isPtr,
 
   MemoryReadAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr, (uptr)res,
                    {1, 0, 0, 1}, debugID);
-  MemoryWriteAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryWriteAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                     {1, 0, 0, 10}, {0, 1, 0, (uptr)v}, 0);
   MemoryWriteAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr, (uptr)op,
                     {1, 0, 0, 1}, {1, 0, 0, 2}, debugID);
-  MemoryReadAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryReadAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                    {1, 0, 0, 10}, 0);
   FuncExitParam(cur_thread(), {0, 1, 0, (__sanitizer::u64)-1}, res, debugID);
 
@@ -91,12 +91,12 @@ T func_add(volatile T *v, T op, uptr pc, bool isPtr, __sanitizer::u64 debugID) {
 
   MemoryReadAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr, (uptr)res,
                    {1, 0, 0, 1}, debugID);
-  MemoryWriteAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryWriteAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                     {1, 0, 0, 10}, {0, 1, 0, (uptr)v}, 0);
   MemoryWriteAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr,
-                    (uptr)(res + op), {1, 0, 0, 1}, {0, 1, op, (uptr)v},
+                    (uptr)(res + op), {1, 0, 0, 1}, {0, 1, (u16)op, (uptr)v},
                     debugID);
-  MemoryReadAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryReadAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                    {1, 0, 0, 10}, 0);
   FuncExitParam(cur_thread(), {0, 1, 0, (__sanitizer::u64)-1}, res, debugID);
 
@@ -109,12 +109,12 @@ T func_sub(volatile T *v, T op, uptr pc, bool isPtr, __sanitizer::u64 debugID) {
 
   MemoryReadAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr, (uptr)res,
                    {1, 0, 0, 1}, debugID);
-  MemoryWriteAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryWriteAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                     {1, 0, 0, 10}, {0, 1, 0, (uptr)v}, 0);
   MemoryWriteAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr,
-                    (uptr)(res - op), {1, 0, 0, 1}, {0, 1, -op, (uptr)v},
+                    (uptr)(res - op), {1, 0, 0, 1}, {0, 1, (u16)-op, (uptr)v},
                     debugID);
-  MemoryReadAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryReadAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                    {1, 0, 0, 10}, 0);
   FuncExitParam(cur_thread(), {0, 1, 0, (__sanitizer::u64)-1}, res, debugID);
 
@@ -127,11 +127,11 @@ T func_and(volatile T *v, T op, uptr pc, bool isPtr, __sanitizer::u64 debugID) {
 
   MemoryReadAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr, (uptr)res,
                    {1, 0, 0, 1}, debugID);
-  MemoryWriteAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryWriteAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                     {1, 0, 0, 10}, {0, 1, 0, (uptr)v}, 0);
   MemoryWriteAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr,
                     (uptr)(res & op), {1, 0, 0, 1}, {1, 0, 0, 11}, debugID);
-  MemoryReadAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryReadAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                    {1, 0, 0, 10}, 0);
   FuncExitParam(cur_thread(), {0, 1, 0, (__sanitizer::u64)-1}, res, debugID);
 
@@ -144,11 +144,11 @@ T func_or(volatile T *v, T op, uptr pc, bool isPtr, __sanitizer::u64 debugID) {
 
   MemoryReadAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr, (uptr)res,
                    {1, 0, 0, 1}, debugID);
-  MemoryWriteAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryWriteAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                     {1, 0, 0, 10}, {0, 1, 0, (uptr)v}, 0);
   MemoryWriteAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr,
                     (uptr)(res | op), {1, 0, 0, 1}, {1, 0, 0, 11}, debugID);
-  MemoryReadAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryReadAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                    {1, 0, 0, 10}, 0);
   FuncExitParam(cur_thread(), {0, 1, 0, (__sanitizer::u64)-1}, res, debugID);
 
@@ -161,11 +161,11 @@ T func_xor(volatile T *v, T op, uptr pc, bool isPtr, __sanitizer::u64 debugID) {
 
   MemoryReadAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr, (uptr)res,
                    {1, 0, 0, 1}, debugID);
-  MemoryWriteAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryWriteAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                     {1, 0, 0, 10}, {0, 1, 0, (uptr)v}, 0);
   MemoryWriteAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr,
                     (uptr)(res ^ op), {1, 0, 0, 1}, {1, 0, 0, 11}, debugID);
-  MemoryReadAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+  MemoryReadAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                    {1, 0, 0, 10}, 0);
   FuncExitParam(cur_thread(), {0, 1, 0, (__sanitizer::u64)-1}, res, debugID);
 
@@ -184,11 +184,11 @@ T func_nand(volatile T *v, T op, uptr pc, bool isPtr,
       MemoryReadAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr,
                        (uptr)cmp, {1, 0, 0, 1}, debugID);
       CondBranch(cur_thread(), pc, (u64)(cur == cmp), {1, 0, 0, 12}, debugID);
-      MemoryWriteAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, cmp,
+      MemoryWriteAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, cmp,
                         {1, 0, 0, 10}, {0, 1, 0, (uptr)v}, 0);
       MemoryWriteAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr,
                         (uptr)(newv), {1, 0, 0, 1}, {1, 0, 0, 11}, debugID);
-      MemoryReadAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, cmp,
+      MemoryReadAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, cmp,
                        {1, 0, 0, 10}, 0);
       FuncExitParam(cur_thread(), {0, 1, 0, (__sanitizer::u64)-1}, cmp,
                     debugID);
@@ -208,11 +208,11 @@ T func_cas(volatile T *v, T cmp, T xch, uptr pc, bool isPtr,
                      {1, 0, 0, 1}, debugID);
     CondBranch(cur_thread(), pc, (u64)(res == cmp), {1, 0, 0, 11}, debugID);
 
-    MemoryWriteAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+    MemoryWriteAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                       {1, 0, 0, 10}, {0, 1, 0, (uptr)v}, 0);
     MemoryWriteAtomic(cur_thread(), pc, (uptr)v, SizeLog<T>(), isPtr,
                       (uptr)(xch), {1, 0, 0, 1}, {1, 0, 0, 3}, debugID);
-    MemoryReadAtomic(cur_thread(), pc, -1, SizeLog<T>(), false, res,
+    MemoryReadAtomic(cur_thread(), pc, (uptr)-1, SizeLog<T>(), false, res,
                      {1, 0, 0, 10}, 0);
     FuncExitParam(cur_thread(), {0, 1, 0, (__sanitizer::u64)-1}, res, debugID);
   }
