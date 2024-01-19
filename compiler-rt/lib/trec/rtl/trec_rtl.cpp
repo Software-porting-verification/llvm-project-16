@@ -77,7 +77,7 @@ namespace __trec
         temp_dir_path(nullptr) {}
   SqliteDebugWriter *Context::getOrInitSqliteWriter()
   {
-    if (!sqlitewriter)
+    if (flags.symbolize_at_runtime && !sqlitewriter)
       sqlitewriter = new (sqlite_writer_placeholder) SqliteDebugWriter();
     return sqlitewriter;
   }
