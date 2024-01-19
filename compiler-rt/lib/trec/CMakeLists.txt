@@ -47,7 +47,6 @@ set(TREC_SOURCES
   rtl/trec_rtl_mutex.cpp
   rtl/trec_rtl_proc.cpp
   rtl/trec_rtl_thread.cpp
-  rtl/sqlite3.c
   )
 
 set(TREC_PREINIT_SOURCES rtl/trec_preinit.cpp)
@@ -75,7 +74,6 @@ set(TREC_HEADERS
   rtl/trec_mutexset.h
   rtl/trec_platform.h
   rtl/trec_rtl.h
-  rtl/sqlite3.h
   )
 
 set(TREC_RUNTIME_LIBRARIES)
@@ -112,7 +110,7 @@ if(APPLE)
                 RTUbsan
     CFLAGS ${TREC_RTL_CFLAGS}
     LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS} ${WEAK_SYMBOL_LINK_FLAGS}
-    LINK_LIBS ${TREC_LINK_LIBS} objc
+    LINK_LIBS ${TREC_LINK_LIBS} objc sqlite3
     PARENT_TARGET trec)
   add_compiler_rt_object_libraries(RTTrec_dynamic
     OS ${TREC_SUPPORTED_OS}
@@ -133,6 +131,7 @@ else()
               $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>
       ADDITIONAL_HEADERS ${TREC_HEADERS}
       CFLAGS ${TREC_RTL_CFLAGS}
+      LINK_LIBS sqlite3
       PARENT_TARGET trec)
     add_compiler_rt_runtime(clang_rt.trec_cxx
       STATIC
@@ -140,6 +139,7 @@ else()
       SOURCES ${TREC_CXX_SOURCES}
       ADDITIONAL_HEADERS ${TREC_HEADERS}
       CFLAGS ${TREC_RTL_CFLAGS}
+      LINK_LIBS sqlite3
       PARENT_TARGET trec)
     list(APPEND TREC_RUNTIME_LIBRARIES clang_rt.trec-${arch}
       clang_rt.trec_cxx-${arch})
@@ -155,7 +155,7 @@ else()
       ADDITIONAL_HEADERS ${TREC_HEADERS}
       CFLAGS ${TREC_RTL_DYNAMIC_CFLAGS}
       DEFS SANITIZER_SHARED
-      LINK_LIBS ${TREC_DYNAMIC_LINK_LIBS}
+      LINK_LIBS ${TREC_DYNAMIC_LINK_LIBS} sqlite3
       LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS}
       PARENT_TARGET trec)
     add_sanitizer_rt_symbols(clang_rt.trec
