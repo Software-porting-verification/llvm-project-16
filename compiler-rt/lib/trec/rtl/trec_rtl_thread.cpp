@@ -146,6 +146,7 @@ namespace __trec
 
   SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1), isValid(false)
   {
+    ScopedIgnoreInterceptors ignore;
     const char *DatabaseDir = GetEnv("TREC_DATABASE_DIR");
     if (DatabaseDir == nullptr)
     {
@@ -295,6 +296,7 @@ namespace __trec
   }
   SqliteDebugWriter::~SqliteDebugWriter()
   {
+    ScopedIgnoreInterceptors ignore;
     sqlite3_close(db);
 
     char buf[2048];
@@ -335,6 +337,7 @@ namespace __trec
   }
   int SqliteDebugWriter::getFileID(const char *name)
   {
+    ScopedIgnoreInterceptors ignore;
     mtx.Lock();
     int ID = queryFileID(name);
     if (ID == -1)
@@ -346,6 +349,7 @@ namespace __trec
   }
   int SqliteDebugWriter::getVarID(const char *name)
   {
+    ScopedIgnoreInterceptors ignore;
     mtx.Lock();
     int ID = queryVarID(name);
     if (ID == -1)
@@ -357,6 +361,7 @@ namespace __trec
   }
   int SqliteDebugWriter::getDebugInfoID(int nameA, int nameB, int line, int col)
   {
+    ScopedIgnoreInterceptors ignore;
     mtx.Lock();
     int ID = queryDebugInfoID(nameA, nameB, line, col);
     if (ID == -1)
@@ -758,9 +763,11 @@ namespace __trec
   {
     if (metadata_buffer && metadata_len >= sizeof(__trec_metadata::FuncMeta))
     {
+
       __trec_metadata::FuncMeta *meta = (__trec_metadata::FuncMeta *)(metadata_buffer + metadata_len - sizeof(__trec_metadata::FuncMeta));
       if (meta->debug_id == 0)
       {
+        ScopedIgnoreInterceptors ignore;
         auto sqlite_writer = ctx->getOrInitSqliteWriter();
 
         int nameA = sqlite_writer->getVarID(frame->info.function ? frame->info.function : "");
