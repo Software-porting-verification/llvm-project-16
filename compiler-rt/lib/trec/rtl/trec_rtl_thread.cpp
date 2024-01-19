@@ -150,7 +150,8 @@ namespace __trec
     const char *DatabaseDir = GetEnv("TREC_DATABASE_DIR");
     if (DatabaseDir == nullptr)
     {
-      return;
+      Report("ENV 'TREC_DATABASE_DIR' has not been set\n");
+      Die();
     }
     __sanitizer::internal_snprintf(DBDirPath, 2047, "%s", DatabaseDir);
     int pid = __sanitizer::internal_getpid();
@@ -755,7 +756,7 @@ namespace __trec
 
   void TraceWriter::registerSymbolizeInfo(const __sanitizer::SymbolizedStack *frame)
   {
-    if (metadata_buffer && metadata_len >= sizeof(__trec_metadata::FuncMeta))
+    if (ctx->flags.symbolize_at_runtime && metadata_buffer && metadata_len >= sizeof(__trec_metadata::FuncMeta))
     {
 
       __trec_metadata::FuncMeta *meta = (__trec_metadata::FuncMeta *)(metadata_buffer + metadata_len - sizeof(__trec_metadata::FuncMeta));
@@ -764,12 +765,14 @@ namespace __trec
         ScopedIgnoreInterceptors ignore;
         ctx->sqlite_mutex.Lock();
         auto sqlite_writer = ctx->getOrInitSqliteWriter();
-
-        int nameA = sqlite_writer->getVarID(frame->info.function ? frame->info.function : "");
-        int nameB = sqlite_writer->getFileID(frame->info.file ? frame->info.file : "");
-        int line = frame->info.line;
-        auto debugID = sqlite_writer->ReformID(sqlite_writer->getDebugInfoID(nameA, nameB, line, 0));
-        meta->debug_id = debugID;
+        if (sqlite_writer)
+        {
+          int nameA = sqlite_writer->getVarID(frame->info.function ? frame->info.function : "");
+          int nameB = sqlite_writer->getFileID(frame->info.file ? frame->info.file : "");
+          int line = frame->info.line;
+          auto debugID = sqlite_writer->ReformID(sqlite_writer->getDebugInfoID(nameA, nameB, line, 0));
+          meta->debug_id = debugID;
+        }
         ctx->sqlite_mutex.Unlock();
       }
     }
