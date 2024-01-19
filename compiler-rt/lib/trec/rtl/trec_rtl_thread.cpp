@@ -22,7 +22,6 @@
 #include "trec_mman.h"
 #include "trec_platform.h"
 #include "trec_rtl.h"
-#include "sqlite3.h"
 
 namespace __trec
 {
