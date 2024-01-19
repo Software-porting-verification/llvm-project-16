@@ -150,7 +150,6 @@ namespace __trec
     }
     __sanitizer::internal_snprintf(DBDirPath, 2047, "%s", DatabaseDir);
     int pid = __sanitizer::internal_getpid();
-    char buf[2048];
     __sanitizer::internal_snprintf(buf, 2047, "%s/%s", DBDirPath, "manager.db");
     int status;
     char *errmsg;
@@ -295,7 +294,6 @@ namespace __trec
     ScopedIgnoreInterceptors ignore;
     sqlite3_close(db);
 
-    char buf[2048];
     __sanitizer::internal_snprintf(buf, 2047, "%s/%s", DBDirPath, "manager.db");
     int status;
     char *errmsg;
