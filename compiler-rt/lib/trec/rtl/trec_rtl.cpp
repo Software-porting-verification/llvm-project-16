@@ -75,11 +75,6 @@ namespace __trec
         thread_registry(new(thread_registry_placeholder) ThreadRegistry(
             CreateThreadContext, kMaxTid, kThreadQuarantineSize, kMaxTidReuse)),
         temp_dir_path(nullptr) {}
-  Context::~Context()
-  {
-    if (sqlitewriter)
-      delete sqlitewriter;
-  }
   SqliteDebugWriter *Context::getOrInitSqliteWriter()
   {
     if (!sqlitewriter)
@@ -293,6 +288,13 @@ namespace __trec
       }
     }
     ctx->thread_registry->Unlock();
+    ctx->sqlite_mutex.Lock();
+    if (ctx->sqlitewriter)
+    {
+      ctx->sqlitewriter->~SqliteDebugWriter();
+      ctx->sqlitewriter = nullptr;
+    }
+    ctx->sqlite_mutex.Unlock();
   }
 
   static void TrecOnDeadlySignal(int signo, void *siginfo, void *context)
