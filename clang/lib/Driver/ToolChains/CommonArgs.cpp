@@ -1313,6 +1313,7 @@ void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
       CmdArgs.push_back("-lrt");
   }
   CmdArgs.push_back("-lm");
+  CmdArgs.push_back("-lsqlite3");
   // There's no libdl on all OSes.
   if (!TC.getTriple().isOSFreeBSD() && !TC.getTriple().isOSNetBSD() &&
       !TC.getTriple().isOSOpenBSD() &&
