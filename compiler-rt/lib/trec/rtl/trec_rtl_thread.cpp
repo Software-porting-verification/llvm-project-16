@@ -338,35 +338,29 @@ namespace __trec
   int SqliteDebugWriter::getFileID(const char *name)
   {
     ScopedIgnoreInterceptors ignore;
-    mtx.Lock();
     int ID = queryFileID(name);
     if (ID == -1)
     {
       ID = insertFileName(name);
     }
-    mtx.Unlock();
     return ID;
   }
   int SqliteDebugWriter::getVarID(const char *name)
   {
     ScopedIgnoreInterceptors ignore;
-    mtx.Lock();
     int ID = queryVarID(name);
     if (ID == -1)
     {
       ID = insertVarName(name);
     }
-    mtx.Unlock();
     return ID;
   }
   int SqliteDebugWriter::getDebugInfoID(int nameA, int nameB, int line, int col)
   {
     ScopedIgnoreInterceptors ignore;
-    mtx.Lock();
     int ID = queryDebugInfoID(nameA, nameB, line, col);
     if (ID == -1)
       ID = insertDebugInfo(nameA, nameB, line, col);
-    mtx.Unlock();
     return ID;
   }
   int SqliteDebugWriter::insertFileName(const char *name)
@@ -768,6 +762,7 @@ namespace __trec
       if (meta->debug_id == 0)
       {
         ScopedIgnoreInterceptors ignore;
+        ctx->sqlite_mutex.Lock();
         auto sqlite_writer = ctx->getOrInitSqliteWriter();
 
         int nameA = sqlite_writer->getVarID(frame->info.function ? frame->info.function : "");
@@ -775,6 +770,7 @@ namespace __trec
         int line = frame->info.line;
         auto debugID = sqlite_writer->ReformID(sqlite_writer->getDebugInfoID(nameA, nameB, line, 0));
         meta->debug_id = debugID;
+        ctx->sqlite_mutex.Unlock();
       }
     }
   }

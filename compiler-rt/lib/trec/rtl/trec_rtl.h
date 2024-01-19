@@ -284,7 +284,6 @@ namespace __trec
     int queryID(const char *table, const char *name);
     int queryDebugInfoID(int nameA, int nameB, int line, int col);
     bool isValid = false;
-    __sanitizer::Mutex mtx;
 
   public:
     SqliteDebugWriter();
@@ -299,7 +298,6 @@ namespace __trec
   {
   public:
     Context();
-    ~Context();
 
     bool initialized;
     pid_t pid;
@@ -314,7 +312,7 @@ namespace __trec
     ThreadRegistry *thread_registry;
 
     Flags flags;
-    __sanitizer::Mutex mutex;
+    __sanitizer::Mutex mutex, sqlite_mutex;
     bool thread_after_fork = false;
 
     void open_directory(const char *t);
