@@ -25,6 +25,7 @@
 
 namespace __trec
 {
+  char buf[4096];
   int query_callback(void *ret, int argc, char **argv, char **azColName)
   {
     assert(argc == 1);
@@ -34,7 +35,6 @@ namespace __trec
 
   int SqliteDebugWriter::insertName(const char *table, const char *name)
   {
-    char buf[4096];
     __sanitizer::internal_snprintf(buf, 2047, "INSERT INTO %s VALUES (NULL, '%s');", table, name);
     char *errmsg;
     int status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
@@ -50,7 +50,6 @@ namespace __trec
   int SqliteDebugWriter::insertDebugInfo(int nameA, int nameB, int line,
                                          int col)
   {
-    char buf[4096];
     __sanitizer::internal_snprintf(buf, 2047, "INSERT INTO DEBUGINFO VALUES (NULL, %d, %d, %d, %d);",
                                    nameA, nameB, line, col);
     char *errmsg;
@@ -67,7 +66,6 @@ namespace __trec
   int SqliteDebugWriter::queryMaxID(const char *table)
   {
     char *errmsg;
-    char buf[4096];
     int ID = -1;
     __sanitizer::internal_snprintf(buf, 4095, "select seq from sqlite_sequence where name='%s';",
                                    table);
@@ -101,7 +99,6 @@ namespace __trec
     if (internal_strcmp(name, "") == 0)
       return 1;
     char *errmsg;
-    char buf[4096];
     int ID = -1;
     __sanitizer::internal_snprintf(buf, 4095, "SELECT ID from %s where NAME='%s';", table, name);
     int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
@@ -118,7 +115,6 @@ namespace __trec
                                           int col)
   {
     char *errmsg;
-    char buf[4096];
     int ID = -1;
     __sanitizer::internal_snprintf(
         buf, 4095,
