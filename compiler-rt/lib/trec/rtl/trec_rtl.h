@@ -207,7 +207,6 @@ namespace __trec
     __trec_header::TraceHeader header;
     __sanitizer::Mutex mtx;
     DenseMap<__sanitizer::u16, __trec_metadata::FuncParamMeta> params;
-    bool need_symbolize;
     bool is_end;
     void put_trace(__trec_trace::Event &e);
     void put_metadata(void *msg, __sanitizer::u16 len);
@@ -231,19 +230,7 @@ namespace __trec
                     __sanitizer::u64 val, __sanitizer::u64 debugID);
     const __trec_trace::Event *getLastEvent() const;
     void setEnd();
-    inline void setNeedSymbolize()
-    {
-      need_symbolize = true;
-    }
-    inline void unsetNeedSymbolize()
-    {
-      need_symbolize = false;
-    }
-    inline bool isNeedSymbolize() const
-    {
-      return need_symbolize;
-    }
-    void registerSymbolizeInfo(const __sanitizer::SymbolizedStack *frame);
+    __sanitizer::u64 getDebugIDFromSymbolizeInfo(const __sanitizer::SymbolizedStack *frame);
   };
 
   struct TrecThreadCreateArgs
@@ -439,8 +426,8 @@ namespace __trec
   }
 
   void RecordFuncEntry(ThreadState *thr, __sanitizer::u16 order,
-                       __sanitizer::u16 arg_cnt, __sanitizer::u64 debugID,
-                       __sanitizer::u64 pc);
+                       __sanitizer::u16 arg_cnt, __sanitizer::u64 &debugID,
+                       __sanitizer::u64 pc, __sanitizer::u64 func);
   void RecordFuncExit(ThreadState *thr, __sanitizer::u64 debugID,
                       __sanitizer::u64 pc);
 
