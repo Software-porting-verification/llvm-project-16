@@ -110,16 +110,16 @@ namespace
     int DBID;
     std::filesystem::path DBDirPath;
     std::map<std::string, uint32_t> KnownFileNames, KnownVarNames;
-    int insertName(const char *table, const char *name,
-                   std::map<std::string, uint32_t> &m);
+    void insertName(sqlite3_stmt *stmt);
     int insertDebugInfo(int nameA, int nameB, int line, int col);
     int insertFileName(const char *name);
     int insertVarName(const char *name);
     int queryMaxID(const char *table);
     int queryFileID(const char *name);
     int queryVarID(const char *name);
-    int queryID(const char *table, const char *name);
+    int queryID(sqlite3_stmt *stmt, const char *name);
     int queryDebugInfoID(int nameA, int nameB, int line, int col);
+    sqlite3_stmt *insertFileNameStmt, *insertVarNameStmt, *insertDebugStmt, *queryMaxIDStmt, *queryFileNameStmt, *queryVarNameStmt, *queryDebugStmt, *beginStmt, *commitStmt;
 
   public:
     SqliteDebugWriter();
@@ -131,6 +131,27 @@ namespace
     void commitSQL();
 
     void beginSQL();
+  };
+
+  class SqliteDebugWriterWrapper
+  {
+    SqliteDebugWriter *ptr;
+
+  public:
+    SqliteDebugWriterWrapper() = default;
+    ~SqliteDebugWriterWrapper()
+    {
+      if (ptr)
+        delete ptr;
+    }
+    SqliteDebugWriter *getOrInitDebuger()
+    {
+      if (ptr == nullptr)
+      {
+        ptr = new SqliteDebugWriter();
+      }
+      return ptr;
+    }
   };
 
   /// TraceRecorder: instrument the code in module to record traces.
@@ -186,10 +207,9 @@ namespace
       Instruction *Inst;
       unsigned Flags = 0;
     };
-    SqliteDebugWriter debuger;
+    static SqliteDebugWriterWrapper debuger;
     std::set<Instruction *> StoresToBeInstrumented, LoadsToBeInstrumented;
     std::map<Value *, std::vector<StoreInst *>> AddrAllStores;
-
     void initialize(Module &M);
     bool instrumentLoadStore(const InstructionInfo &II, const DataLayout &DL);
     bool instrumentAtomic(Instruction *I, const DataLayout &DL);
@@ -306,7 +326,7 @@ namespace
     FunctionCallee TrecFuncParam;
     FunctionCallee TrecFuncExitParam;
   };
-
+  SqliteDebugWriterWrapper TraceRecorder::debuger;
   void insertModuleCtor(Module &M)
   {
     getOrCreateSanitizerCtorAndInitFunctions(
@@ -325,53 +345,72 @@ namespace
     return 0;
   }
 
-  int SqliteDebugWriter::insertName(const char *table, const char *name,
-                                    std::map<std::string, uint32_t> &m)
+  void SqliteDebugWriter::insertName(sqlite3_stmt *stmt)
   {
-    char buf[4096];
-    snprintf(buf, 2047, "INSERT INTO %s VALUES (NULL, '%s');", table, name);
-    char *errmsg;
-    int status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
-    if (status != SQLITE_OK)
+
+    int status = sqlite3_step(stmt);
+    if (status != SQLITE_DONE)
     {
-      printf("query error(%d): %s\n", status, errmsg);
+      printf("insert error(%d): %s\n", status, sqlite3_errmsg(db));
       exit(status);
     };
-    sqlite3_free(errmsg);
-    return queryMaxID(table);
   }
 
   int SqliteDebugWriter::insertDebugInfo(int nameA, int nameB, int line,
                                          int col)
   {
-    char buf[4096];
-    snprintf(buf, 2047, "INSERT INTO DEBUGINFO VALUES (NULL, %d, %d, %d, %d);",
-             nameA, nameB, line, col);
-    char *errmsg;
-    int status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
+    sqlite3_reset(insertDebugStmt);
+    int status = sqlite3_bind_int(insertDebugStmt, 1, nameA);
     if (status != SQLITE_OK)
     {
-      printf("query error(%d): %s\n", status, errmsg);
+      printf("bind 1st param to insertDebugInfo statement error(%d): %s\n", status, sqlite3_errmsg(db));
       exit(status);
     };
-    sqlite3_free(errmsg);
+    status = sqlite3_bind_int(insertDebugStmt, 2, nameB);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 2nd param to insertDebugInfo statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+    status = sqlite3_bind_int(insertDebugStmt, 3, line);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 3rd param to insertDebugInfo statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+    status = sqlite3_bind_int(insertDebugStmt, 4, col);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 4th param to insertDebugInfo statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+
+    status = sqlite3_step(insertDebugStmt);
+    if (status != SQLITE_DONE)
+    {
+      printf("insert debug error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
     return queryMaxID("DEBUGINFO");
   }
 
   int SqliteDebugWriter::queryMaxID(const char *table)
   {
-    char *errmsg;
-    char buf[4096];
     int ID = -1;
-    snprintf(buf, 4095, "select seq from sqlite_sequence where name='%s';",
-             table);
-    int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
+    sqlite3_reset(queryMaxIDStmt);
+    int status = sqlite3_bind_text(queryMaxIDStmt, 1, table, -1, nullptr);
     if (status != SQLITE_OK)
     {
-      printf("query error(%d): %s\n", status, errmsg);
+      printf("bind param to queryMaxIDStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
       exit(status);
     };
-    sqlite3_free(errmsg);
+    status = sqlite3_step(queryMaxIDStmt);
+    if (status != SQLITE_ROW)
+    {
+      printf("query maxID error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+    ID = atoi((const char *)sqlite3_column_text(queryMaxIDStmt, 0));
     if (ID == -1)
     {
       printf("query error: cannot query last inserted ID for table %s\n", table);
@@ -382,79 +421,104 @@ namespace
 
   int SqliteDebugWriter::queryFileID(const char *name)
   {
-    return queryID("DEBUGFILENAME", name);
+    return queryID(queryFileNameStmt, name);
   }
 
   int SqliteDebugWriter::queryVarID(const char *name)
   {
-    return queryID("DEBUGVARNAME", name);
+    return queryID(queryVarNameStmt, name);
   }
 
-  int SqliteDebugWriter::queryID(const char *table, const char *name)
+  int SqliteDebugWriter::queryID(sqlite3_stmt *stmt, const char *name)
   {
     if (strcmp(name, "") == 0)
       return 1;
-    char *errmsg;
-    char buf[4096];
     int ID = -1;
-    snprintf(buf, 4095, "SELECT ID from %s where NAME='%s';", table, name);
-    int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
+    sqlite3_reset(stmt);
+    int status = sqlite3_bind_text(stmt, 1, name, -1, nullptr);
     if (status != SQLITE_OK)
     {
-      printf("query error(%d): %s\n", status, errmsg);
+      printf("bind param to query statement error(%d): %s\n", status, sqlite3_errmsg(db));
       exit(status);
     };
-    sqlite3_free(errmsg);
+    status = sqlite3_step(stmt);
+    if (status == SQLITE_ROW)
+    {
+      ID = atoi((const char *)sqlite3_column_text(stmt, 0));
+    }
+    else if (status != SQLITE_DONE)
+    {
+      printf("query ID error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+
     return ID;
   }
 
   int SqliteDebugWriter::queryDebugInfoID(int nameA, int nameB, int line,
                                           int col)
   {
-    char *errmsg;
-    char buf[4096];
     int ID = -1;
-    snprintf(
-        buf, 4095,
-        "SELECT ID from DEBUGINFO where NAMEIDA=%d AND NAMEIDB=%d AND "
-        "LINE=%d AND COL=%d;",
-        nameA, nameB, line, col);
-    int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
+    sqlite3_reset(queryDebugStmt);
+    int status = sqlite3_bind_int(queryDebugStmt, 1, nameA);
     if (status != SQLITE_OK)
     {
-      printf("query error(%d): %s\n", status, errmsg);
+      printf("bind 1st param to queryDebugStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
       exit(status);
     };
-    sqlite3_free(errmsg);
+    status = sqlite3_bind_int(queryDebugStmt, 2, nameB);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 2nd param to queryDebugStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+    status = sqlite3_bind_int(queryDebugStmt, 3, line);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 3rd param to queryDebugStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+    status = sqlite3_bind_int(queryDebugStmt, 4, col);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 4th param to queryDebugStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+    status = sqlite3_step(queryDebugStmt);
+    if (status == SQLITE_ROW)
+    {
+      ID = atoi((const char *)sqlite3_column_text(queryDebugStmt, 0));
+    }
+    else if (status != SQLITE_DONE)
+    {
+      printf("query debug error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+
     return ID;
   }
 
   void SqliteDebugWriter::commitSQL()
   {
-    char *errmsg;
     int status;
-    while ((status = sqlite3_exec(db, "COMMIT;", nullptr, nullptr, &errmsg)) ==
+    while ((status = sqlite3_step(commitStmt)) ==
            SQLITE_BUSY)
-      sqlite3_free(errmsg);
-    sqlite3_free(errmsg);
-    if (status != SQLITE_OK)
+      ;
+    if (status != SQLITE_DONE)
     {
-      printf("commit sqlite error(%d): %s\n", status, errmsg);
+      printf("commit sqlite error(%d): %s\n", status, sqlite3_errmsg(db));
       exit(status);
     };
-    sqlite3_free(errmsg);
   }
 
   void SqliteDebugWriter::beginSQL()
   {
-    char *errmsg;
-    int status = sqlite3_exec(db, "BEGIN;", nullptr, nullptr, &errmsg);
-    if (status != SQLITE_OK)
+    int status = sqlite3_step(beginStmt);
+    if (status != SQLITE_DONE)
     {
-      printf("begin sqlite error(%d): %s\n", status, errmsg);
+      printf("begin sqlite error(%d): %s\n", status, sqlite3_errmsg(db));
       exit(status);
     };
-    sqlite3_free(errmsg);
   }
 
   uint64_t SqliteDebugWriter::ReformID(int ID)
@@ -465,7 +529,7 @@ namespace
            ((uint64_t)ID & ((1ULL << 48) - 1));
   }
 
-  SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1)
+  SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1), insertFileNameStmt(nullptr), insertVarNameStmt(nullptr), insertDebugStmt(nullptr), queryMaxIDStmt(nullptr), queryFileNameStmt(nullptr), queryVarNameStmt(nullptr), queryDebugStmt(nullptr), beginStmt(nullptr), commitStmt(nullptr)
   {
     char *DatabaseDir = getenv("TREC_DATABASE_DIR");
     if (DatabaseDir == nullptr)
@@ -478,8 +542,6 @@ namespace
     std::filesystem::path managerDBPath =
         DBDirPath / std::filesystem::path("manager.db");
     int status;
-    char *errmsg;
-
     // open sqlite database
     status = sqlite3_open(managerDBPath.c_str(), &db);
     if (status)
@@ -501,63 +563,58 @@ namespace
     status = sqlite3_exec(db,
                           "CREATE TABLE MANAGER (ID INTEGER PRIMARY KEY "
                           "AUTOINCREMENT, PID INTEGER);",
-                          nullptr, nullptr, &errmsg);
+                          nullptr, nullptr, nullptr);
     if (status != SQLITE_OK &&
         !(status == SQLITE_ERROR &&
-          strcmp(errmsg, "table MANAGER already exists") == 0))
+          strcmp(sqlite3_errmsg(db), "table MANAGER already exists") == 0))
     {
-      printf("create table error(%d): %s\n", status, errmsg);
+      printf("create table error(%d)\n", status);
       exit(status);
     };
-    sqlite3_free(errmsg);
 
     bool isCreated = false;
     char buffer[256];
     snprintf(buffer, sizeof(buffer), "SELECT ID from MANAGER where PID=%d;", pid);
-    status = sqlite3_exec(db, buffer, query_callback, &DBID, &errmsg);
+    status = sqlite3_exec(db, buffer, query_callback, &DBID, nullptr);
     if (status != SQLITE_OK)
     {
-      printf("query manager table error(%d): %s\n", status, errmsg);
+      printf("query manager table error(%d): %s\n", status, sqlite3_errmsg(db));
       exit(status);
     };
     while (DBID == -1)
     {
       snprintf(buffer, sizeof(buffer),
                "SELECT ID from MANAGER where PID IS NULL;");
-      status = sqlite3_exec(db, buffer, query_callback, &DBID, &errmsg);
+      status = sqlite3_exec(db, buffer, query_callback, &DBID, nullptr);
       if (status != SQLITE_OK)
       {
-        printf("query manager table error(%d): %s\n", status, errmsg);
+        printf("query manager table error(%d): %s\n", status, sqlite3_errmsg(db));
         exit(status);
       };
-      sqlite3_free(errmsg);
       if (DBID == -1)
       {
         // no empty entry
         isCreated = true;
         snprintf(buffer, sizeof(buffer),
                  "INSERT INTO MANAGER VALUES (NULL, NULL);");
-        while ((status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg)) ==
+        while ((status = sqlite3_exec(db, buffer, nullptr, nullptr, nullptr)) ==
                SQLITE_BUSY)
-          sqlite3_free(errmsg);
-        sqlite3_free(errmsg);
+          ;
         if (status != SQLITE_OK)
         {
-          printf("insert manager table error(%d): %s\n", status, errmsg);
+          printf("insert manager table error(%d): %s\n", status, sqlite3_errmsg(db));
           exit(status);
         };
-        sqlite3_free(errmsg);
       }
     }
     snprintf(buffer, sizeof(buffer), "UPDATE MANAGER SET PID=%d where ID=%d;",
              pid, DBID);
-    status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg);
+    status = sqlite3_exec(db, buffer, nullptr, nullptr, nullptr);
     if (status != SQLITE_OK)
     {
-      printf("update manager table error(%d): %s\n", status, errmsg);
+      printf("update manager table error(%d): %s\n", status, sqlite3_errmsg(db));
       exit(status);
     };
-    sqlite3_free(errmsg);
 
     // release flock
     if ((status = flock(database_fd, LOCK_UN)) != 0)
@@ -605,23 +662,101 @@ namespace
                             "NAME CHAR(2048));"
                             "INSERT INTO DEBUGVARNAME VALUES (NULL, '');"
                             "INSERT INTO DEBUGFILENAME VALUES (NULL, '');",
-                            nullptr, nullptr, &errmsg);
+                            nullptr, nullptr, nullptr);
       if (status)
       {
-        printf("create subtables failed %d:%s\n", status, sqlite3_errmsg(db));
+        printf("create subtables failed %d: %s\n", status, sqlite3_errmsg(db));
         exit(status);
       }
-      sqlite3_free(errmsg);
+    }
+
+    // initialize statments
+    {
+      status = sqlite3_prepare_v2(db, "INSERT INTO DEBUGVARNAME VALUES (NULL, ?);", -1, &insertVarNameStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        printf("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO DEBUGVARNAME VALUES (NULL, ?);", sqlite3_errmsg(db));
+        exit(status);
+      }
+      status = sqlite3_prepare_v2(db, "INSERT INTO DEBUGFILENAME VALUES (NULL, ?);", -1, &insertFileNameStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        printf("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO DEBUGFILENAME VALUES (NULL, ?);", sqlite3_errmsg(db));
+        exit(status);
+      }
+      status = sqlite3_prepare_v2(db, "INSERT INTO DEBUGINFO VALUES (NULL, ?, ?, ?, ?);", -1, &insertDebugStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        printf("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO DEBUGINFO VALUES (NULL, ?, ?, ?, ?);", sqlite3_errmsg(db));
+        exit(status);
+      }
+      status = sqlite3_prepare_v2(db, "select seq from sqlite_sequence where name=?;", -1, &queryMaxIDStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        printf("prepare sqlite statement '%s' failed: %s\n", "select seq from sqlite_sequence where name=?;", sqlite3_errmsg(db));
+        exit(status);
+      }
+      status = sqlite3_prepare_v2(db, "SELECT ID from DEBUGFILENAME where NAME=?;", -1, &queryFileNameStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        printf("prepare sqlite statement '%s' failed: %s\n", "SELECT ID from DEBUGFILENAME where NAME=?;", sqlite3_errmsg(db));
+        exit(status);
+      }
+      status = sqlite3_prepare_v2(db, "SELECT ID from DEBUGVARNAME where NAME=?;", -1, &queryVarNameStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        printf("prepare sqlite statement '%s' failed: %s\n", "SELECT ID from DEBUGVARNAME where NAME=?;", sqlite3_errmsg(db));
+        exit(status);
+      }
+      status = sqlite3_prepare_v2(db, "SELECT ID from DEBUGINFO where NAMEIDA=? AND NAMEIDB=? AND "
+                                      "LINE=? AND COL=?;",
+                                  -1, &queryDebugStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        printf("prepare sqlite statement '%s' failed: %s\n", "SELECT ID from DEBUGINFO where NAMEIDA=? AND NAMEIDB=? AND "
+                                                             "LINE=? AND COL=?;",
+               sqlite3_errmsg(db));
+        exit(status);
+      }
+      status = sqlite3_prepare_v2(db, "BEGIN;", -1, &beginStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        printf("prepare sqlite statement '%s' failed: %s\n", "BEGIN;", sqlite3_errmsg(db));
+        exit(status);
+      }
+      status = sqlite3_prepare_v2(db, "COMMIT;", -1, &commitStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        printf("prepare sqlite statement '%s' failed: %s\n", "COMMIT;", sqlite3_errmsg(db));
+        exit(status);
+      }
     }
   }
   SqliteDebugWriter::~SqliteDebugWriter()
   {
+    if (insertFileNameStmt)
+      sqlite3_finalize(insertFileNameStmt);
+    if (insertVarNameStmt)
+      sqlite3_finalize(insertVarNameStmt);
+    if (insertDebugStmt)
+      sqlite3_finalize(insertDebugStmt);
+    if (queryMaxIDStmt)
+      sqlite3_finalize(queryMaxIDStmt);
+    if (queryFileNameStmt)
+      sqlite3_finalize(queryFileNameStmt);
+    if (queryVarNameStmt)
+      sqlite3_finalize(queryVarNameStmt);
+    if (queryDebugStmt)
+      sqlite3_finalize(queryDebugStmt);
+    if (beginStmt)
+      sqlite3_finalize(beginStmt);
+    if (commitStmt)
+      sqlite3_finalize(commitStmt);
     sqlite3_close(db);
 
     std::filesystem::path managerDBPath =
         DBDirPath / std::filesystem::path("manager.db");
     int status;
-    char *errmsg;
     int database_fd = open(managerDBPath.c_str(), O_RDONLY);
     if ((status = flock(database_fd, LOCK_EX)) != 0)
     {
@@ -638,13 +773,12 @@ namespace
     char buffer[256];
     snprintf(buffer, sizeof(buffer), "UPDATE MANAGER SET PID=NULL where ID=%d;",
              DBID);
-    status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg);
+    status = sqlite3_exec(db, buffer, nullptr, nullptr, nullptr);
     if (status != SQLITE_OK)
     {
-      printf("update manager table error(%d): %s\n", status, errmsg);
+      printf("update manager table error(%d): %s\n", status, sqlite3_errmsg(db));
       exit(status);
     };
-    sqlite3_free(errmsg);
 
     sqlite3_close(db);
     if ((status = flock(database_fd, LOCK_UN)) != 0)
@@ -689,13 +823,27 @@ namespace
   }
   int SqliteDebugWriter::insertFileName(const char *name)
   {
-
-    return insertName("DEBUGFILENAME", name, KnownFileNames);
+    sqlite3_reset(insertFileNameStmt);
+    int status = sqlite3_bind_text(insertFileNameStmt, 1, name, -1, nullptr);
+    if (status != SQLITE_OK)
+    {
+      printf("bind text to insertFileNameStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    insertName(insertFileNameStmt);
+    return queryMaxID("DEBUGFILENAME");
   }
   int SqliteDebugWriter::insertVarName(const char *name)
   {
-
-    return insertName("DEBUGVARNAME", name, KnownVarNames);
+    sqlite3_reset(insertVarNameStmt);
+    int status = sqlite3_bind_text(insertVarNameStmt, 1, name, -1, nullptr);
+    if (status != SQLITE_OK)
+    {
+      printf("bind text to insertVarNameStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    insertName(insertVarNameStmt);
+    return queryMaxID("DEBUGVARNAME");
   }
 } // namespace
 
@@ -863,7 +1011,8 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   // Do not instrument it.
   if (F.getSubprogram() == nullptr || F.getSubprogram()->getFile() == nullptr)
     return false;
-  debuger.beginSQL();
+
+  debuger.getOrInitDebuger()->beginSQL();
   initialize(*F.getParent());
   VarOrders.clear();
   VarOrderCounter = 1;
@@ -1013,11 +1162,11 @@ bool TraceRecorder::sanitizeFunction(Function &F,
           concatFileName(F.getSubprogram()->getFile()->getDirectory().str(),
                          F.getSubprogram()->getFile()->getFilename().str());
     }
-    int nameA = debuger.getVarID(FuncName.str().c_str());
-    int nameB = debuger.getFileID(CurrentFileName.c_str());
+    int nameA = debuger.getOrInitDebuger()->getVarID(FuncName.str().c_str());
+    int nameB = debuger.getOrInitDebuger()->getFileID(CurrentFileName.c_str());
     int col = 0;
     uint64_t debugID =
-        debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+        debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
 
     IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(1), IRB.getInt16(F.arg_size()),
                                    IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(IRB.getInt64(0), IRB.getInt8PtrTy())});
@@ -1053,7 +1202,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
     }
   }
-  debuger.commitSQL();
+  debuger.getOrInitDebuger()->commitSQL();
   return Res;
 }
 
@@ -1068,12 +1217,12 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
   {
     BranchInst *Br = dyn_cast<BranchInst>(I);
     Value *cond = Br->getCondition();
-    int nameA = debuger.getVarID(cond->getName().str().c_str());
+    int nameA = debuger.getOrInitDebuger()->getVarID(cond->getName().str().c_str());
     int nameB = 0;
     int line = Br->getDebugLoc().getLine();
     int col = Br->getDebugLoc().getCol();
     uint64_t debugID =
-        debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+        debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
     IRB.CreateCall(TrecBranch,
                    {IRB.CreateBitOrPointerCast(cond, IRB.getInt8PtrTy()),
@@ -1084,12 +1233,12 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
   {
     SwitchInst *sw = dyn_cast<SwitchInst>(I);
     Value *cond = sw->getCondition();
-    int nameA = debuger.getVarID(cond->getName().str().c_str());
+    int nameA = debuger.getOrInitDebuger()->getVarID(cond->getName().str().c_str());
     int nameB = 0;
     int line = sw->getDebugLoc().getLine();
     int col = sw->getDebugLoc().getCol();
     uint64_t debugID =
-        debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+        debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
     IRB.CreateCall(TrecBranch,
                    {IRB.CreateBitOrPointerCast(cond, IRB.getInt8PtrTy()),
@@ -1100,12 +1249,12 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
   {
     IndirectBrInst *IBr = dyn_cast<IndirectBrInst>(I);
     Value *cond = IBr->getAddress();
-    int nameA = debuger.getVarID(cond->getName().str().c_str());
+    int nameA = debuger.getOrInitDebuger()->getVarID(cond->getName().str().c_str());
     int nameB = 0;
     int line = IBr->getDebugLoc().getLine();
     int col = IBr->getDebugLoc().getCol();
     uint64_t debugID =
-        debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+        debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
     IRB.CreateCall(TrecBranch,
                    {IRB.CreateBitOrPointerCast(cond, IRB.getInt8PtrTy()),
@@ -1137,12 +1286,12 @@ bool TraceRecorder::instrumentReturn(Instruction *I)
       RetValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getInt8PtrTy());
     if (RetValInst)
     {
-      int nameA = debuger.getVarID(RetVal->getName().str().c_str());
+      int nameA = debuger.getOrInitDebuger()->getVarID(RetVal->getName().str().c_str());
       int nameB = 0;
       int line = I->getDebugLoc().getLine();
       int col = I->getDebugLoc().getCol();
       uint64_t debugID =
-          debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+          debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
       IRB.CreateCall(TrecFuncExitParam,
                      {VSI_val.Reform(IRB), RetValInst, IRB.getInt64(debugID)});
       res = true;
@@ -1203,12 +1352,12 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
           varname = created->getSubprogram()->getName();
         }
       }
-      int nameA = debuger.getVarID(varname.c_str());
+      int nameA = debuger.getOrInitDebuger()->getVarID(varname.c_str());
       int nameB = 0;
       int line = I->getDebugLoc().getLine();
       int col = I->getDebugLoc().getCol();
       uint64_t debugID =
-          debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+          debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
       IRB.CreateCall(TrecFuncParam, {IRB.getInt16(i + 1), VSI.Reform(IRB),
                                      ValInst, IRB.getInt64(debugID)});
     }
@@ -1230,13 +1379,13 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
     }
   }
 
-  int nameA = debuger.getVarID(CalledFName.str().c_str());
-  int nameB = debuger.getFileID(CurrentFileName.c_str());
+  int nameA = debuger.getOrInitDebuger()->getVarID(CalledFName.str().c_str());
+  int nameB = debuger.getOrInitDebuger()->getFileID(CurrentFileName.c_str());
   int line = (CalledF && CalledF->getSubprogram()) ? CalledF->getSubprogram()->getLine() : 0;
   int col = 0;
   uint64_t debugID = 0;
   if (nameA != 1 || nameB != 1)
-    debugID = debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+    debugID = debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
   IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
                                  IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(CI->getCalledOperand(), IRB.getInt8PtrTy())});
   if (CalledFName == "pthread_create")
@@ -1259,18 +1408,18 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
         createdLine = created->getSubprogram()->getLine();
       }
     }
-    int creatednameA = debuger.getVarID(createdFuncName.c_str());
-    int creatednameB = debuger.getFileID(createdFileName.c_str());
+    int creatednameA = debuger.getOrInitDebuger()->getVarID(createdFuncName.c_str());
+    int creatednameB = debuger.getOrInitDebuger()->getFileID(createdFileName.c_str());
     uint64_t createdDebugID = 0;
     if (creatednameA != 1 || creatednameB != 1)
-      createdDebugID = debuger.ReformID(debuger.getDebugInfoID(
+      createdDebugID = debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(
           creatednameA, creatednameB, createdLine, createdCol));
 
     int argnameA =
-        debuger.getVarID(CI->getArgOperand(3)->getName().str().c_str());
+        debuger.getOrInitDebuger()->getVarID(CI->getArgOperand(3)->getName().str().c_str());
     int argnameB = 0;
     uint64_t argDebugID =
-        debuger.ReformID(debuger.getDebugInfoID(argnameA, argnameB, line, col));
+        debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(argnameA, argnameB, line, col));
     IRB.CreateCall(
         TrecThreadCreate,
         {IRB.CreateBitOrPointerCast(CI->getArgOperand(3), IRB.getInt8PtrTy()),
@@ -1352,12 +1501,12 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
     Value *StoredValue = cast<StoreInst>(II.Inst)->getValueOperand();
     if (StoredValue->getType()->isIntOrPtrTy())
     {
-      int nameA = debuger.getVarID(Addr->getName().str().c_str());
-      int nameB = debuger.getVarID(StoredValue->getName().str().c_str());
+      int nameA = debuger.getOrInitDebuger()->getVarID(Addr->getName().str().c_str());
+      int nameB = debuger.getOrInitDebuger()->getVarID(StoredValue->getName().str().c_str());
       int line = II.Inst->getDebugLoc().getLine();
       int col = II.Inst->getDebugLoc().getCol();
       uint64_t debugID =
-          debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+          debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
       ValSourceInfo VSI_val =
           getSource(StoredValue, II.Inst->getParent()->getParent());
       StoredValue = IRB.CreateBitOrPointerCast(StoredValue, IRB.getInt8PtrTy());
@@ -1379,12 +1528,12 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
     Value *LoadedValue = II.Inst;
     if (LoadedValue->getType()->isIntOrPtrTy())
     {
-      int nameA = debuger.getVarID(Addr->getName().str().c_str());
-      int nameB = debuger.getVarID(LoadedValue->getName().str().c_str());
+      int nameA = debuger.getOrInitDebuger()->getVarID(Addr->getName().str().c_str());
+      int nameB = debuger.getOrInitDebuger()->getVarID(LoadedValue->getName().str().c_str());
       int line = II.Inst->getDebugLoc().getLine();
       int col = II.Inst->getDebugLoc().getCol();
       uint64_t debugID =
-          debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
+          debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
       LoadedValue = IRB.CreateBitOrPointerCast(LoadedValue, IRB.getInt8PtrTy());
       auto newInst = IRB.CreateCall(
           OnAccessFunc, {IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
@@ -1752,15 +1901,15 @@ bool TraceRecorder::instrumentAtomic(Instruction *I, const DataLayout &DL)
     const unsigned BitSize = ByteSize * 8;
     Type *Ty = Type::getIntNTy(IRB.getContext(), BitSize);
     Type *PtrTy = Ty->getPointerTo();
-    int nameA = debuger.getVarID(Addr->getName().str().c_str());
-    int nameB = debuger.getVarID(LI->getName().str().c_str());
+    int nameA = debuger.getOrInitDebuger()->getVarID(Addr->getName().str().c_str());
+    int nameB = debuger.getOrInitDebuger()->getVarID(LI->getName().str().c_str());
     int line = LI->getDebugLoc().getLine();
     int col = LI->getDebugLoc().getCol();
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
                      createOrdering(&IRB, LI->getOrdering()),
                      IRB.getInt1(OrigTy->isPointerTy()),
-                     IRB.getInt64(debuger.ReformID(
-                         debuger.getDebugInfoID(nameA, nameB, line, col)))};
+                     IRB.getInt64(debuger.getOrInitDebuger()->ReformID(
+                         debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col)))};
 
     CallInst *C = IRB.CreateCall(TrecAtomicLoad[Idx], Args);
     C->setDebugLoc(LI->getDebugLoc());
@@ -1779,16 +1928,16 @@ bool TraceRecorder::instrumentAtomic(Instruction *I, const DataLayout &DL)
     Type *Ty = Type::getIntNTy(IRB.getContext(), BitSize);
     Type *PtrTy = Ty->getPointerTo();
     Type *OrigTy = SI->getValueOperand()->getType();
-    int nameA = debuger.getVarID(Addr->getName().str().c_str());
-    int nameB = debuger.getVarID(SI->getName().str().c_str());
+    int nameA = debuger.getOrInitDebuger()->getVarID(Addr->getName().str().c_str());
+    int nameB = debuger.getOrInitDebuger()->getVarID(SI->getName().str().c_str());
     int line = SI->getDebugLoc().getLine();
     int col = SI->getDebugLoc().getCol();
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
                      IRB.CreateBitOrPointerCast(SI->getValueOperand(), Ty),
                      createOrdering(&IRB, SI->getOrdering()),
                      IRB.getInt1(OrigTy->isPointerTy()),
-                     IRB.getInt64(debuger.ReformID(
-                         debuger.getDebugInfoID(nameA, nameB, line, col)))};
+                     IRB.getInt64(debuger.getOrInitDebuger()->ReformID(
+                         debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col)))};
     CallInst *C = CallInst::Create(TrecAtomicStore[Idx], Args);
     C->setDebugLoc(SI->getDebugLoc());
     ReplaceInstWithInst(I, C);
@@ -1808,16 +1957,16 @@ bool TraceRecorder::instrumentAtomic(Instruction *I, const DataLayout &DL)
     Type *Ty = Type::getIntNTy(IRB.getContext(), BitSize);
     Type *PtrTy = Ty->getPointerTo();
     Type *OrigTy = RMWI->getValOperand()->getType();
-    int nameA = debuger.getVarID(Addr->getName().str().c_str());
-    int nameB = debuger.getVarID(RMWI->getName().str().c_str());
+    int nameA = debuger.getOrInitDebuger()->getVarID(Addr->getName().str().c_str());
+    int nameB = debuger.getOrInitDebuger()->getVarID(RMWI->getName().str().c_str());
     int line = RMWI->getDebugLoc().getLine();
     int col = RMWI->getDebugLoc().getCol();
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
                      IRB.CreateIntCast(RMWI->getValOperand(), Ty, false),
                      createOrdering(&IRB, RMWI->getOrdering()),
                      IRB.getInt1(OrigTy->isPointerTy()),
-                     IRB.getInt64(debuger.ReformID(
-                         debuger.getDebugInfoID(nameA, nameB, line, col)))};
+                     IRB.getInt64(debuger.getOrInitDebuger()->ReformID(
+                         debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col)))};
     CallInst *C = CallInst::Create(F, Args);
     C->setDebugLoc(RMWI->getDebugLoc());
     ReplaceInstWithInst(I, C);
@@ -1838,8 +1987,8 @@ bool TraceRecorder::instrumentAtomic(Instruction *I, const DataLayout &DL)
         IRB.CreateBitOrPointerCast(CASI->getCompareOperand(), Ty);
     Value *NewOperand =
         IRB.CreateBitOrPointerCast(CASI->getNewValOperand(), Ty);
-    int nameA = debuger.getVarID(Addr->getName().str().c_str());
-    int nameB = debuger.getVarID(NewOperand->getName().str().c_str());
+    int nameA = debuger.getOrInitDebuger()->getVarID(Addr->getName().str().c_str());
+    int nameB = debuger.getOrInitDebuger()->getVarID(NewOperand->getName().str().c_str());
     int line = CASI->getDebugLoc().getLine();
     int col = CASI->getDebugLoc().getCol();
     Value *Args[] = {IRB.CreatePointerCast(Addr, PtrTy),
@@ -1848,8 +1997,8 @@ bool TraceRecorder::instrumentAtomic(Instruction *I, const DataLayout &DL)
                      createOrdering(&IRB, CASI->getSuccessOrdering()),
                      createOrdering(&IRB, CASI->getFailureOrdering()),
                      IRB.getInt1(OrigTy->isPointerTy()),
-                     IRB.getInt64(debuger.ReformID(
-                         debuger.getDebugInfoID(nameA, nameB, line, col)))};
+                     IRB.getInt64(debuger.getOrInitDebuger()->ReformID(
+                         debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col)))};
     CallInst *C = IRB.CreateCall(TrecAtomicCAS[Idx], Args);
     C->setDebugLoc(CASI->getDebugLoc());
     Value *Success = IRB.CreateICmpEQ(C, CmpOperand);

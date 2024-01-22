@@ -25,7 +25,6 @@
 
 namespace __trec
 {
-  char buf[4096];
   int query_callback(void *ret, int argc, char **argv, char **azColName)
   {
     assert(argc == 1);
@@ -33,49 +32,71 @@ namespace __trec
     return 0;
   }
 
-  int SqliteDebugWriter::insertName(const char *table, const char *name)
+  void SqliteDebugWriter::insertName(sqlite3_stmt *stmt)
   {
-    __sanitizer::internal_snprintf(buf, 2047, "INSERT INTO %s VALUES (NULL, '%s');", table, name);
-    char *errmsg;
-    int status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
-    if (status != SQLITE_OK)
+    int status = sqlite3_step(stmt);
+    if (status != SQLITE_DONE)
     {
-      Report("query error(%d): %s\n", status, errmsg);
+      Report("insert error(%d): %s\n", status, sqlite3_errmsg(db));
       Die();
     };
-    sqlite3_free(errmsg);
-    return queryMaxID(table);
   }
 
   int SqliteDebugWriter::insertDebugInfo(int nameA, int nameB, int line,
                                          int col)
   {
-    __sanitizer::internal_snprintf(buf, 2047, "INSERT INTO DEBUGINFO VALUES (NULL, %d, %d, %d, %d);",
-                                   nameA, nameB, line, col);
-    char *errmsg;
-    int status = sqlite3_exec(db, buf, nullptr, nullptr, &errmsg);
+    sqlite3_reset(insertDebugStmt);
+    int status = sqlite3_bind_int(insertDebugStmt, 1, nameA);
     if (status != SQLITE_OK)
     {
-      Report("query error(%d): %s\n", status, errmsg);
+      Report("bind 1st param to insertDebugInfo statement error(%d): %s\n", status, sqlite3_errmsg(db));
       Die();
     };
-    sqlite3_free(errmsg);
+    status = sqlite3_bind_int(insertDebugStmt, 2, nameB);
+    if (status != SQLITE_OK)
+    {
+      Report("bind 2nd param to insertDebugInfo statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      Die();
+    };
+    status = sqlite3_bind_int(insertDebugStmt, 3, line);
+    if (status != SQLITE_OK)
+    {
+      Report("bind 3rd param to insertDebugInfo statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      Die();
+    };
+    status = sqlite3_bind_int(insertDebugStmt, 4, col);
+    if (status != SQLITE_OK)
+    {
+      Report("bind 4th param to insertDebugInfo statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      Die();
+    };
+
+    status = sqlite3_step(insertDebugStmt);
+    if (status != SQLITE_DONE)
+    {
+      Report("insert debug error(%d): %s\n", status, sqlite3_errmsg(db));
+      Die();
+    };
     return queryMaxID("DEBUGINFO");
   }
 
   int SqliteDebugWriter::queryMaxID(const char *table)
   {
-    char *errmsg;
     int ID = -1;
-    __sanitizer::internal_snprintf(buf, 4095, "select seq from sqlite_sequence where name='%s';",
-                                   table);
-    int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
+    sqlite3_reset(queryMaxIDStmt);
+    int status = sqlite3_bind_text(queryMaxIDStmt, 1, table, -1, nullptr);
     if (status != SQLITE_OK)
     {
-      Report("query error(%d): %s\n", status, errmsg);
+      Report("bind param to queryMaxIDStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
       Die();
     };
-    sqlite3_free(errmsg);
+    status = sqlite3_step(queryMaxIDStmt);
+    if (status != SQLITE_ROW)
+    {
+      Report("query maxID error(%d): %s\n", status, sqlite3_errmsg(db));
+      Die();
+    };
+    ID = internal_atoll((const char *)sqlite3_column_text(queryMaxIDStmt, 0));
     if (ID == -1)
     {
       Report("query error: cannot query last inserted ID for table %s\n", table);
@@ -86,51 +107,82 @@ namespace __trec
 
   int SqliteDebugWriter::queryFileID(const char *name)
   {
-    return queryID("DEBUGFILENAME", name);
+    return queryID(queryFileNameStmt, name);
   }
 
   int SqliteDebugWriter::queryVarID(const char *name)
   {
-    return queryID("DEBUGVARNAME", name);
+    return queryID(queryVarNameStmt, name);
   }
 
-  int SqliteDebugWriter::queryID(const char *table, const char *name)
+  int SqliteDebugWriter::queryID(sqlite3_stmt *stmt, const char *name)
   {
     if (internal_strcmp(name, "") == 0)
       return 1;
-    char *errmsg;
     int ID = -1;
-    __sanitizer::internal_snprintf(buf, 4095, "SELECT ID from %s where NAME='%s';", table, name);
-    int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
+    sqlite3_reset(stmt);
+    int status = sqlite3_bind_text(stmt, 1, name, -1, nullptr);
     if (status != SQLITE_OK)
     {
-      Report("query error(%d): %s\n", status, errmsg);
+      Report("bind param to query statement error(%d): %s\n", status, sqlite3_errmsg(db));
       Die();
     };
-    sqlite3_free(errmsg);
+    status = sqlite3_step(stmt);
+    if (status == SQLITE_ROW)
+    {
+      ID = internal_atoll((const char *)sqlite3_column_text(stmt, 0));
+    }
+    else if (status != SQLITE_DONE)
+    {
+      Report("query ID error(%d): %s\n", status, sqlite3_errmsg(db));
+      Die();
+    };
+
     return ID;
   }
 
   int SqliteDebugWriter::queryDebugInfoID(int nameA, int nameB, int line,
                                           int col)
   {
-    char *errmsg;
     int ID = -1;
-    __sanitizer::internal_snprintf(
-        buf, 4095,
-        "SELECT ID from DEBUGINFO where NAMEIDA=%d AND NAMEIDB=%d AND "
-        "LINE=%d AND COL=%d;",
-        nameA, nameB, line, col);
-    int status = sqlite3_exec(db, buf, query_callback, &ID, &errmsg);
+    sqlite3_reset(queryDebugStmt);
+    int status = sqlite3_bind_int(queryDebugStmt, 1, nameA);
     if (status != SQLITE_OK)
     {
-      Report("query error(%d): %s\n", status, errmsg);
+      Report("bind 1st param to queryDebugStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
       Die();
     };
-    sqlite3_free(errmsg);
+    status = sqlite3_bind_int(queryDebugStmt, 2, nameB);
+    if (status != SQLITE_OK)
+    {
+      Report("bind 2nd param to queryDebugStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      Die();
+    };
+    status = sqlite3_bind_int(queryDebugStmt, 3, line);
+    if (status != SQLITE_OK)
+    {
+      Report("bind 3rd param to queryDebugStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      Die();
+    };
+    status = sqlite3_bind_int(queryDebugStmt, 4, col);
+    if (status != SQLITE_OK)
+    {
+      Report("bind 4th param to queryDebugStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      Die();
+    };
+    status = sqlite3_step(queryDebugStmt);
+    if (status == SQLITE_ROW)
+    {
+      ID = internal_atoll((const char *)sqlite3_column_text(queryDebugStmt, 0));
+    }
+    else if (status != SQLITE_DONE)
+    {
+      Report("query debug error(%d): %s\n", status, sqlite3_errmsg(db));
+      Die();
+    };
+
     return ID;
   }
-
   __sanitizer::u64 SqliteDebugWriter::ReformID(int ID)
   {
     assert(DBID >= 1);
@@ -139,7 +191,7 @@ namespace __trec
            ((__sanitizer::u64)ID & ((1ULL << 48) - 1));
   }
 
-  SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1), isValid(false)
+  SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1), isValid(false), insertFileNameStmt(nullptr), insertVarNameStmt(nullptr), insertDebugStmt(nullptr), queryMaxIDStmt(nullptr), queryFileNameStmt(nullptr), queryVarNameStmt(nullptr), queryDebugStmt(nullptr), beginStmt(nullptr), commitStmt(nullptr)
   {
     ScopedIgnoreInterceptors ignore;
     const char *DatabaseDir = GetEnv("TREC_DATABASE_DIR");
@@ -148,11 +200,11 @@ namespace __trec
       Report("ENV 'TREC_DATABASE_DIR' has not been set\n");
       Die();
     }
-    __sanitizer::internal_snprintf(DBDirPath, 2047, "%s", DatabaseDir);
+    char buf[1024];
+    __sanitizer::internal_snprintf(DBDirPath, 1023, "%s", DatabaseDir);
     int pid = __sanitizer::internal_getpid();
-    __sanitizer::internal_snprintf(buf, 2047, "%s/%s", DBDirPath, "manager.db");
+    __sanitizer::internal_snprintf(buf, 1023, "%s/%s", DBDirPath, "manager.db");
     int status;
-    char *errmsg;
 
     // open sqlite database
     status = sqlite3_open(buf, &db);
@@ -176,63 +228,58 @@ namespace __trec
     status = sqlite3_exec(db,
                           "CREATE TABLE MANAGER (ID INTEGER PRIMARY KEY "
                           "AUTOINCREMENT, PID INTEGER);",
-                          nullptr, nullptr, &errmsg);
+                          nullptr, nullptr, nullptr);
     if (status != SQLITE_OK &&
         !(status == SQLITE_ERROR &&
-          __sanitizer::internal_strcmp(errmsg, "table MANAGER already exists") == 0))
+          __sanitizer::internal_strcmp(sqlite3_errmsg(db), "table MANAGER already exists") == 0))
     {
-      Report("create table error(%d): %s\n", status, errmsg);
+      Report("create table error(%d)\n", status);
       Die();
     };
-    sqlite3_free(errmsg);
 
     bool isCreated = false;
     char buffer[256];
     __sanitizer::internal_snprintf(buffer, sizeof(buffer), "SELECT ID from MANAGER where PID=%d;", pid);
-    status = sqlite3_exec(db, buffer, query_callback, &DBID, &errmsg);
+    status = sqlite3_exec(db, buffer, query_callback, &DBID, nullptr);
     if (status != SQLITE_OK)
     {
-      Report("query manager table error(%d): %s\n", status, errmsg);
+      Report("query manager table error(%d): %s\n", status, sqlite3_errmsg(db));
       Die();
     };
     while (DBID == -1)
     {
       __sanitizer::internal_snprintf(buffer, sizeof(buffer),
                                      "SELECT ID from MANAGER where PID IS NULL;");
-      status = sqlite3_exec(db, buffer, query_callback, &DBID, &errmsg);
+      status = sqlite3_exec(db, buffer, query_callback, &DBID, nullptr);
       if (status != SQLITE_OK)
       {
-        Report("query manager table error(%d): %s\n", status, errmsg);
+        Report("query manager table error(%d): %s\n", status, sqlite3_errmsg(db));
         Die();
       };
-      sqlite3_free(errmsg);
       if (DBID == -1)
       {
         // no empty entry
         isCreated = true;
         __sanitizer::internal_snprintf(buffer, sizeof(buffer),
                                        "INSERT INTO MANAGER VALUES (NULL, NULL);");
-        while ((status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg)) ==
+        while ((status = sqlite3_exec(db, buffer, nullptr, nullptr, nullptr)) ==
                SQLITE_BUSY)
-          sqlite3_free(errmsg);
-        sqlite3_free(errmsg);
+          ;
         if (status != SQLITE_OK)
         {
-          Report("insert manager table error(%d): %s\n", status, errmsg);
+          Report("insert manager table error(%d): %s\n", status, sqlite3_errmsg(db));
           Die();
         };
-        sqlite3_free(errmsg);
       }
     }
     __sanitizer::internal_snprintf(buffer, sizeof(buffer), "UPDATE MANAGER SET PID=%d where ID=%d;",
                                    pid, DBID);
-    status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg);
+    status = sqlite3_exec(db, buffer, nullptr, nullptr, nullptr);
     if (status != SQLITE_OK)
     {
-      Report("update manager table error(%d): %s\n", status, errmsg);
+      Report("update manager table error(%d): %s\n", status, sqlite3_errmsg(db));
       Die();
     };
-    sqlite3_free(errmsg);
 
     // release flock
     if ((status = flock(database_fd, LOCK_UN)) != 0)
@@ -280,23 +327,102 @@ namespace __trec
                             "NAME CHAR(2048));"
                             "INSERT INTO DEBUGVARNAME VALUES (NULL, '');"
                             "INSERT INTO DEBUGFILENAME VALUES (NULL, '');",
-                            nullptr, nullptr, &errmsg);
+                            nullptr, nullptr, nullptr);
       if (status)
       {
         Report("create subtables failed %d:%s\n", status, sqlite3_errmsg(db));
         Die();
       }
-      sqlite3_free(errmsg);
+    }
+
+    // initialize statments
+    {
+      status = sqlite3_prepare_v2(db, "INSERT INTO DEBUGVARNAME VALUES (NULL, ?);", -1, &insertVarNameStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        Report("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO DEBUGVARNAME VALUES (NULL, ?);", sqlite3_errmsg(db));
+
+        Die();
+      }
+      status = sqlite3_prepare_v2(db, "INSERT INTO DEBUGFILENAME VALUES (NULL, ?);", -1, &insertFileNameStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        Report("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO DEBUGFILENAME VALUES (NULL, ?);", sqlite3_errmsg(db));
+        Die();
+      }
+      status = sqlite3_prepare_v2(db, "INSERT INTO DEBUGINFO VALUES (NULL, ?, ?, ?, ?);", -1, &insertDebugStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        Report("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO DEBUGINFO VALUES (NULL, ?, ?, ?, ?);", sqlite3_errmsg(db));
+        Die();
+      }
+      status = sqlite3_prepare_v2(db, "select seq from sqlite_sequence where name=?;", -1, &queryMaxIDStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        Report("prepare sqlite statement '%s' failed: %s\n", "select seq from sqlite_sequence where name=?;", sqlite3_errmsg(db));
+        Die();
+      }
+      status = sqlite3_prepare_v2(db, "SELECT ID from DEBUGFILENAME where NAME=?;", -1, &queryFileNameStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        Report("prepare sqlite statement '%s' failed: %s\n", "SELECT ID from DEBUGFILENAME where NAME=?;", sqlite3_errmsg(db));
+        Die();
+      }
+      status = sqlite3_prepare_v2(db, "SELECT ID from DEBUGVARNAME where NAME=?;", -1, &queryVarNameStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        Report("prepare sqlite statement '%s' failed: %s\n", "SELECT ID from DEBUGVARNAME where NAME=?;", sqlite3_errmsg(db));
+        Die();
+      }
+      status = sqlite3_prepare_v2(db, "SELECT ID from DEBUGINFO where NAMEIDA=? AND NAMEIDB=? AND "
+                                      "LINE=? AND COL=?;",
+                                  -1, &queryDebugStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        Report("prepare sqlite statement '%s' failed: %s\n", "SELECT ID from DEBUGINFO where NAMEIDA=? AND NAMEIDB=? AND "
+                                                             "LINE=? AND COL=?;",
+               sqlite3_errmsg(db));
+        Die();
+      }
+      status = sqlite3_prepare_v2(db, "BEGIN;", -1, &beginStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        Report("prepare sqlite statement '%s' failed: %s\n", "BEGIN;", sqlite3_errmsg(db));
+        Die();
+      }
+      status = sqlite3_prepare_v2(db, "COMMIT;", -1, &commitStmt, nullptr);
+      if (status != SQLITE_OK)
+      {
+        Report("prepare sqlite statement '%s' failed: %s\n", "COMMIT;", sqlite3_errmsg(db));
+        Die();
+      }
     }
   }
   SqliteDebugWriter::~SqliteDebugWriter()
   {
     ScopedIgnoreInterceptors ignore;
+    if (insertFileNameStmt)
+      sqlite3_finalize(insertFileNameStmt);
+    if (insertVarNameStmt)
+      sqlite3_finalize(insertVarNameStmt);
+    if (insertDebugStmt)
+      sqlite3_finalize(insertDebugStmt);
+    if (queryMaxIDStmt)
+      sqlite3_finalize(queryMaxIDStmt);
+    if (queryFileNameStmt)
+      sqlite3_finalize(queryFileNameStmt);
+    if (queryVarNameStmt)
+      sqlite3_finalize(queryVarNameStmt);
+    if (queryDebugStmt)
+      sqlite3_finalize(queryDebugStmt);
+    if (beginStmt)
+      sqlite3_finalize(beginStmt);
+    if (commitStmt)
+      sqlite3_finalize(commitStmt);
     sqlite3_close(db);
-
-    __sanitizer::internal_snprintf(buf, 2047, "%s/%s", DBDirPath, "manager.db");
+    char buf[1023];
+    __sanitizer::internal_snprintf(buf, 1023, "%s/%s", DBDirPath, "manager.db");
     int status;
-    char *errmsg;
     int database_fd = internal_open(buf, O_RDONLY);
     if ((status = flock(database_fd, LOCK_EX)) != 0)
     {
@@ -313,13 +439,12 @@ namespace __trec
     char buffer[256];
     __sanitizer::internal_snprintf(buffer, sizeof(buffer), "UPDATE MANAGER SET PID=NULL where ID=%d;",
                                    DBID);
-    status = sqlite3_exec(db, buffer, nullptr, nullptr, &errmsg);
+    status = sqlite3_exec(db, buffer, nullptr, nullptr, nullptr);
     if (status != SQLITE_OK)
     {
-      Report("update manager table error(%d): %s\n", status, errmsg);
+      Report("update manager table error(%d): %s\n", status, sqlite3_errmsg(db));
       Die();
     };
-    sqlite3_free(errmsg);
 
     sqlite3_close(db);
     if ((status = flock(database_fd, LOCK_UN)) != 0)
@@ -359,11 +484,27 @@ namespace __trec
   }
   int SqliteDebugWriter::insertFileName(const char *name)
   {
-    return insertName("DEBUGFILENAME", name);
+    sqlite3_reset(insertFileNameStmt);
+    int status = sqlite3_bind_text(insertFileNameStmt, 1, name, -1, nullptr);
+    if (status != SQLITE_OK)
+    {
+      Report("bind text to insertFileNameStmt failed: %s", sqlite3_errmsg(db));
+      Die();
+    }
+    insertName(insertFileNameStmt);
+    return queryMaxID("DEBUGFILENAME");
   }
   int SqliteDebugWriter::insertVarName(const char *name)
   {
-    return insertName("DEBUGVARNAME", name);
+    sqlite3_reset(insertVarNameStmt);
+    int status = sqlite3_bind_text(insertVarNameStmt, 1, name, -1, nullptr);
+    if (status != SQLITE_OK)
+    {
+      Report("bind text to insertVarNameStmt failed: %s", sqlite3_errmsg(db));
+      Die();
+    }
+    insertName(insertVarNameStmt);
+    return queryMaxID("DEBUGVARNAME");
   }
 
   TraceWriter::TraceWriter(u16 tid)
