@@ -598,13 +598,20 @@ namespace __trec
   ALWAYS_INLINE USED void RecordFuncEntry(ThreadState *thr,
                                           __sanitizer::u16 order,
                                           __sanitizer::u16 arg_cnt,
-                                          __sanitizer::u64 debugID,
-                                          __sanitizer::u64 pc)
+                                          __sanitizer::u64 &debugID,
+                                          __sanitizer::u64 pc, __sanitizer::u64 func)
   {
     if (LIKELY(ctx->flags.output_trace) &&
         LIKELY(ctx->flags.record_func_enter_exit) &&
         LIKELY(thr->ignore_interceptors == 0))
     {
+      if (debugID == 0 && func && ctx->flags.symbolize_at_runtime)
+      {
+        ScopedIgnoreInterceptors ignore;
+        auto symbolizer = Symbolizer::GetOrInit();
+        auto frame = symbolizer->SymbolizePC(func);
+        debugID = thr->tctx->writer.getDebugIDFromSymbolizeInfo(frame);
+      }
       __trec_metadata::FuncMeta meta(debugID);
       thr->tctx->writer.put_record(__trec_trace::EventType::FuncEnter,
                                    (((__sanitizer::u64)order) << 16) | arg_cnt,

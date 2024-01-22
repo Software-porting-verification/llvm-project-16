@@ -787,8 +787,9 @@ extern "C" void *__trec_thread_start_func(void *arg)
   ThreadParam *p = (ThreadParam *)arg;
   void *(*callback)(void *arg) = p->callback;
   void *param = p->param;
+  ThreadState *thr = cur_thread_init();
+  __trec::TrecThreadCreateArgs createdArgs = *(p->createdArgs);
   {
-    ThreadState *thr = cur_thread_init();
     {
       // Thread-local state is not initialized yet.
       ScopedIgnoreInterceptors ignore;
@@ -805,11 +806,12 @@ extern "C" void *__trec_thread_start_func(void *arg)
       ProcWire(proc, thr);
       ThreadStart(thr, p->tid, GetTid(), ThreadType::Regular);
     }
-    FuncParam(thr, 1, {1, 0, 0, 4}, p->createdArgs->arg_val, p->createdArgs->arg_debugID);
-    RecordFuncEntry(thr, 0, 1, p->createdArgs->debugID, p->createdArgs->pc);
     p->started.Post();
   }
+  FuncParam(thr, 1, {1, 0, 0, 4}, createdArgs.arg_val, createdArgs.arg_debugID);
+  RecordFuncEntry(thr, 0, 1, createdArgs.debugID, createdArgs.pc, (u64)callback);
   void *res = callback(param);
+  RecordFuncExit(thr, createdArgs.debugID, createdArgs.pc);
   // Prevent the callback from being tail called,
   // it mixes up stack traces.
   volatile int foo = 42;

@@ -288,7 +288,6 @@ namespace
     FunctionCallee TrecFuncEntry;
     FunctionCallee TrecFuncExit;
     FunctionCallee TrecThreadCreate;
-    FunctionCallee TrecFuncFirstPoint;
     // Accesses sizes are powers of two: 1, 2, 4, 8.
     static const size_t kNumberOfAccessSizes = 4;
     FunctionCallee TrecRead[kNumberOfAccessSizes];
@@ -726,13 +725,12 @@ void TraceRecorder::initialize(Module &M)
   // Initialize the callbacks.
   TrecFuncEntry = M.getOrInsertFunction("__trec_func_entry", Attr,
                                         IRB.getVoidTy(), IRB.getInt16Ty(),
-                                        IRB.getInt16Ty(), IRB.getInt64Ty());
+                                        IRB.getInt16Ty(), IRB.getInt64Ty(), IRB.getInt8PtrTy());
   TrecFuncExit = M.getOrInsertFunction("__trec_func_exit", Attr,
                                        IRB.getVoidTy(), IRB.getInt64Ty());
   TrecThreadCreate =
       M.getOrInsertFunction("__trec_thread_create", Attr, IRB.getVoidTy(),
                             IRB.getInt8PtrTy(), IRB.getInt64Ty());
-  TrecFuncFirstPoint = M.getOrInsertFunction("__trec_func_first_point", Attr, IRB.getVoidTy());
   IntegerType *OrdTy = IRB.getInt32Ty();
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i)
   {
@@ -1022,7 +1020,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
         debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
 
     IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(1), IRB.getInt16(F.arg_size()),
-                                   IRB.getInt64(debugID)});
+                                   IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(IRB.getInt64(0), IRB.getInt8PtrTy())});
     EscapeEnumerator EE(F);
     while (IRBuilder<> *AtExit = EE.Next())
     {
@@ -1054,11 +1052,6 @@ bool TraceRecorder::sanitizeFunction(Function &F,
         }
       }
     }
-  }
-
-  {
-    IRBuilder<> IRB(&*(F.getEntryBlock().getFirstInsertionPt()));
-    IRB.CreateCall(TrecFuncFirstPoint, {});
   }
   debuger.commitSQL();
   return Res;
@@ -1245,7 +1238,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
   if (nameA != 1 || nameB != 1)
     debugID = debuger.ReformID(debuger.getDebugInfoID(nameA, nameB, line, col));
   IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
-                                 IRB.getInt64(debugID)});
+                                 IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(CI->getCalledOperand(), IRB.getInt8PtrTy())});
   if (CalledFName == "pthread_create")
   {
     std::string createdFuncName = "", createdFileName = "";
