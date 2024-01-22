@@ -34,27 +34,7 @@ void __trec_func_param(u16 param_idx, __sanitizer::u64 sa, void *val,
 
 void __trec_thread_create(void *arg_val, __sanitizer::u64 arg_debugID, __sanitizer::u64 debugID)
 {
-  RegisterThreadCreate(cur_thread(), (uptr)arg_val, arg_debugID, debugID);
-}
-
-void __trec_func_first_point()
-{
-  ThreadState *thr = cur_thread();
-  if (UNLIKELY(thr->tctx->writer.isNeedSymbolize()))
-  {
-    ScopedIgnoreInterceptors ignore;
-    BufferedStackTrace stack;
-    uptr bp = ((__sanitizer::uptr)__builtin_frame_address(0));
-    uptr pc = __sanitizer::StackTrace::GetCurrentPc();
-    stack.Unwind(pc, bp, 0, false, 5);
-    if (stack.size >= 2)
-    {
-      auto symbolizer = Symbolizer::GetOrInit();
-      auto frame = symbolizer->SymbolizePC(stack.trace[1]);
-      thr->tctx->writer.registerSymbolizeInfo(frame);
-    }
-  }
-  thr->tctx->writer.unsetNeedSymbolize();
+  RegisterThreadCreate(cur_thread(), (uptr)arg_val, arg_debugID, 0);
 }
 
 void __trec_func_exit_param(__sanitizer::u64 sa, void *val,
@@ -116,9 +96,9 @@ void __trec_write8(void *addr, bool isPtr, void *val, __sanitizer::u64 addr_sa,
 }
 
 void __trec_func_entry(__sanitizer::u16 order, __sanitizer::u16 arg_cnt,
-                       __sanitizer::u64 debugID)
+                       __sanitizer::u64 debugID, void *func)
 {
-  RecordFuncEntry(cur_thread(), order, arg_cnt, debugID, CALLERPC);
+  RecordFuncEntry(cur_thread(), order, arg_cnt, debugID, CALLERPC, (uptr)func);
 }
 
 void __trec_func_exit(__sanitizer::u64 debugID)

@@ -447,15 +447,6 @@ namespace __trec
       put_trace(e);
     }
     params.clear();
-    unsetNeedSymbolize();
-    if (type == __trec_trace::EventType::FuncEnter && metadata_buffer && metadata_len >= sizeof(__trec_metadata::FuncMeta))
-    {
-      __trec_metadata::FuncMeta *meta = (__trec_metadata::FuncMeta *)(metadata_buffer + metadata_len - sizeof(__trec_metadata::FuncMeta));
-      if (meta->debug_id == 0)
-      {
-        setNeedSymbolize();
-      }
-    }
   }
 
   void TraceWriter::put_trace(__trec_trace::Event &e)
@@ -747,28 +738,22 @@ namespace __trec
 
   void TraceWriter::setEnd() { is_end = true; }
 
-  void TraceWriter::registerSymbolizeInfo(const __sanitizer::SymbolizedStack *frame)
+  __sanitizer::u64 TraceWriter::getDebugIDFromSymbolizeInfo(const __sanitizer::SymbolizedStack *frame)
   {
-    if (ctx->flags.symbolize_at_runtime && metadata_buffer && metadata_len >= sizeof(__trec_metadata::FuncMeta))
-    {
 
-      __trec_metadata::FuncMeta *meta = (__trec_metadata::FuncMeta *)(metadata_buffer + metadata_len - sizeof(__trec_metadata::FuncMeta));
-      if (meta->debug_id == 0)
-      {
-        ScopedIgnoreInterceptors ignore;
-        ctx->sqlite_mutex.Lock();
-        auto sqlite_writer = ctx->getOrInitSqliteWriter();
-        if (sqlite_writer)
-        {
-          int nameA = sqlite_writer->getVarID(frame->info.function ? frame->info.function : "");
-          int nameB = sqlite_writer->getFileID(frame->info.file ? frame->info.file : "");
-          int line = frame->info.line;
-          auto debugID = sqlite_writer->ReformID(sqlite_writer->getDebugInfoID(nameA, nameB, line, 0));
-          meta->debug_id = debugID;
-        }
-        ctx->sqlite_mutex.Unlock();
-      }
+    ScopedIgnoreInterceptors ignore;
+    ctx->sqlite_mutex.Lock();
+    __sanitizer::u64 debugID = 0;
+    auto sqlite_writer = ctx->getOrInitSqliteWriter();
+    if (sqlite_writer)
+    {
+      int nameA = sqlite_writer->getVarID(frame->info.function ? frame->info.function : "");
+      int nameB = sqlite_writer->getFileID(frame->info.file ? frame->info.file : "");
+      int line = frame->info.line;
+      debugID = sqlite_writer->ReformID(sqlite_writer->getDebugInfoID(nameA, nameB, line, 0));
     }
+    ctx->sqlite_mutex.Unlock();
+    return debugID;
   }
 
   // ThreadContext implementation.
