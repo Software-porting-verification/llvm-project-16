@@ -260,16 +260,17 @@ namespace __trec
   {
     sqlite3 *db;
     int DBID;
-    char DBDirPath[2048];
-    int insertName(const char *table, const char *name);
+    char DBDirPath[1024];
+    void insertName(sqlite3_stmt *stmt);
     int insertDebugInfo(int nameA, int nameB, int line, int col);
     int insertFileName(const char *name);
     int insertVarName(const char *name);
     int queryMaxID(const char *table);
     int queryFileID(const char *name);
     int queryVarID(const char *name);
-    int queryID(const char *table, const char *name);
+    int queryID(sqlite3_stmt *stmt, const char *name);
     int queryDebugInfoID(int nameA, int nameB, int line, int col);
+    sqlite3_stmt *insertFileNameStmt, *insertVarNameStmt, *insertDebugStmt, *queryMaxIDStmt, *queryFileNameStmt, *queryVarNameStmt, *queryDebugStmt, *beginStmt, *commitStmt;
     bool isValid = false;
 
   public:
