@@ -96,7 +96,8 @@ namespace __trec_trace
   {
     EventType type : 6;
     __sanitizer::u64 tid : 10;
-    __sanitizer::u64 gid : 48;
+    __sanitizer::u64 meta_size : 8;
+    __sanitizer::u64 gid : 40;
 
     /*
      * highest bit -> lowest bit
@@ -131,10 +132,9 @@ namespace __trec_trace
      * None:        0
      */
     __sanitizer::u64 oid;
-    __sanitizer::u64 meta_size : 10;
     // x86_64 only supports 52-bit VMA (48-bit in most cases)
     // use the extra highest bits to distinguish kernel and user space
-    __sanitizer::u64 pc : 54;
+    // __sanitizer::u64 pc : 54;
     Event(EventType _type, __sanitizer::u64 _tid, __sanitizer::u64 _gid,
           __sanitizer::u64 _oid, __sanitizer::u64 _meta_size,
           __sanitizer::u64 _pc)
@@ -142,10 +142,9 @@ namespace __trec_trace
           tid(_tid),
           gid(_gid),
           oid(_oid),
-          meta_size(_meta_size),
-          pc(_pc) {}
+          meta_size(_meta_size) {}
   };
-  static_assert(sizeof(Event) == 24, "ERROR: sizeof(Event) != 24");
+  static_assert(sizeof(Event) == 16, "ERROR: sizeof(Event) != 16");
 } // namespace __trec_trace
 
 namespace __trec_metadata
