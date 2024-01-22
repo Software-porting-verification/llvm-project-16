@@ -29,7 +29,8 @@ void netbsd::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
                                      const InputInfo &Output,
                                      const InputInfoList &Inputs,
                                      const ArgList &Args,
-                                     const char *LinkingOutput) const {
+                                     const char *LinkingOutput) const
+{
   const toolchains::NetBSD &ToolChain =
       static_cast<const toolchains::NetBSD &>(getToolChain());
   const Driver &D = ToolChain.getDriver();
@@ -40,14 +41,16 @@ void netbsd::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
 
   // GNU as needs different flags for creating the correct output format
   // on architectures with different ABIs or optional feature sets.
-  switch (ToolChain.getArch()) {
+  switch (ToolChain.getArch())
+  {
   case llvm::Triple::x86:
     CmdArgs.push_back("--32");
     break;
   case llvm::Triple::arm:
   case llvm::Triple::armeb:
   case llvm::Triple::thumb:
-  case llvm::Triple::thumbeb: {
+  case llvm::Triple::thumbeb:
+  {
     StringRef MArch, MCPU;
     arm::getARMArchCPUFromArgs(Args, MArch, MCPU, /*FromAs*/ true);
     std::string Arch = arm::getARMTargetCPU(MCPU, MArch, Triple);
@@ -58,7 +61,8 @@ void netbsd::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   case llvm::Triple::mips:
   case llvm::Triple::mipsel:
   case llvm::Triple::mips64:
-  case llvm::Triple::mips64el: {
+  case llvm::Triple::mips64el:
+  {
     StringRef CPUName;
     StringRef ABIName;
     mips::getMipsCPUAndABI(Args, Triple, CPUName, ABIName);
@@ -79,7 +83,8 @@ void netbsd::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   case llvm::Triple::sparc:
-  case llvm::Triple::sparcel: {
+  case llvm::Triple::sparcel:
+  {
     CmdArgs.push_back("-32");
     std::string CPU = getCPUName(D, Args, Triple);
     CmdArgs.push_back(sparc::getSparcAsmModeForCPU(CPU, Triple));
@@ -87,7 +92,8 @@ void netbsd::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     break;
   }
 
-  case llvm::Triple::sparcv9: {
+  case llvm::Triple::sparcv9:
+  {
     CmdArgs.push_back("-64");
     std::string CPU = getCPUName(D, Args, Triple);
     CmdArgs.push_back(sparc::getSparcAsmModeForCPU(CPU, Triple));
@@ -117,7 +123,8 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
                                   const ArgList &Args,
-                                  const char *LinkingOutput) const {
+                                  const char *LinkingOutput) const
+{
   const toolchains::NetBSD &ToolChain =
       static_cast<const toolchains::NetBSD &>(getToolChain());
   const Driver &D = ToolChain.getDriver();
@@ -129,18 +136,25 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
 
   CmdArgs.push_back("--eh-frame-hdr");
-  if (Args.hasArg(options::OPT_static)) {
+  if (Args.hasArg(options::OPT_static))
+  {
     CmdArgs.push_back("-Bstatic");
-    if (Args.hasArg(options::OPT_pie)) {
+    if (Args.hasArg(options::OPT_pie))
+    {
       Args.AddAllArgs(CmdArgs, options::OPT_pie);
       CmdArgs.push_back("--no-dynamic-linker");
     }
-  } else {
+  }
+  else
+  {
     if (Args.hasArg(options::OPT_rdynamic))
       CmdArgs.push_back("-export-dynamic");
-    if (Args.hasArg(options::OPT_shared)) {
+    if (Args.hasArg(options::OPT_shared))
+    {
       CmdArgs.push_back("-Bshareable");
-    } else if (!Args.hasArg(options::OPT_r)) {
+    }
+    else if (!Args.hasArg(options::OPT_r))
+    {
       Args.AddAllArgs(CmdArgs, options::OPT_pie);
       CmdArgs.push_back("-dynamic-linker");
       CmdArgs.push_back("/libexec/ld.elf_so");
@@ -149,7 +163,8 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Many NetBSD architectures support more than one ABI.
   // Determine the correct emulation for ld.
-  switch (ToolChain.getArch()) {
+  switch (ToolChain.getArch())
+  {
   case llvm::Triple::x86:
     CmdArgs.push_back("-m");
     CmdArgs.push_back("elf_i386");
@@ -157,7 +172,8 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   case llvm::Triple::arm:
   case llvm::Triple::thumb:
     CmdArgs.push_back("-m");
-    switch (Triple.getEnvironment()) {
+    switch (Triple.getEnvironment())
+    {
     case llvm::Triple::EABI:
     case llvm::Triple::GNUEABI:
       CmdArgs.push_back("armelf_nbsd_eabi");
@@ -175,7 +191,8 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   case llvm::Triple::thumbeb:
     arm::appendBE8LinkFlag(Args, CmdArgs, ToolChain.getEffectiveTriple());
     CmdArgs.push_back("-m");
-    switch (Triple.getEnvironment()) {
+    switch (Triple.getEnvironment())
+    {
     case llvm::Triple::EABI:
     case llvm::Triple::GNUEABI:
       CmdArgs.push_back("armelfb_nbsd_eabi");
@@ -191,13 +208,16 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     break;
   case llvm::Triple::mips64:
   case llvm::Triple::mips64el:
-    if (mips::hasMipsAbiArg(Args, "32")) {
+    if (mips::hasMipsAbiArg(Args, "32"))
+    {
       CmdArgs.push_back("-m");
       if (ToolChain.getArch() == llvm::Triple::mips64)
         CmdArgs.push_back("elf32btsmip");
       else
         CmdArgs.push_back("elf32ltsmip");
-    } else if (mips::hasMipsAbiArg(Args, "64")) {
+    }
+    else if (mips::hasMipsAbiArg(Args, "64"))
+    {
       CmdArgs.push_back("-m");
       if (ToolChain.getArch() == llvm::Triple::mips64)
         CmdArgs.push_back("elf64btsmip");
@@ -230,23 +250,31 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     break;
   }
 
-  if (Output.isFilename()) {
+  if (Output.isFilename())
+  {
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
-  } else {
+  }
+  else
+  {
     assert(Output.isNothing() && "Invalid output.");
   }
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
-                   options::OPT_r)) {
-    if (!Args.hasArg(options::OPT_shared)) {
+                   options::OPT_r))
+  {
+    if (!Args.hasArg(options::OPT_shared))
+    {
       CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crt0.o")));
     }
     CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crti.o")));
-    if (Args.hasArg(options::OPT_shared) || Args.hasArg(options::OPT_pie)) {
+    if (Args.hasArg(options::OPT_shared) || Args.hasArg(options::OPT_pie))
+    {
       CmdArgs.push_back(
           Args.MakeArgString(ToolChain.GetFilePath("crtbeginS.o")));
-    } else {
+    }
+    else
+    {
       CmdArgs.push_back(
           Args.MakeArgString(ToolChain.GetFilePath("crtbegin.o")));
     }
@@ -264,13 +292,16 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
 
   const SanitizerArgs &SanArgs = ToolChain.getSanitizerArgs(Args);
-  if (SanArgs.needsSharedRt()) {
+  bool NeedsTrecDeps = SanArgs.needsTrecRt();
+  if (SanArgs.needsSharedRt())
+  {
     CmdArgs.push_back("-rpath");
     CmdArgs.push_back(Args.MakeArgString(ToolChain.getCompilerRTPath()));
   }
 
   bool useLibgcc = true;
-  switch (ToolChain.getArch()) {
+  switch (ToolChain.getArch())
+  {
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_be:
   case llvm::Triple::arm:
@@ -291,34 +322,42 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs,
-                   options::OPT_r)) {
+                   options::OPT_r))
+  {
     // Use the static OpenMP runtime with -static-openmp
     bool StaticOpenMP = Args.hasArg(options::OPT_static_openmp) &&
                         !Args.hasArg(options::OPT_static);
     addOpenMPRuntime(CmdArgs, ToolChain, Args, StaticOpenMP);
 
-    if (D.CCCIsCXX()) {
+    if (D.CCCIsCXX())
+    {
       if (ToolChain.ShouldLinkCXXStdlib(Args))
         ToolChain.AddCXXStdlibLibArgs(Args, CmdArgs);
       CmdArgs.push_back("-lm");
     }
     if (NeedsSanitizerDeps)
       linkSanitizerRuntimeDeps(ToolChain, CmdArgs);
+    if (NeedsTrecDeps)
+      linkTrecSanitizerRuntimeDeps(ToolChain, CmdArgs);
     if (NeedsXRayDeps)
       linkXRayRuntimeDeps(ToolChain, CmdArgs);
     if (Args.hasArg(options::OPT_pthread))
       CmdArgs.push_back("-lpthread");
     CmdArgs.push_back("-lc");
 
-    if (useLibgcc) {
-      if (Args.hasArg(options::OPT_static)) {
+    if (useLibgcc)
+    {
+      if (Args.hasArg(options::OPT_static))
+      {
         // libgcc_eh depends on libc, so resolve as much as possible,
         // pull in any new requirements from libc and then get the rest
         // of libgcc.
         CmdArgs.push_back("-lgcc_eh");
         CmdArgs.push_back("-lc");
         CmdArgs.push_back("-lgcc");
-      } else {
+      }
+      else
+      {
         CmdArgs.push_back("-lgcc");
         CmdArgs.push_back("--as-needed");
         CmdArgs.push_back("-lgcc_s");
@@ -328,7 +367,8 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
-                   options::OPT_r)) {
+                   options::OPT_r))
+  {
     if (Args.hasArg(options::OPT_shared) || Args.hasArg(options::OPT_pie))
       CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("crtendS.o")));
     else
@@ -347,14 +387,17 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 /// NetBSD - NetBSD tool chain which can call as(1) and ld(1) directly.
 
 NetBSD::NetBSD(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
-    : Generic_ELF(D, Triple, Args) {
-  if (!Args.hasArg(options::OPT_nostdlib)) {
+    : Generic_ELF(D, Triple, Args)
+{
+  if (!Args.hasArg(options::OPT_nostdlib))
+  {
     // When targeting a 32-bit platform, try the special directory used on
     // 64-bit hosts, and only fall back to the main library directory if that
     // doesn't work.
     // FIXME: It'd be nicer to test if this directory exists, but I'm not sure
     // what all logic is needed to emulate the '=' prefix here.
-    switch (Triple.getArch()) {
+    switch (Triple.getArch())
+    {
     case llvm::Triple::x86:
       getFilePaths().push_back("=/usr/lib/i386");
       break;
@@ -362,7 +405,8 @@ NetBSD::NetBSD(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     case llvm::Triple::armeb:
     case llvm::Triple::thumb:
     case llvm::Triple::thumbeb:
-      switch (Triple.getEnvironment()) {
+      switch (Triple.getEnvironment())
+      {
       case llvm::Triple::EABI:
       case llvm::Triple::GNUEABI:
         getFilePaths().push_back("=/usr/lib/eabi");
@@ -397,14 +441,17 @@ NetBSD::NetBSD(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   }
 }
 
-Tool *NetBSD::buildAssembler() const {
+Tool *NetBSD::buildAssembler() const
+{
   return new tools::netbsd::Assembler(*this);
 }
 
 Tool *NetBSD::buildLinker() const { return new tools::netbsd::Linker(*this); }
 
-ToolChain::CXXStdlibType NetBSD::GetDefaultCXXStdlibType() const {
-  switch (getArch()) {
+ToolChain::CXXStdlibType NetBSD::GetDefaultCXXStdlibType() const
+{
+  switch (getArch())
+  {
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_be:
   case llvm::Triple::arm:
@@ -427,13 +474,15 @@ ToolChain::CXXStdlibType NetBSD::GetDefaultCXXStdlibType() const {
 
 void NetBSD::AddClangSystemIncludeArgs(
     const llvm::opt::ArgList &DriverArgs,
-    llvm::opt::ArgStringList &CC1Args) const {
+    llvm::opt::ArgStringList &CC1Args) const
+{
   const Driver &D = getDriver();
 
   if (DriverArgs.hasArg(clang::driver::options::OPT_nostdinc))
     return;
 
-  if (!DriverArgs.hasArg(options::OPT_nobuiltininc)) {
+  if (!DriverArgs.hasArg(options::OPT_nobuiltininc))
+  {
     SmallString<128> Dir(D.ResourceDir);
     llvm::sys::path::append(Dir, "include");
     addSystemInclude(DriverArgs, CC1Args, Dir.str());
@@ -444,10 +493,12 @@ void NetBSD::AddClangSystemIncludeArgs(
 
   // Check for configure-time C include directories.
   StringRef CIncludeDirs(C_INCLUDE_DIRS);
-  if (CIncludeDirs != "") {
+  if (CIncludeDirs != "")
+  {
     SmallVector<StringRef, 5> dirs;
     CIncludeDirs.split(dirs, ":");
-    for (StringRef dir : dirs) {
+    for (StringRef dir : dirs)
+    {
       StringRef Prefix =
           llvm::sys::path::is_absolute(dir) ? StringRef(D.SysRoot) : "";
       addExternCSystemInclude(DriverArgs, CC1Args, Prefix + dir);
@@ -460,7 +511,8 @@ void NetBSD::AddClangSystemIncludeArgs(
 }
 
 void NetBSD::addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
-                                   llvm::opt::ArgStringList &CC1Args) const {
+                                   llvm::opt::ArgStringList &CC1Args) const
+{
   const std::string Candidates[] = {
       // directory relative to build tree
       getDriver().Dir + "/../include/c++/v1",
@@ -470,7 +522,8 @@ void NetBSD::addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
       getDriver().SysRoot + "/usr/include/c++",
   };
 
-  for (const auto &IncludePath : Candidates) {
+  for (const auto &IncludePath : Candidates)
+  {
     if (!getVFS().exists(IncludePath + "/__config"))
       continue;
 
@@ -481,12 +534,14 @@ void NetBSD::addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
 }
 
 void NetBSD::addLibStdCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
-                                      llvm::opt::ArgStringList &CC1Args) const {
+                                      llvm::opt::ArgStringList &CC1Args) const
+{
   addLibStdCXXIncludePaths(getDriver().SysRoot + "/usr/include/g++", "", "",
                            DriverArgs, CC1Args);
 }
 
-llvm::ExceptionHandling NetBSD::GetExceptionModel(const ArgList &Args) const {
+llvm::ExceptionHandling NetBSD::GetExceptionModel(const ArgList &Args) const
+{
   // NetBSD uses Dwarf exceptions on ARM.
   llvm::Triple::ArchType TArch = getTriple().getArch();
   if (TArch == llvm::Triple::arm || TArch == llvm::Triple::armeb ||
@@ -495,11 +550,13 @@ llvm::ExceptionHandling NetBSD::GetExceptionModel(const ArgList &Args) const {
   return llvm::ExceptionHandling::None;
 }
 
-SanitizerMask NetBSD::getSupportedSanitizers() const {
+SanitizerMask NetBSD::getSupportedSanitizers() const
+{
   const bool IsX86 = getTriple().getArch() == llvm::Triple::x86;
   const bool IsX86_64 = getTriple().getArch() == llvm::Triple::x86_64;
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
-  if (IsX86 || IsX86_64) {
+  if (IsX86 || IsX86_64)
+  {
     Res |= SanitizerKind::Address;
     Res |= SanitizerKind::PointerCompare;
     Res |= SanitizerKind::PointerSubtract;
@@ -508,7 +565,8 @@ SanitizerMask NetBSD::getSupportedSanitizers() const {
     Res |= SanitizerKind::Scudo;
     Res |= SanitizerKind::Vptr;
   }
-  if (IsX86_64) {
+  if (IsX86_64)
+  {
     Res |= SanitizerKind::DataFlow;
     Res |= SanitizerKind::Fuzzer;
     Res |= SanitizerKind::FuzzerNoLink;
@@ -525,7 +583,8 @@ SanitizerMask NetBSD::getSupportedSanitizers() const {
 
 void NetBSD::addClangTargetOptions(const ArgList &DriverArgs,
                                    ArgStringList &CC1Args,
-                                   Action::OffloadKind) const {
+                                   Action::OffloadKind) const
+{
   const SanitizerArgs &SanArgs = getSanitizerArgs(DriverArgs);
   if (SanArgs.hasAnySanitizer())
     CC1Args.push_back("-D_REENTRANT");

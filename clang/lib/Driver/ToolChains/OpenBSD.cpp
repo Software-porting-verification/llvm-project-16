@@ -201,6 +201,8 @@ void openbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                    options::OPT_Z_Flag, options::OPT_r});
 
   bool NeedsSanitizerDeps = addSanitizerRuntimes(ToolChain, Args, CmdArgs);
+  const SanitizerArgs &SanArgs = ToolChain.getSanitizerArgs(Args);
+  bool NeedsTrecDeps = SanArgs.needsTrecRt();
   bool NeedsXRayDeps = addXRayRuntime(ToolChain, Args, CmdArgs);
   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
 
@@ -222,6 +224,8 @@ void openbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(ToolChain.getCompilerRTArgString(Args, "builtins"));
       linkSanitizerRuntimeDeps(ToolChain, CmdArgs);
     }
+    if (NeedsTrecDeps)
+      linkTrecSanitizerRuntimeDeps(ToolChain, CmdArgs);
     if (NeedsXRayDeps) {
       CmdArgs.push_back(ToolChain.getCompilerRTArgString(Args, "builtins"));
       linkXRayRuntimeDeps(ToolChain, CmdArgs);
