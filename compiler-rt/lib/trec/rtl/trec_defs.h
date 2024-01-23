@@ -56,7 +56,7 @@ namespace __trec
 
 namespace __trec_trace
 {
-  const __sanitizer::u64 TREC_TRACE_VER = 20231207UL;
+  const __sanitizer::u64 TREC_TRACE_VER = 20240123UL;
   enum EventType : __sanitizer::u64
   {
     ThreadBegin,
@@ -69,6 +69,7 @@ namespace __trec_trace
     AtomicPlainWrite,
     AtomicPtrRead,
     AtomicPtrWrite,
+    StackSize,
     Branch,
     FuncEnter,
     FuncExit,
@@ -106,6 +107,8 @@ namespace __trec_trace
      *              tid:16
      * Read/Write:  size : 16
                     dest address : 48
+     * StackSize:   size : 16
+                    stack address : 48
      * CondBranch:  cond: 64
      * FuncEnter:   (not used) : 32
                     order : 16;
