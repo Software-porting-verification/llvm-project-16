@@ -109,7 +109,7 @@ extern "C"
                                                          __sanitizer::u64 debugID,
                                                          void *func);
     SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_exit(__sanitizer::u64 debugID);
-
+    SANITIZER_INTERFACE_ATTRIBUTE void __trec_frame_size();
 #endif // SANITIZER_GO
 
 #ifdef __cplusplus

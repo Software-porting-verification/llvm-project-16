@@ -633,6 +633,15 @@ namespace __trec
     }
   }
 
+  ALWAYS_INLINE USED void RecordStackSize(ThreadState *thr, __sanitizer::u64 stack_addr, __sanitizer::u64 stack_size)
+  {
+    if (LIKELY(ctx->flags.output_trace) && (LIKELY(ctx->flags.record_write) || LIKELY(ctx->flags.record_read)))
+    {
+      thr->tctx->writer.put_record(__trec_trace::EventType::StackSize,
+                                   (stack_addr & ((1ULL << 48) - 1)) | (((stack_size >= (1 << 16)) ? (u64)0xffff : (stack_size)) << 48), 0);
+    }
+  }
+
 } // namespace __trec
 
 #if !SANITIZER_GO
