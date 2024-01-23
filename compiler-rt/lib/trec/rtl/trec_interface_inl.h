@@ -105,3 +105,11 @@ void __trec_func_exit(__sanitizer::u64 debugID)
 {
   RecordFuncExit(cur_thread(), debugID, PREVCALLERPC);
 }
+
+void __trec_frame_size()
+{
+  uptr caller_frame = ((__sanitizer::uptr)__builtin_frame_address(1));
+  uptr current_frame = ((__sanitizer::uptr)__builtin_frame_address(0));
+  u64 stack_bottom = min(caller_frame, current_frame), stack_top = max(caller_frame, current_frame);
+  RecordStackSize(cur_thread(), stack_bottom + 1, stack_top - stack_bottom);
+}

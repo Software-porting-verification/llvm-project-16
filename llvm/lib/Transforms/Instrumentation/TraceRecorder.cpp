@@ -308,6 +308,7 @@ namespace
     FunctionCallee TrecFuncEntry;
     FunctionCallee TrecFuncExit;
     FunctionCallee TrecThreadCreate;
+    FunctionCallee TrecFrameSize;
     // Accesses sizes are powers of two: 1, 2, 4, 8.
     static const size_t kNumberOfAccessSizes = 4;
     FunctionCallee TrecRead[kNumberOfAccessSizes];
@@ -879,6 +880,7 @@ void TraceRecorder::initialize(Module &M)
   TrecThreadCreate =
       M.getOrInsertFunction("__trec_thread_create", Attr, IRB.getVoidTy(),
                             IRB.getInt8PtrTy(), IRB.getInt64Ty());
+  TrecFrameSize = M.getOrInsertFunction("__trec_frame_size", Attr, IRB.getVoidTy());
   IntegerType *OrdTy = IRB.getInt32Ty();
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i)
   {
@@ -1147,7 +1149,10 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     FuncName = F.getSubprogram()->getName();
     line = F.getSubprogram()->getLine();
   }
-
+  {
+    IRBuilder<> IRB(&*F.getEntryBlock().getFirstInsertionPt());
+    IRB.CreateCall(TrecFrameSize, {});
+  }
   // The main function has no parent function.
   // So explicitly record its entry and exit(s).
   // For the main function, we cannot figure out where its parameters come from.
@@ -1202,6 +1207,8 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
     }
   }
+
+
   debuger.getOrInitDebuger()->commitSQL();
   return Res;
 }
