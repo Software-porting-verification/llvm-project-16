@@ -34,6 +34,7 @@ cd binutils
 mkdir build
 cd build
 ../configure --enable-gold --enable-plugins --disable-werror
+make all-gold
 sudo make install
 ```
 
