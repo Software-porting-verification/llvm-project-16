@@ -21,6 +21,19 @@ the [libc++ C++ standard library](https://libcxx.llvm.org),
 the [LLD linker](https://lld.llvm.org), and more.
 
 ## TraceRecoder Quick Start
+
+Build ld.gold
+```
+git submodule init
+git submodule update binutils
+cd binutils
+mkdir build
+cd build
+../configure --enable-gold --enable-plugins --disable-werror
+sudo make install
+```
+
+Build with LLVMgold.so
 ```
 $ mkdir build
 $ cd build
