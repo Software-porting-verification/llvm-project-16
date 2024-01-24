@@ -83,6 +83,10 @@ static cl::opt<bool>
     ClInstrumentFuncParam("trec-instrument-function-parameters", cl::init(true),
                           cl::desc("Instrument function parameters"),
                           cl::Hidden);
+static cl::opt<bool>
+    ClInstrumentMutableAllocs("trec-instrument-mutable-allocas", cl::init(true),
+                              cl::desc("Instrument mutable allocas"),
+                              cl::Hidden);
 
 STATISTIC(NumInstrumentedReads, "Number of instrumented reads");
 STATISTIC(NumInstrumentedWrites, "Number of instrumented writes");
@@ -214,6 +218,7 @@ namespace
     bool instrumentLoadStore(const InstructionInfo &II, const DataLayout &DL);
     bool instrumentAtomic(Instruction *I, const DataLayout &DL);
     bool instrumentBranch(Instruction *I, const DataLayout &DL);
+    bool instrumentMutableAllcas(Instruction *I);
     bool instrumentMemIntrinsic(Instruction *I);
     bool instrumentReturn(Instruction *I);
     bool instrumentFunctionCall(Instruction *I);
@@ -1034,7 +1039,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   SmallVector<Instruction *> Branches;
   SmallVector<Instruction *> FuncCalls;
   SmallVector<Instruction *> Returns;
-
+  SmallVector<Instruction *> MutableAllocas;
   bool Res = false;
   const DataLayout &DL = F.getParent()->getDataLayout();
 
@@ -1118,6 +1123,14 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       {
         Returns.push_back(&Inst); // function return
       }
+      else if (isa<AllocaInst>(Inst))
+      {
+        AllocaInst *allocaInst = dyn_cast<AllocaInst>(&Inst);
+        if (!allocaInst->getAllocationSize(DL))
+        {
+          MutableAllocas.push_back(&Inst);
+        }
+      }
     }
   }
 
@@ -1149,9 +1162,16 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     FuncName = F.getSubprogram()->getName();
     line = F.getSubprogram()->getLine();
   }
+
+  if (ClInstrumentMutableAllocs)
   {
+
     IRBuilder<> IRB(&*F.getEntryBlock().getFirstInsertionPt());
     IRB.CreateCall(TrecFrameSize, {});
+    for (auto Inst : MutableAllocas)
+    {
+      Res |= instrumentMutableAllcas(Inst);
+    }
   }
   // The main function has no parent function.
   // So explicitly record its entry and exit(s).
@@ -1207,7 +1227,6 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
     }
   }
-
 
   debuger.getOrInitDebuger()->commitSQL();
   return Res;
@@ -1269,6 +1288,13 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
     Res |= true;
   }
   return Res;
+}
+
+bool TraceRecorder::instrumentMutableAllcas(Instruction *I)
+{
+  IRBuilder<> IRB(I->getNextNonDebugInstruction());
+  IRB.CreateCall(TrecFrameSize, {});
+  return true;
 }
 
 bool TraceRecorder::instrumentReturn(Instruction *I)
