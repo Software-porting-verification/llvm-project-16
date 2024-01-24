@@ -21,6 +21,7 @@
 #include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <signal.h>
 
 #include "sanitizer_common/sanitizer_atomic.h"
 #include "sanitizer_common/sanitizer_common.h"
@@ -302,7 +303,18 @@ namespace __trec
     TrecFlushTraceOnDead();
     if (ctx->flags.print_debug_on_dead)
       HandleDeadlySignal(siginfo, context, GetTid(), &OnStackUnwind, nullptr);
-    Die();
+
+    // use default signal handler to exit
+    struct sigaction sigact;
+    internal_memset(&sigact, 0, sizeof(sigact));
+    sigact.sa_handler = SIG_DFL;
+    // Do not block the signal from being received in that signal's handler.
+    // Clients are responsible for handling this correctly.
+    sigact.sa_flags = SA_SIGINFO | SA_NODEFER;
+    if (common_flags()->use_sigaltstack)
+      sigact.sa_flags |= SA_ONSTACK;
+    CHECK_EQ(0, internal_sigaction(signo, &sigact, nullptr));
+    raise(signo);
   }
 #endif
 
