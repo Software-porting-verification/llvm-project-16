@@ -26,35 +26,43 @@ the [LLD linker](https://lld.llvm.org), and more.
 
 ## TraceRecoder Quick Start
 
-Build ld.gold
+Build and install ld.gold (optional, if you want to use LTO)
 ```
-git submodule init
-git submodule update binutils
-cd binutils
-mkdir build
-cd build
-../configure --enable-gold --enable-plugins --disable-werror
-make all-gold
-sudo make install
+$ git submodule init
+$ git submodule update binutils
+$ cd binutils
+$ mkdir build
+$ cd build
+$ ../configure --enable-gold --enable-plugins --disable-werror
+$ make all-gold
+$ sudo make install
 ```
 
 Build with LLVMgold.so
 ```
 $ mkdir build
 $ cd build
-$ cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DLLVM_BUILD_TESTS=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_ENABLE_ASSERTIONS=OFF -DLLVM_ENABLE_PROJECTS='clang;compiler-rt;lld;lldb' -DCMAKE_C_COMPILER=clang-15 -DCMAKE_CXX_COMPILER=clang++-15 -DLLVM_BINUTILS_INCDIR=../binutils/include/  ../llvm 
+$ cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DLLVM_BUILD_TESTS=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_ENABLE_ASSERTIONS=OFF -DLLVM_ENABLE_PROJECTS='clang;compiler-rt;lld;lldb' -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_BINUTILS_INCDIR=../binutils/include/  ../llvm 
 ```
+We highly recommend you use clang to compiler the LLVM project. 
+The `-DLLVM_BINUTILS_INCDIR=../binutils/include/` is optional as it is used only to build the `LLVMgold.so`. 
+If you do not intend to use LTO, `LLVMgold.so` will not be used, so it does not need to be built.
 
-## Getting the Source Code and Building LLVM
+Compile your program
+```
+$ export TREC_DATABASE_DIR=/path/to/database/folder
+$ ./build/bin/clang -g -fsanitize=trace -fno-discard-value-names /your/source/code -o ./output.out
+$ export TREC_TRACE_DIR=/path/to/trace/folder
+$ ./output.out
+```
+Note, if you use autotools to configure the compiling, please add `-g -fsanitize=trace -fno-discard-value-names` to `CFLAGS`, `CXXFLAGS`, and `LDFLAGS`.
+The ENV `TREC_DATABASE_DIR` should not be unset if you want to symbolize the PCs at runtime.
 
-Consult the
-[Getting Started with LLVM](https://llvm.org/docs/GettingStarted.html#getting-the-source-code-and-building-llvm)
-page for information on building and running LLVM.
+TraceRecorder provides some other runtime options.
+Please check `./compiler-rt/lib/trec/rtl/trec_flags.inc` for more details.
+You can use `TREC_OPTIONS` to control these options, e.g., `export TREC_OPTIONS="output_trace=0"` to disable trace recording.
 
-For information on how to contribute to the LLVM project, please take a look at
-the [Contributing to LLVM](https://llvm.org/docs/Contributing.html) guide.
 
-## Getting in touch
 
 Join the [LLVM Discourse forums](https://discourse.llvm.org/), [Discord
 chat](https://discord.gg/xS7Z362),
