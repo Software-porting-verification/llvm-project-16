@@ -58,5 +58,6 @@ TraceRecorder provides some other runtime options.
 Please check `./compiler-rt/lib/trec/rtl/trec_flags.inc` for more details.
 You can use `TREC_OPTIONS` to control these options, e.g., `export TREC_OPTIONS="output_trace=0"` to disable trace recording.
 
+If you only want to record function entry/exit information, use `TREC_OPTIONS="record_mutex=0 record_rwlock=0 record_cond=0 record_alloc_free=0 record_branch=0 record_func_param=0 record_read=0 record_write=0 record_range=0"`
 
 
