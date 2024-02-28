@@ -38,6 +38,8 @@ TREC_FLAG(bool, record_func_param, true, "Record function parameter insts.")
 TREC_FLAG(bool, record_read, true, "Record Memory Read Operations.")
 TREC_FLAG(bool, record_write, true, "Record Memory Write Operations.")
 TREC_FLAG(bool, record_range, true, "Record Range Memory Read Operations.")
+TREC_FLAG(bool, record_path_profile, true, "Record path profiling.")
 TREC_FLAG(bool, print_debug_on_dead, false,
           "Print Debug Info On Receiving Dead Signals")
 TREC_FLAG(bool, symbolize_at_runtime, true, "Symbolize unkown function name at runtime.")
+
