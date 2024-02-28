@@ -190,8 +190,8 @@ namespace __trec
     return (((__sanitizer::u64)DBID & ((1ULL << 16) - 1)) << 48) |
            ((__sanitizer::u64)ID & ((1ULL << 48) - 1));
   }
-
-  SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1), isValid(false), insertFileNameStmt(nullptr), insertVarNameStmt(nullptr), insertDebugStmt(nullptr), queryMaxIDStmt(nullptr), queryFileNameStmt(nullptr), queryVarNameStmt(nullptr), queryDebugStmt(nullptr), beginStmt(nullptr), commitStmt(nullptr)
+  char buf[1024];
+  SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1), insertFileNameStmt(nullptr), insertVarNameStmt(nullptr), insertDebugStmt(nullptr), queryMaxIDStmt(nullptr), queryFileNameStmt(nullptr), queryVarNameStmt(nullptr), queryDebugStmt(nullptr), beginStmt(nullptr), commitStmt(nullptr)
   {
     ScopedIgnoreInterceptors ignore;
     const char *DatabaseDir = GetEnv("TREC_DATABASE_DIR");
@@ -200,7 +200,7 @@ namespace __trec
       Report("ENV 'TREC_DATABASE_DIR' has not been set\n");
       Die();
     }
-    char buf[1024];
+
     __sanitizer::internal_snprintf(DBDirPath, 1023, "%s", DatabaseDir);
     int pid = __sanitizer::internal_getpid();
     __sanitizer::internal_snprintf(buf, 1023, "%s/%s", DBDirPath, "manager.db");
@@ -325,8 +325,23 @@ namespace __trec
                             "CREATE TABLE DEBUGFILENAME ("
                             "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
                             "NAME CHAR(2048));"
+                            "CREATE TABLE FUNCNUMCNT ("
+                            "ID INTEGER PRIMARY KEY,"
+                            "FUNCID INTEGER NOT NULL);"
+                            "CREATE TABLE PATHDEBUG ("
+                            "FUNCID INTEGER NOT NULL,"
+                            "BLKID INTEGER NOT NULL,"
+                            "JUMPTYPE CHAR(32),"
+                            "DEBUGID INTEGER);"
+                            "CREATE TABLE PATHPROFILE ("
+                            "FUNCID INTEGER NOT NULL,"
+                            "FROMID INTEGER,"
+                            "TOID INTEGER,"
+                            "CASEVAL INTEGER,"
+                            "PATHVAL INTEGER NOT NULL);"
                             "INSERT INTO DEBUGVARNAME VALUES (NULL, '');"
-                            "INSERT INTO DEBUGFILENAME VALUES (NULL, '');",
+                            "INSERT INTO DEBUGFILENAME VALUES (NULL, '');"
+                            "INSERT INTO FUNCNUMCNT VALUES(1, 0);",
                             nullptr, nullptr, nullptr);
       if (status)
       {
@@ -420,7 +435,6 @@ namespace __trec
     if (commitStmt)
       sqlite3_finalize(commitStmt);
     sqlite3_close(db);
-    char buf[1023];
     __sanitizer::internal_snprintf(buf, 1023, "%s/%s", DBDirPath, "manager.db");
     int status;
     int database_fd = internal_open(buf, O_RDONLY);
@@ -953,8 +967,6 @@ namespace __trec
                                    thr->tid & 0xffff, 0);
     }
   }
-
-
 
   int ThreadCount(ThreadState *thr)
   {

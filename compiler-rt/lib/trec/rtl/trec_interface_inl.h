@@ -25,6 +25,15 @@ void __trec_branch(void *cond, __sanitizer::u64 sa, __sanitizer::u64 debugID)
 {
   CondBranch(cur_thread(), CALLERPC, (uptr)cond, sa, debugID);
 }
+void __trec_path_profile(void *addr, __sanitizer::u32 funcID, __sanitizer::u16 databaseID,
+                         bool should_flush)
+{
+  if (UNLIKELY(should_flush))
+  {
+    __sanitizer::u64 pathID = (((__sanitizer::u64)databaseID) << 48) | (((__sanitizer::u64)(*(__sanitizer::u16 *)addr)) << 32) | ((__sanitizer::u64)funcID);
+    PathProfileFlush(cur_thread(), pathID);
+  }
+}
 
 void __trec_func_param(u16 param_idx, __sanitizer::u64 sa, void *val,
                        __sanitizer::u64 debugID)
@@ -98,6 +107,7 @@ void __trec_write8(void *addr, bool isPtr, void *val, __sanitizer::u64 addr_sa,
 void __trec_func_entry(__sanitizer::u16 order, __sanitizer::u16 arg_cnt,
                        __sanitizer::u64 debugID, void *func)
 {
+
   RecordFuncEntry(cur_thread(), order, arg_cnt, debugID, CALLERPC, (uptr)func);
 }
 

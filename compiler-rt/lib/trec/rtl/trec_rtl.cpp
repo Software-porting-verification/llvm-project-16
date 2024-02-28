@@ -72,10 +72,11 @@ namespace __trec
 
   Context::Context()
       : initialized(),
-        pid(internal_getpid()),
+        pid(internal_getpid()), temp_dir_path(nullptr),
         thread_registry(new(thread_registry_placeholder) ThreadRegistry(
-            CreateThreadContext, kMaxTid, kThreadQuarantineSize, kMaxTidReuse)),
-        temp_dir_path(nullptr) {}
+            CreateThreadContext, kMaxTid, kThreadQuarantineSize, kMaxTidReuse))
+  {
+  }
   SqliteDebugWriter *Context::getOrInitSqliteWriter()
   {
     if (flags.symbolize_at_runtime && !sqlitewriter)
@@ -117,13 +118,13 @@ namespace __trec
     internal_free(read_buff);
     return 0;
   }
-
+  char parent_path[TREC_DIR_PATH_LEN];
+  char src_path[2 * TREC_DIR_PATH_LEN], dest_path[2 * TREC_DIR_PATH_LEN];
   void Context::CopyDir(const char *path, int Maintid)
   {
-    char parent_path[TREC_DIR_PATH_LEN];
+
     internal_snprintf(parent_path, TREC_DIR_PATH_LEN - 1, "%s/trec_%lu",
                       trace_dir, internal_getpid());
-    char src_path[2 * TREC_DIR_PATH_LEN], dest_path[2 * TREC_DIR_PATH_LEN];
 
     if (mkdir(path, 0700))
     {
@@ -518,6 +519,15 @@ namespace __trec
       __trec_metadata::BranchMeta meta(sa.getAsUInt64(), debugID);
       thr->tctx->writer.put_record(__trec_trace::EventType::Branch, cond, pc,
                                    &meta, sizeof(meta));
+    }
+  }
+
+  ALWAYS_INLINE USED void PathProfileFlush(ThreadState *thr, __sanitizer::u64 pathID)
+  {
+    if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.record_path_profile) &&
+        LIKELY(thr->ignore_interceptors == 0))
+    {
+      thr->tctx->writer.put_record(__trec_trace::EventType::PathProfile, pathID, 0);
     }
   }
 
