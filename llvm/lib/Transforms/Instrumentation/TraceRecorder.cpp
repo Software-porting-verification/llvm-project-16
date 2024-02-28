@@ -52,6 +52,7 @@
 #include <sqlite3.h>
 #include <sys/file.h>
 #include <unistd.h>
+#include <optional>
 
 using namespace llvm;
 
@@ -87,6 +88,7 @@ static cl::opt<bool>
     ClInstrumentMutableAllocs("trec-instrument-mutable-allocas", cl::init(true),
                               cl::desc("Instrument mutable allocas"),
                               cl::Hidden);
+static cl::opt<bool> ClInstrumentPathProfile("trec-instrument-path-profile", cl::init(true), cl::desc("Use path profiling"), cl::Hidden);
 
 STATISTIC(NumInstrumentedReads, "Number of instrumented reads");
 STATISTIC(NumInstrumentedWrites, "Number of instrumented writes");
@@ -123,7 +125,7 @@ namespace
     int queryVarID(const char *name);
     int queryID(sqlite3_stmt *stmt, const char *name);
     int queryDebugInfoID(int nameA, int nameB, int line, int col);
-    sqlite3_stmt *insertFileNameStmt, *insertVarNameStmt, *insertDebugStmt, *queryMaxIDStmt, *queryFileNameStmt, *queryVarNameStmt, *queryDebugStmt, *beginStmt, *commitStmt;
+    sqlite3_stmt *insertFileNameStmt, *insertVarNameStmt, *insertDebugStmt, *queryMaxIDStmt, *queryFileNameStmt, *queryVarNameStmt, *queryDebugStmt, *beginStmt, *commitStmt, *getFuncIDStmt, *updateFuncIDStmt, *insertNodeStmt, *insertEdgeStmt;
 
   public:
     SqliteDebugWriter();
@@ -132,9 +134,17 @@ namespace
     int getVarID(const char *name);
     int getDebugInfoID(int nameA, int nameB, int line, int col);
     uint64_t ReformID(int ID);
-    void commitSQL();
+    uint32_t getFuncID();
 
+    void commitSQL();
     void beginSQL();
+    void insertPathDebug(int funcID, int blkID, std::string type, int debugID);
+    void insertPathProfile(int funcID, int from, int to, std::optional<int32_t> caseVal, int pathVal);
+
+    inline int getDBID() const
+    {
+      return DBID;
+    }
   };
 
   class SqliteDebugWriterWrapper
@@ -222,6 +232,7 @@ namespace
     bool instrumentMemIntrinsic(Instruction *I);
     bool instrumentReturn(Instruction *I);
     bool instrumentFunctionCall(Instruction *I);
+
     int getMemoryAccessFuncIndex(Type *OrigTy, Value *Addr, const DataLayout &DL);
     class ValSourceInfo
     {
@@ -329,6 +340,7 @@ namespace
     FunctionCallee TrecAtomicSignalFence;
     FunctionCallee MemmoveFn, MemcpyFn, MemsetFn;
     FunctionCallee TrecBranch;
+    FunctionCallee TrecPathProfile;
     FunctionCallee TrecFuncParam;
     FunctionCallee TrecFuncExitParam;
   };
@@ -535,7 +547,36 @@ namespace
            ((uint64_t)ID & ((1ULL << 48) - 1));
   }
 
-  SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1), insertFileNameStmt(nullptr), insertVarNameStmt(nullptr), insertDebugStmt(nullptr), queryMaxIDStmt(nullptr), queryFileNameStmt(nullptr), queryVarNameStmt(nullptr), queryDebugStmt(nullptr), beginStmt(nullptr), commitStmt(nullptr)
+  uint32_t SqliteDebugWriter::getFuncID()
+  {
+    uint32_t funcID;
+    sqlite3_reset(getFuncIDStmt);
+    int status = sqlite3_step(getFuncIDStmt);
+    if (status != SQLITE_ROW)
+    {
+      printf("query FuncID error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+
+    funcID = atoi((const char *)sqlite3_column_text(getFuncIDStmt, 0));
+
+    sqlite3_reset(updateFuncIDStmt);
+    status = sqlite3_bind_int(updateFuncIDStmt, 1, funcID + 1);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 1st param to updateFuncIDStmt statement error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+    status = sqlite3_step(updateFuncIDStmt);
+    if (status != SQLITE_DONE)
+    {
+      printf("insert new FuncID error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+    return funcID;
+  }
+
+  SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1), insertFileNameStmt(nullptr), insertVarNameStmt(nullptr), insertDebugStmt(nullptr), queryMaxIDStmt(nullptr), queryFileNameStmt(nullptr), queryVarNameStmt(nullptr), queryDebugStmt(nullptr), beginStmt(nullptr), commitStmt(nullptr), getFuncIDStmt(nullptr), updateFuncIDStmt(nullptr), insertNodeStmt(nullptr), insertEdgeStmt(nullptr)
   {
     char *DatabaseDir = getenv("TREC_DATABASE_DIR");
     if (DatabaseDir == nullptr)
@@ -666,8 +707,23 @@ namespace
                             "CREATE TABLE DEBUGFILENAME ("
                             "ID INTEGER PRIMARY KEY AUTOINCREMENT,"
                             "NAME CHAR(2048));"
+                            "CREATE TABLE FUNCNUMCNT ("
+                            "ID INTEGER PRIMARY KEY,"
+                            "FUNCID INTEGER NOT NULL);"
+                            "CREATE TABLE PATHDEBUG ("
+                            "FUNCID INTEGER NOT NULL,"
+                            "BLKID INTEGER NOT NULL,"
+                            "JUMPTYPE CHAR(32),"
+                            "DEBUGID INTEGER);"
+                            "CREATE TABLE PATHPROFILE ("
+                            "FUNCID INTEGER NOT NULL,"
+                            "FROMID INTEGER,"
+                            "TOID INTEGER,"
+                            "CASEVAL INTEGER,"
+                            "PATHVAL INTEGER NOT NULL);"
                             "INSERT INTO DEBUGVARNAME VALUES (NULL, '');"
-                            "INSERT INTO DEBUGFILENAME VALUES (NULL, '');",
+                            "INSERT INTO DEBUGFILENAME VALUES (NULL, '');"
+                            "INSERT INTO FUNCNUMCNT VALUES(1, 0);",
                             nullptr, nullptr, nullptr);
       if (status)
       {
@@ -736,6 +792,33 @@ namespace
         printf("prepare sqlite statement '%s' failed: %s\n", "COMMIT;", sqlite3_errmsg(db));
         exit(status);
       }
+      if (ClInstrumentPathProfile)
+      {
+        status = sqlite3_prepare_v2(db, "SELECT FUNCID FROM FUNCNUMCNT WHERE ID=1;", -1, &getFuncIDStmt, nullptr);
+        if (status != SQLITE_OK)
+        {
+          printf("prepare sqlite statement '%s' failed: %s\n", "SELECT FUNCID FROM FUNCNUMCNT WHERE ID=1;", sqlite3_errmsg(db));
+          exit(status);
+        }
+        status = sqlite3_prepare_v2(db, "UPDATE FUNCNUMCNT SET FUNCID=? where ID=1;", -1, &updateFuncIDStmt, nullptr);
+        if (status != SQLITE_OK)
+        {
+          printf("prepare sqlite statement '%s' failed: %s\n", "UPDATE FUNCNUMCNT SET FUNCID=? where ID=1;", sqlite3_errmsg(db));
+          exit(status);
+        }
+        status = sqlite3_prepare_v2(db, "INSERT INTO PATHDEBUG VALUES (?, ?, ?, ?);", -1, &insertNodeStmt, nullptr);
+        if (status != SQLITE_OK)
+        {
+          printf("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO PATHDEBUG VALUES (?, ?, ?, ?);", sqlite3_errmsg(db));
+          exit(status);
+        }
+        status = sqlite3_prepare_v2(db, "INSERT INTO PATHPROFILE VALUES (?, ?, ?, ?, ?);", -1, &insertEdgeStmt, nullptr);
+        if (status != SQLITE_OK)
+        {
+          printf("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO PATHPROFILE VALUES (?, ?, ?, ?, ?);", sqlite3_errmsg(db));
+          exit(status);
+        }
+      }
     }
   }
   SqliteDebugWriter::~SqliteDebugWriter()
@@ -758,6 +841,14 @@ namespace
       sqlite3_finalize(beginStmt);
     if (commitStmt)
       sqlite3_finalize(commitStmt);
+    if (getFuncIDStmt)
+      sqlite3_finalize(getFuncIDStmt);
+    if (updateFuncIDStmt)
+      sqlite3_finalize(updateFuncIDStmt);
+    if (insertNodeStmt)
+      sqlite3_finalize(insertNodeStmt);
+    if (insertEdgeStmt)
+      sqlite3_finalize(insertEdgeStmt);
     sqlite3_close(db);
 
     std::filesystem::path managerDBPath =
@@ -851,6 +942,421 @@ namespace
     insertName(insertVarNameStmt);
     return queryMaxID("DEBUGVARNAME");
   }
+  void SqliteDebugWriter::insertPathDebug(int funcID, int blkID, std::string type, int debugID)
+  {
+    sqlite3_reset(insertNodeStmt);
+    int status = sqlite3_bind_int(insertNodeStmt, 1, funcID);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 1st param to insertNodeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    status = sqlite3_bind_int(insertNodeStmt, 2, blkID);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 2nd param to insertNodeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    status = sqlite3_bind_text(insertNodeStmt, 3, type.c_str(), -1, nullptr);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 3rd param to insertNodeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    status = sqlite3_bind_int(insertNodeStmt, 4, debugID);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 4th param to insertNodeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    status = sqlite3_step(insertNodeStmt);
+    if (status != SQLITE_DONE)
+    {
+      printf("insert node debug error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+  }
+  void SqliteDebugWriter::insertPathProfile(int funcID, int from, int to, std::optional<int32_t> caseVal, int pathVal)
+  {
+    sqlite3_reset(insertEdgeStmt);
+    int status = sqlite3_bind_int(insertEdgeStmt, 1, funcID);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 1st param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    status = sqlite3_bind_int(insertEdgeStmt, 2, from);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 2nd param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    status = sqlite3_bind_int(insertEdgeStmt, 3, to);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 3rd param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    if (caseVal)
+      status = sqlite3_bind_int(insertEdgeStmt, 4, *caseVal);
+    else
+      status = sqlite3_bind_null(insertEdgeStmt, 4);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 4th param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    status = sqlite3_bind_int(insertEdgeStmt, 5, pathVal);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 5th param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    status = sqlite3_step(insertEdgeStmt);
+    if (status != SQLITE_DONE)
+    {
+      printf("insert path profile error(%d): %s\n", status, sqlite3_errmsg(db));
+      exit(status);
+    };
+  }
+  class PathProfiler
+  {
+  public:
+    PathProfiler(Function &f, SqliteDebugWriter &w);
+    ~PathProfiler() = default;
+    bool instrumentPathProfileBeforeFuncCalls(FunctionCallee &TrecPathProfile, Instruction *I);
+    void insertPathProfiling(FunctionCallee &TrecPathProfile);
+
+  private:
+    uint32_t FuncID;
+    int DBID;
+    Function &Func;
+    SqliteDebugWriter &writer;
+    std::set<BasicBlock *> visited, onpath;
+    AllocaInst *profileVar;
+    struct EdgeInfo
+    {
+      std::optional<int32_t> caseVal;
+      uint32_t pathVal;
+    };
+    std::map<BasicBlock *, std::map<BasicBlock *, EdgeInfo>> edges;
+    std::map<BasicBlock *, uint64_t> nodes, blkIDs;
+    std::map<BasicBlock *, std::string> nodeTypes;
+    std::map<BasicBlock *, std::set<BasicBlock *>> BlkSuccessors;
+    void initializeGraph();
+
+    /// @brief initialize nodes, nodeTypes, edges for node `blk`
+    void initializeNode(BasicBlock *blk);
+
+    void flushGraph();
+    void flushGraphNodeDebugInfo();
+
+    static Instruction *getLastInst(BasicBlock *blk);
+    std::map<BasicBlock *, std::optional<int32_t>> getSuccessors(BasicBlock *blk);
+    Instruction *getLastNotImplicit(BasicBlock *blk);
+  };
+
+  PathProfiler::PathProfiler(Function &f, SqliteDebugWriter &w) : Func(f), writer(w)
+  {
+    if (ClInstrumentPathProfile){
+    FuncID = writer.getFuncID();
+    DBID = writer.getDBID();
+    initializeGraph();
+    flushGraph();
+    flushGraphNodeDebugInfo();
+    }
+  }
+
+  bool PathProfiler::instrumentPathProfileBeforeFuncCalls(FunctionCallee &TrecPathProfile, Instruction *I)
+  {
+    IRBuilder<> IRB(I);
+    IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getInt8PtrTy()), IRB.getInt32(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
+    return true;
+  }
+
+  void PathProfiler::insertPathProfiling(FunctionCallee &TrecPathProfile)
+  {
+    auto oldEntry = &Func.getEntryBlock();
+
+    auto newEntryBlk = BasicBlock::Create(Func.getContext(), "startNode", &Func, oldEntry);
+    {
+      IRBuilder<> IRB(newEntryBlk);
+      profileVar = IRB.CreateAlloca(IRB.getInt16Ty(), nullptr, "profile.var");
+      IRB.CreateStore(IRB.getInt16(0),profileVar);
+      IRB.CreateBr(oldEntry);
+    }
+    struct PhiInfo
+    {
+      uint16_t pathVal;
+      bool should_reset;
+    };
+    std::map<BasicBlock *, std::map<BasicBlock *, PhiInfo>> PhiInfos;
+
+    PhiInfos[oldEntry][newEntryBlk].pathVal = edges.at(nullptr).at(oldEntry).pathVal;
+    PhiInfos[oldEntry][newEntryBlk].should_reset = false;
+    for (auto &[from, toSet] : BlkSuccessors)
+    {
+      if (toSet.empty())
+      {
+        IRBuilder<> IRB(getLastInst(from));
+        IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getInt8PtrTy()), IRB.getInt32(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
+      }
+      else
+      {
+        for (auto to : toSet)
+        {
+          bool should_reset = false;
+          int16_t pathVal;
+          if (edges.count(from) && edges.at(from).count(to))
+          {
+            should_reset = false;
+            pathVal = edges.at(from).at(to).pathVal;
+          }
+          else
+          {
+            should_reset = true;
+            pathVal = edges.at(nullptr).at(to).pathVal;
+          }
+          PhiInfos[to][from].pathVal = pathVal;
+          PhiInfos[to][from].should_reset = should_reset;
+        }
+      }
+    }
+    for (auto &[to, fromInfo] : PhiInfos)
+    {
+
+
+      IRBuilder<> PHIIRB(to->getFirstNonPHI()), AfterIRB(&*to->getFirstInsertionPt());
+
+      bool should_reset = false;
+      int sz = fromInfo.size();
+      auto valuePhi = PHIIRB.CreatePHI(PHIIRB.getInt16Ty(), sz, "profile.value");
+      auto resetPhi = PHIIRB.CreatePHI(PHIIRB.getInt1Ty(), sz, "profile.reset.flag");
+      for (auto &[from, info] : fromInfo)
+      {
+
+        valuePhi->addIncoming(PHIIRB.getInt16(info.pathVal), from);
+        resetPhi->addIncoming(PHIIRB.getInt1(info.should_reset), from);
+        should_reset |= info.should_reset;
+      }
+
+      if (should_reset)
+        AfterIRB.CreateCall(TrecPathProfile, {AfterIRB.CreatePointerCast(profileVar, AfterIRB.getInt8PtrTy()), AfterIRB.getInt32(FuncID), AfterIRB.getInt16(DBID), resetPhi});
+
+      auto ValToAdd = AfterIRB.CreateSelect(resetPhi, AfterIRB.getInt16(0), AfterIRB.CreateLoad(AfterIRB.getInt16Ty(), profileVar));
+      AfterIRB.CreateStore(AfterIRB.CreateAdd(ValToAdd, valuePhi), profileVar);
+    }
+  }
+
+  void PathProfiler::initializeGraph()
+  {
+    // 0 is start, 1 is end
+    uint32_t currentID = 2;
+    for (auto &BB : Func)
+    {
+      blkIDs[&BB] = currentID++;
+    }
+    auto entry = &Func.getEntryBlock();
+    nodes[nullptr] = 1;
+          edges[nullptr][entry].caseVal = std::nullopt;
+      edges[nullptr][entry].pathVal = 0;
+    initializeNode(entry);
+    uint64_t acc = 0;
+    for (auto &[succ, edgeinfo] : edges[nullptr])
+    {
+      edges[nullptr][succ].caseVal = std::nullopt;
+      edges[nullptr][succ].pathVal = acc;
+      acc += nodes[succ];
+    }
+  }
+
+  void PathProfiler::initializeNode(BasicBlock *blk)
+  {
+    visited.emplace(blk);
+    onpath.emplace(blk);
+    auto succs = getSuccessors(blk);
+
+    // always initialize BlkSuccessors, even if blk has no successor
+    BlkSuccessors[blk] = {};
+    for (auto &[succ, val] : succs)
+    {
+      BlkSuccessors[blk].emplace(succ);
+    }
+
+    if (succs.size() == 0)
+    {
+      edges[blk][nullptr].caseVal = std::nullopt;
+      edges[blk][nullptr].pathVal = 0;
+    }
+    else
+    {
+      for (auto &[succ, caseVal] : succs)
+      {
+        if (!onpath.count(succ))
+        {
+          edges[blk][succ].caseVal = caseVal;
+          edges[blk][succ].pathVal = 0;
+          if (!visited.count(succ))
+            initializeNode(succ);
+        }
+        else
+        {
+          edges[blk][nullptr].caseVal = caseVal;
+          edges[blk][nullptr].pathVal = 0;
+          edges[nullptr][succ].caseVal = std::nullopt;
+          edges[nullptr][succ].pathVal = 0;
+        }
+      }
+    }
+    uint64_t acc = 0;
+    for (auto &[succ, edgeinfo] : edges[blk])
+    {
+      edges[blk][succ].pathVal = acc;
+      acc += nodes[succ];
+    }
+    nodes[blk] = acc;
+    nodeTypes[blk] = std::string(getLastInst(blk)->getOpcodeName());
+    onpath.erase(blk);
+  }
+  void PathProfiler::flushGraph()
+  {
+    for (auto &[fromBlk, to] : edges)
+    {
+      for (auto &[toBlk, edgeinfo] : to)
+      {
+        uint32_t fromID = fromBlk ? blkIDs.at(fromBlk) : 0;
+        uint32_t toID = toBlk ? blkIDs.at(toBlk) : 1;
+        writer.insertPathProfile(FuncID, fromID, toID, edgeinfo.caseVal, edgeinfo.pathVal);
+      }
+    }
+    flushGraphNodeDebugInfo();
+  }
+  void PathProfiler::flushGraphNodeDebugInfo()
+  {
+    for (auto &[blk, jmpType] : nodeTypes)
+    {
+      auto lastInst = getLastInst(blk);
+      uint32_t blkID = blkIDs.at(blk);
+      int line = 0, col = 0;
+      auto lastNonImplicit = getLastNotImplicit(blk);
+      if (lastNonImplicit)
+      {
+        line = lastNonImplicit->getDebugLoc().getLine();
+        col = lastNonImplicit->getDebugLoc().getCol();
+      }
+      if (lastNonImplicit != lastInst)
+        jmpType = "(implicit)" + jmpType;
+      StringRef funcName = "", fileName = "";
+      if (lastInst->getFunction() && lastInst->getFunction()->getSubprogram())
+      {
+        funcName = lastInst->getFunction()->getSubprogram()->getName();
+        fileName = lastInst->getFunction()->getSubprogram()->getFilename();
+      }
+      int nameA = writer.getVarID(funcName.str().c_str()), nameB = writer.getFileID(fileName.str().c_str());
+      uint32_t debugID = writer.getDebugInfoID(nameA, nameB, line, col);
+      writer.insertPathDebug(FuncID, blkID, jmpType.substr(0, 31), debugID);
+    }
+  }
+  Instruction *PathProfiler::getLastInst(BasicBlock *blk)
+  {
+    return &blk->back();
+  }
+
+  Instruction *PathProfiler::getLastNotImplicit(BasicBlock *blk)
+  {
+    Instruction *Inst = nullptr;
+    for (auto I = blk->rbegin(); I != blk->rend(); I++)
+    {
+      auto item = &*I;
+      if (!item->getDebugLoc().isImplicitCode())
+      {
+        Inst = item;
+        break;
+      }
+    }
+    return Inst;
+  }
+
+  std::map<BasicBlock *, std::optional<int32_t>> PathProfiler::getSuccessors(BasicBlock *blk)
+  {
+    auto lastInst = getLastInst(blk);
+    assert(lastInst);
+    std::map<BasicBlock *, std::optional<int32_t>> succs;
+    if (isa<BranchInst>(lastInst))
+    {
+      BranchInst *BrInst = dyn_cast<BranchInst>(lastInst);
+      auto succNum = BrInst->getNumSuccessors();
+      for (uint idx = 0; idx < succNum; idx++)
+      {
+        succs[BrInst->getSuccessor(idx)] = (succNum > 1 ? idx : std::optional<uint32_t>());
+      }
+    }
+    else if (isa<SwitchInst>(lastInst))
+    {
+      SwitchInst *SWInst = dyn_cast<SwitchInst>(lastInst);
+      auto succNum = SWInst->getNumSuccessors();
+      for (uint idx = 0; idx < succNum; idx++)
+      {
+        auto CaseVal = SWInst->findCaseDest(SWInst->getSuccessor(idx));
+        if (CaseVal)
+          succs[SWInst->getSuccessor(idx)] = CaseVal->getSExtValue();
+        else
+          succs[SWInst->getSuccessor(idx)] = std::nullopt;
+      }
+    }
+    else if (isa<IndirectBrInst>(lastInst))
+    {
+      IndirectBrInst *Indirect = dyn_cast<IndirectBrInst>(lastInst);
+      auto succNum = Indirect->getNumSuccessors();
+      for (uint idx = 0; idx < succNum; idx++)
+      {
+        succs[Indirect->getSuccessor(idx)] = idx;
+      }
+    }
+    else if (isa<CallBrInst>(lastInst))
+    {
+      CallBrInst *CallBr = dyn_cast<CallBrInst>(lastInst);
+      auto succNum = CallBr->getNumSuccessors();
+      for (uint idx = 0; idx < succNum; idx++)
+      {
+        succs[CallBr->getSuccessor(idx)] = idx;
+      }
+    }
+    else if (isa<InvokeInst>(lastInst))
+    {
+      InvokeInst *Invoke = dyn_cast<InvokeInst>(lastInst);
+      auto succNum = Invoke->getNumSuccessors();
+      for (uint idx = 0; idx < succNum; idx++)
+      {
+        succs[Invoke->getSuccessor(idx)] = idx;
+      }
+    }
+    else if (isa<CatchSwitchInst>(lastInst))
+    {
+      CatchSwitchInst *CSInst = dyn_cast<CatchSwitchInst>(lastInst);
+      auto succNum = CSInst->getNumSuccessors();
+      for (uint idx = 0; idx < succNum; idx++)
+      {
+        succs[CSInst->getSuccessor(idx)] = idx;
+      }
+    }
+    else if (isa<CatchReturnInst>(lastInst))
+    {
+      CatchReturnInst *CRInst = dyn_cast<CatchReturnInst>(lastInst);
+      succs[CRInst->getSuccessor()] = std::nullopt;
+    }
+    else if (isa<CleanupReturnInst>(lastInst))
+    {
+      CleanupReturnInst *CRInst = dyn_cast<CleanupReturnInst>(lastInst);
+
+      if (CRInst->getNumSuccessors())
+      {
+        succs[CRInst->getUnwindDest()] = std::nullopt;
+      }
+    }
+    return succs;
+  }
+
 } // namespace
 
 PreservedAnalyses TraceRecorderPass::run(Function &F,
@@ -975,6 +1481,10 @@ void TraceRecorder::initialize(Module &M)
   TrecBranch = M.getOrInsertFunction("__trec_branch", Attr, IRB.getVoidTy(),
                                      IRB.getInt8PtrTy(), IRB.getInt64Ty(),
                                      IRB.getInt64Ty());
+  TrecPathProfile = M.getOrInsertFunction("__trec_path_profile", Attr, IRB.getVoidTy(),
+                                          IRB.getInt8PtrTy(), IRB.getInt32Ty(),
+                                          IRB.getInt16Ty(),
+                                          IRB.getInt1Ty());
   TrecFuncParam = M.getOrInsertFunction(
       "__trec_func_param", Attr, IRB.getVoidTy(), IRB.getInt16Ty(),
       IRB.getInt64Ty(), IRB.getInt8PtrTy(), IRB.getInt64Ty());
@@ -1019,8 +1529,8 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   if (F.getSubprogram() == nullptr || F.getSubprogram()->getFile() == nullptr)
     return false;
 
-  debuger.getOrInitDebuger()->beginSQL();
   initialize(*F.getParent());
+  debuger.getOrInitDebuger()->beginSQL();
   VarOrders.clear();
   VarOrderCounter = 1;
   int arg_size = F.arg_size();
@@ -1034,6 +1544,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   LoadsToBeInstrumented.clear();
   AddrAllStores.clear();
   SeperatedExits.clear();
+  PathProfiler profiler(F, *debuger.getOrInitDebuger());
   SmallVector<Instruction *> AtomicAccesses;
   SmallVector<Instruction *> MemIntrinCalls;
   SmallVector<Instruction *> Branches;
@@ -1056,6 +1567,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
         MemIntrinCalls.push_back(&Inst);
     }
   }
+
   if (ClInstrumentAtomics)
     for (auto Inst : AtomicAccesses)
     {
@@ -1089,7 +1601,9 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
       else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst))
       {
-        FuncCalls.push_back(&Inst);
+        if (!(dyn_cast<CallBase>(&Inst)->getCalledFunction() && dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().startswith("llvm.")) &&
+            !Inst.getDebugLoc().isImplicitCode())
+          FuncCalls.push_back(&Inst);
 
         // Although these are also branches, we do not instrument them because
         // we cannot get to know the exact conditional variable that causes the
@@ -1135,6 +1649,27 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   }
 
   // branches must be instrumented before function entries/exits
+
+  if (ClInstrumentBranch)
+    for (auto Inst : Branches)
+    {
+      Res |= instrumentBranch(Inst, DL);
+    }
+
+  if (ClInstrumentPathProfile)
+  {
+    std::set<BasicBlock *> visited;
+    profiler.insertPathProfiling(TrecPathProfile);
+    for (auto Inst : FuncCalls)
+    {
+      bool res = false;
+      if (!visited.count(Inst->getParent()))
+        res |= profiler.instrumentPathProfileBeforeFuncCalls(TrecPathProfile, Inst);
+      if (res)
+        visited.emplace(Inst->getParent());
+      Res |= res;
+    }
+  }
   if (ClInstrumentFuncParam)
   {
     for (auto Inst : FuncCalls)
@@ -1146,11 +1681,6 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       Res |= instrumentReturn(Inst);
     }
   }
-  if (ClInstrumentBranch)
-    for (auto Inst : Branches)
-    {
-      Res |= instrumentBranch(Inst, DL);
-    }
 
   // deal with cpp name mangling
   // getName() may return the name after mangling.
@@ -1165,7 +1695,6 @@ bool TraceRecorder::sanitizeFunction(Function &F,
 
   if (ClInstrumentMutableAllocs)
   {
-
     IRBuilder<> IRB(&*F.getEntryBlock().getFirstInsertionPt());
     IRB.CreateCall(TrecFrameSize, {});
     for (auto Inst : MutableAllocas)
@@ -1337,9 +1866,6 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
 {
   IRBuilder<> IRB(I);
   CallBase *CI = dyn_cast<CallBase>(I);
-  if ((CI->getCalledFunction() && CI->getCalledFunction()->getName().startswith("llvm.")) ||
-      I->getDebugLoc().isImplicitCode())
-    return false;
   unsigned int order = 0;
   if (!CI->getFunctionType()->getReturnType()->isVoidTy())
   {

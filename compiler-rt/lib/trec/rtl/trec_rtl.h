@@ -271,7 +271,6 @@ namespace __trec
     int queryID(sqlite3_stmt *stmt, const char *name);
     int queryDebugInfoID(int nameA, int nameB, int line, int col);
     sqlite3_stmt *insertFileNameStmt, *insertVarNameStmt, *insertDebugStmt, *queryMaxIDStmt, *queryFileNameStmt, *queryVarNameStmt, *queryDebugStmt, *beginStmt, *commitStmt;
-    bool isValid = false;
 
   public:
     SqliteDebugWriter();
@@ -362,6 +361,7 @@ namespace __trec
   void CondBranch(ThreadState *thr, uptr pc, uptr cond,
                   __trec_metadata::SourceAddressInfo sa,
                   __sanitizer::u64 debugID);
+  void PathProfileFlush(ThreadState *thr,__sanitizer::u64 pathID);
   void FuncParam(ThreadState *thr, u16 param_idx,
                  __trec_metadata::SourceAddressInfo sa, uptr val,
                  __sanitizer::u64 debugID);

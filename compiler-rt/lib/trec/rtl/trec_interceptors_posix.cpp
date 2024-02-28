@@ -426,7 +426,6 @@ static int setup_at_exit_wrapper(ThreadState *thr, uptr pc, void (*f)(),
 #if !SANITIZER_APPLE && !SANITIZER_NETBSD
 static void on_exit_wrapper(int status, void *arg)
 {
-  ThreadState *thr = cur_thread();
   AtExitCtx *ctx = (AtExitCtx *)arg;
   ((void (*)(int status, void *arg))ctx->f)(status, ctx->arg);
   FlushStreams();
@@ -1687,7 +1686,7 @@ struct TrecInterceptorContext
 static void HandleRecvmsg(ThreadState *thr, uptr pc, __sanitizer_msghdr *msg)
 {
   int fds[64];
-  int cnt = ExtractRecvmsgFDs(msg, fds, ARRAY_SIZE(fds));
+  ExtractRecvmsgFDs(msg, fds, ARRAY_SIZE(fds));
 }
 #endif
 

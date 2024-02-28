@@ -6,6 +6,10 @@ __trec_func*
 __trec_atomic*
 __trec_unaligned*
 __trec_branch
+__trec_func_param
+__trec_path_profile
+__trec_thread_create
+__trec_func_exit_param
 __trec_get_current_fiber
 __trec_create_fiber
 __trec_destroy_fiber
