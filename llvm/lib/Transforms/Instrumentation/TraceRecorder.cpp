@@ -1059,11 +1059,11 @@ namespace
   PathProfiler::PathProfiler(Function &f, SqliteDebugWriter &w) : Func(f), writer(w)
   {
     if (ClInstrumentPathProfile){
-    FuncID = writer.getFuncID();
-    DBID = writer.getDBID();
-    initializeGraph();
-    flushGraph();
-    flushGraphNodeDebugInfo();
+      FuncID = writer.getFuncID();
+      DBID = writer.getDBID();
+      initializeGraph();
+      flushGraph();
+      flushGraphNodeDebugInfo();
     }
   }
 
@@ -1078,11 +1078,11 @@ namespace
   {
     auto oldEntry = &Func.getEntryBlock();
 
-    auto newEntryBlk = BasicBlock::Create(Func.getContext(), "startNode", &Func, oldEntry);
+    auto newEntryBlk = BasicBlock::Create(oldEntry->getContext(), "startNode", &Func, oldEntry);
     {
       IRBuilder<> IRB(newEntryBlk);
       profileVar = IRB.CreateAlloca(IRB.getInt16Ty(), nullptr, "profile.var");
-      IRB.CreateStore(IRB.getInt16(0),profileVar);
+      IRB.CreateStore(IRB.getInt16(0), profileVar);
       IRB.CreateBr(oldEntry);
     }
     struct PhiInfo
@@ -1125,8 +1125,19 @@ namespace
     for (auto &[to, fromInfo] : PhiInfos)
     {
 
+      // handle unreachable baiscBlocks
+      // they will be removed in later optimizations
+      // so just assign some fake values
+      for (auto pred = pred_begin(to), pred_E = pred_end(to); pred != pred_E; pred++)
+      {
+        auto real_pred = *pred;
+        if (!fromInfo.count(real_pred)){
+          fromInfo[real_pred].pathVal=0;
+          fromInfo[real_pred].should_reset =false;
+        }
+      }
 
-      IRBuilder<> PHIIRB(to->getFirstNonPHI()), AfterIRB(&*to->getFirstInsertionPt());
+      IRBuilder<> PHIIRB(&to->front()), AfterIRB(&*to->getFirstInsertionPt());
 
       bool should_reset = false;
       int sz = fromInfo.size();
@@ -1141,7 +1152,7 @@ namespace
       }
 
       if (should_reset)
-        AfterIRB.CreateCall(TrecPathProfile, {AfterIRB.CreatePointerCast(profileVar, AfterIRB.getInt8PtrTy()), AfterIRB.getInt32(FuncID), AfterIRB.getInt16(DBID), resetPhi});
+      AfterIRB.CreateCall(TrecPathProfile, {AfterIRB.CreatePointerCast(profileVar, AfterIRB.getInt8PtrTy()), AfterIRB.getInt32(FuncID), AfterIRB.getInt16(DBID), resetPhi});
 
       auto ValToAdd = AfterIRB.CreateSelect(resetPhi, AfterIRB.getInt16(0), AfterIRB.CreateLoad(AfterIRB.getInt16Ty(), profileVar));
       AfterIRB.CreateStore(AfterIRB.CreateAdd(ValToAdd, valuePhi), profileVar);
@@ -1158,8 +1169,8 @@ namespace
     }
     auto entry = &Func.getEntryBlock();
     nodes[nullptr] = 1;
-          edges[nullptr][entry].caseVal = std::nullopt;
-      edges[nullptr][entry].pathVal = 0;
+    edges[nullptr][entry].caseVal = std::nullopt;
+    edges[nullptr][entry].pathVal = 0;
     initializeNode(entry);
     uint64_t acc = 0;
     for (auto &[succ, edgeinfo] : edges[nullptr])
@@ -1663,11 +1674,11 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     for (auto Inst : FuncCalls)
     {
       bool res = false;
-      if (!visited.count(Inst->getParent()))
-        res |= profiler.instrumentPathProfileBeforeFuncCalls(TrecPathProfile, Inst);
-      if (res)
-        visited.emplace(Inst->getParent());
-      Res |= res;
+    if (!visited.count(Inst->getParent()))
+    res |= profiler.instrumentPathProfileBeforeFuncCalls(TrecPathProfile, Inst);
+    if (res)
+    visited.emplace(Inst->getParent());
+    Res |= res;
     }
   }
   if (ClInstrumentFuncParam)
