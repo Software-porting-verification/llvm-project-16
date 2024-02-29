@@ -64,6 +64,9 @@ You can use `TREC_OPTIONS` to control these options, e.g., `export TREC_OPTIONS=
 
 If you only want to record function entry/exit information, use `TREC_OPTIONS="record_mutex=0 record_rwlock=0 record_cond=0 record_alloc_free=0 record_branch=0 record_func_param=0 record_read=0 record_write=0 record_range=0"`
 
+## Known Issues
+1. If you use `addr2line` as the symbolizer at runtime (which is the default symbolizer on most platforms), you may get some errors about incompatible DWARF format. To solve this problem, we recommend you (1) use `clang` instead of `gcc` to compile `TraceRecorder`, (2) explicitly use the llvm-symbolizer by `export TREC_OPTIONS="external_symbolizer_path=<absolute path to llvm-symbolizer, e.g., /usr/bin/llvm-symbolizer>"`
+
 
 Join the [LLVM Discourse forums](https://discourse.llvm.org/), [Discord
 chat](https://discord.gg/xS7Z362),
