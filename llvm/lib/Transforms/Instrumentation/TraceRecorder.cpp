@@ -1932,6 +1932,8 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
                                      ValInst, IRB.getInt64(debugID)});
     }
   }
+  
+
   Function *CalledF = CI->getCalledFunction();
   StringRef CalledFName = CalledF ? CalledF->getName() : "";
   std::string CurrentFileName = "";
@@ -1957,7 +1959,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
   if (nameA != 1 || nameB != 1)
     debugID = debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
   IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
-                                 IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(CI->getCalledOperand(), IRB.getInt8PtrTy())});
+                                 IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(isa<InlineAsm>(CI->getCalledOperand())?IRB.getInt8(0):CI->getCalledOperand(), IRB.getInt8PtrTy())});
   if (CalledFName == "pthread_create")
   {
     std::string createdFuncName = "", createdFileName = "";
