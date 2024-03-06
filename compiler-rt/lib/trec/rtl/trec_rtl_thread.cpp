@@ -1095,7 +1095,7 @@ namespace __trec
   void MemoryAccessRange(ThreadState *thr, uptr pc, uptr addr, uptr size,
                          bool is_write, __trec_metadata::SourceAddressInfo SAI)
   {
-    if (LIKELY(ctx->flags.output_trace) && ctx->flags.record_range &&
+    if (LIKELY(ctx->flags.output_trace) && ctx->flags.record_range && ((is_write && ctx->flags.record_write) || (!is_write && ctx->flags.record_read)) &&
         LIKELY(cur_thread()->ignore_interceptors == 0) && SAI.getAsUInt64())
     {
       __trec_metadata::MemRangeMeta meta(SAI.getAsUInt64());
