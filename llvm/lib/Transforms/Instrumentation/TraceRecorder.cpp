@@ -1261,13 +1261,18 @@ namespace
       }
       if (lastNonImplicit != lastInst)
         jmpType = "(implicit)" + jmpType;
-      StringRef funcName = "", fileName = "";
+      std::string funcName = "", fileName = "";
+
       if (lastInst->getFunction() && lastInst->getFunction()->getSubprogram())
       {
-        funcName = lastInst->getFunction()->getSubprogram()->getName();
-        fileName = lastInst->getFunction()->getSubprogram()->getFilename();
+        funcName = lastInst->getFunction()->getSubprogram()->getName().str();
+        fileName = lastInst->getFunction()->getSubprogram()->getFilename().str();
+        if (lastInst->getFunction()->getSubprogram()->getFile())
+          fileName = (std::filesystem::path(lastInst->getFunction()->getSubprogram()->getFile()->getDirectory().str()) /
+                      std::filesystem::path(lastInst->getFunction()->getSubprogram()->getFile()->getFilename().str()))
+                         .string();
       }
-      int nameA = writer.getVarID(funcName.str().c_str()), nameB = writer.getFileID(fileName.str().c_str());
+      int nameA = writer.getVarID(funcName.c_str()), nameB = writer.getFileID(fileName.c_str());
       uint32_t debugID = writer.getDebugInfoID(nameA, nameB, line, col);
       writer.insertPathDebug(FuncID, blkID, jmpType.substr(0, 31), debugID);
     }
