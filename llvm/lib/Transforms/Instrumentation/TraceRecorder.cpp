@@ -53,6 +53,8 @@
 #include <sys/file.h>
 #include <unistd.h>
 #include <optional>
+#include <set>
+#include <queue>
 
 using namespace llvm;
 
@@ -1058,7 +1060,8 @@ namespace
 
   PathProfiler::PathProfiler(Function &f, SqliteDebugWriter &w) : Func(f), writer(w)
   {
-    if (ClInstrumentPathProfile){
+    if (ClInstrumentPathProfile)
+    {
       FuncID = writer.getFuncID();
       DBID = writer.getDBID();
       initializeGraph();
@@ -1070,7 +1073,7 @@ namespace
   bool PathProfiler::instrumentPathProfileBeforeFuncCalls(FunctionCallee &TrecPathProfile, Instruction *I)
   {
     IRBuilder<> IRB(I);
-    IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getInt8PtrTy()), IRB.getInt32(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
+    IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getPtrTy()), IRB.getInt32(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
     return true;
   }
 
@@ -1099,7 +1102,7 @@ namespace
       if (toSet.empty())
       {
         IRBuilder<> IRB(getLastInst(from));
-        IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getInt8PtrTy()), IRB.getInt32(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
+        IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getPtrTy()), IRB.getInt32(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
       }
       else
       {
@@ -1131,9 +1134,10 @@ namespace
       for (auto pred = pred_begin(to), pred_E = pred_end(to); pred != pred_E; pred++)
       {
         auto real_pred = *pred;
-        if (!fromInfo.count(real_pred)){
-          fromInfo[real_pred].pathVal=0;
-          fromInfo[real_pred].should_reset =false;
+        if (!fromInfo.count(real_pred))
+        {
+          fromInfo[real_pred].pathVal = 0;
+          fromInfo[real_pred].should_reset = false;
         }
       }
 
@@ -1152,7 +1156,7 @@ namespace
       }
 
       if (should_reset)
-      AfterIRB.CreateCall(TrecPathProfile, {AfterIRB.CreatePointerCast(profileVar, AfterIRB.getInt8PtrTy()), AfterIRB.getInt32(FuncID), AfterIRB.getInt16(DBID), resetPhi});
+        AfterIRB.CreateCall(TrecPathProfile, {AfterIRB.CreatePointerCast(profileVar, AfterIRB.getPtrTy()), AfterIRB.getInt32(FuncID), AfterIRB.getInt16(DBID), resetPhi});
 
       auto ValToAdd = AfterIRB.CreateSelect(resetPhi, AfterIRB.getInt16(0), AfterIRB.CreateLoad(AfterIRB.getInt16Ty(), profileVar));
       AfterIRB.CreateStore(AfterIRB.CreateAdd(ValToAdd, valuePhi), profileVar);
@@ -1389,19 +1393,20 @@ PreservedAnalyses ModuleTraceRecorderPass::run(Module &M,
 void TraceRecorder::initialize(Module &M)
 {
   const DataLayout &DL = M.getDataLayout();
-  IntptrTy = DL.getIntPtrType(M.getContext());
+  LLVMContext &Ctx = M.getContext();
+  IntptrTy = DL.getIntPtrType(Ctx);
   IRBuilder<> IRB(M.getContext());
   AttributeList Attr;
   Attr = Attr.addFnAttribute(M.getContext(), Attribute::NoUnwind);
   // Initialize the callbacks.
   TrecFuncEntry = M.getOrInsertFunction("__trec_func_entry", Attr,
                                         IRB.getVoidTy(), IRB.getInt16Ty(),
-                                        IRB.getInt16Ty(), IRB.getInt64Ty(), IRB.getInt8PtrTy());
+                                        IRB.getInt16Ty(), IRB.getInt64Ty(), IRB.getPtrTy());
   TrecFuncExit = M.getOrInsertFunction("__trec_func_exit", Attr,
                                        IRB.getVoidTy(), IRB.getInt64Ty());
   TrecThreadCreate =
       M.getOrInsertFunction("__trec_thread_create", Attr, IRB.getVoidTy(),
-                            IRB.getInt8PtrTy(), IRB.getInt64Ty());
+                            IRB.getPtrTy(), IRB.getInt64Ty());
   TrecFrameSize = M.getOrInsertFunction("__trec_frame_size", Attr, IRB.getVoidTy());
   IntegerType *OrdTy = IRB.getInt32Ty();
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i)
@@ -1412,23 +1417,23 @@ void TraceRecorder::initialize(Module &M)
     std::string BitSizeStr = utostr(BitSize);
     SmallString<32> ReadName("__trec_read" + ByteSizeStr);
     TrecRead[i] = M.getOrInsertFunction(
-        ReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(), IRB.getInt1Ty(),
-        IRB.getInt8PtrTy(), IRB.getInt64Ty(), IRB.getInt64Ty());
+        ReadName, Attr, IRB.getVoidTy(), IRB.getPtrTy(), IRB.getInt1Ty(),
+        IRB.getPtrTy(), IRB.getInt64Ty(), IRB.getInt64Ty());
     SmallString<32> WriteName("__trec_write" + ByteSizeStr);
     TrecWrite[i] = M.getOrInsertFunction(WriteName, Attr, IRB.getVoidTy(),
-                                         IRB.getInt8PtrTy(), IRB.getInt1Ty(),
-                                         IRB.getInt8PtrTy(), IRB.getInt64Ty(),
+                                         IRB.getPtrTy(), IRB.getInt1Ty(),
+                                         IRB.getPtrTy(), IRB.getInt64Ty(),
                                          IRB.getInt64Ty(), IRB.getInt64Ty());
     SmallString<64> UnalignedReadName("__trec_unaligned_read" + ByteSizeStr);
     TrecUnalignedRead[i] = M.getOrInsertFunction(
-        UnalignedReadName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(),
-        IRB.getInt1Ty(), IRB.getInt8PtrTy(), IRB.getInt64Ty(),
+        UnalignedReadName, Attr, IRB.getVoidTy(), IRB.getPtrTy(),
+        IRB.getInt1Ty(), IRB.getPtrTy(), IRB.getInt64Ty(),
         IRB.getInt64Ty());
 
     SmallString<64> UnalignedWriteName("__trec_unaligned_write" + ByteSizeStr);
     TrecUnalignedWrite[i] = M.getOrInsertFunction(
-        UnalignedWriteName, Attr, IRB.getVoidTy(), IRB.getInt8PtrTy(),
-        IRB.getInt1Ty(), IRB.getInt8PtrTy(), IRB.getInt64Ty(), IRB.getInt64Ty(),
+        UnalignedWriteName, Attr, IRB.getVoidTy(), IRB.getPtrTy(),
+        IRB.getInt1Ty(), IRB.getPtrTy(), IRB.getInt64Ty(), IRB.getInt64Ty(),
         IRB.getInt64Ty());
 
     Type *Ty = Type::getIntNTy(M.getContext(), BitSize);
@@ -1481,27 +1486,27 @@ void TraceRecorder::initialize(Module &M)
                                                 Attr, IRB.getVoidTy(), OrdTy);
 
   MemmoveFn =
-      M.getOrInsertFunction("memmove", Attr, IRB.getInt8PtrTy(),
-                            IRB.getInt8PtrTy(), IRB.getInt8PtrTy(), IntptrTy);
+      M.getOrInsertFunction("memmove", Attr, IRB.getPtrTy(),
+                            IRB.getPtrTy(), IRB.getPtrTy(), IntptrTy);
   MemcpyFn =
-      M.getOrInsertFunction("memcpy", Attr, IRB.getInt8PtrTy(),
-                            IRB.getInt8PtrTy(), IRB.getInt8PtrTy(), IntptrTy);
+      M.getOrInsertFunction("memcpy", Attr, IRB.getPtrTy(),
+                            IRB.getPtrTy(), IRB.getPtrTy(), IntptrTy);
   MemsetFn =
-      M.getOrInsertFunction("memset", Attr, IRB.getInt8PtrTy(),
-                            IRB.getInt8PtrTy(), IRB.getInt32Ty(), IntptrTy);
+      M.getOrInsertFunction("memset", Attr, IRB.getPtrTy(),
+                            IRB.getPtrTy(), IRB.getInt32Ty(), IntptrTy);
   TrecBranch = M.getOrInsertFunction("__trec_branch", Attr, IRB.getVoidTy(),
-                                     IRB.getInt8PtrTy(), IRB.getInt64Ty(),
+                                     IRB.getPtrTy(), IRB.getInt64Ty(),
                                      IRB.getInt64Ty());
   TrecPathProfile = M.getOrInsertFunction("__trec_path_profile", Attr, IRB.getVoidTy(),
-                                          IRB.getInt8PtrTy(), IRB.getInt32Ty(),
+                                          IRB.getPtrTy(), IRB.getInt32Ty(),
                                           IRB.getInt16Ty(),
                                           IRB.getInt1Ty());
   TrecFuncParam = M.getOrInsertFunction(
       "__trec_func_param", Attr, IRB.getVoidTy(), IRB.getInt16Ty(),
-      IRB.getInt64Ty(), IRB.getInt8PtrTy(), IRB.getInt64Ty());
+      IRB.getInt64Ty(), IRB.getPtrTy(), IRB.getInt64Ty());
   TrecFuncExitParam = M.getOrInsertFunction(
       "__trec_func_exit_param", Attr, IRB.getVoidTy(), IRB.getInt64Ty(),
-      IRB.getInt8PtrTy(), IRB.getInt64Ty());
+      IRB.getPtrTy(), IRB.getInt64Ty());
 }
 
 static bool isVtableAccess(Instruction *I)
@@ -1674,11 +1679,11 @@ bool TraceRecorder::sanitizeFunction(Function &F,
     for (auto Inst : FuncCalls)
     {
       bool res = false;
-    if (!visited.count(Inst->getParent()))
-    res |= profiler.instrumentPathProfileBeforeFuncCalls(TrecPathProfile, Inst);
-    if (res)
-    visited.emplace(Inst->getParent());
-    Res |= res;
+      if (!visited.count(Inst->getParent()))
+        res |= profiler.instrumentPathProfileBeforeFuncCalls(TrecPathProfile, Inst);
+      if (res)
+        visited.emplace(Inst->getParent());
+      Res |= res;
     }
   }
   if (ClInstrumentFuncParam)
@@ -1734,7 +1739,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
 
     IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(1), IRB.getInt16(F.arg_size()),
-                                   IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(IRB.getInt64(0), IRB.getInt8PtrTy())});
+                                   IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(IRB.getInt64(0), IRB.getPtrTy())});
     EscapeEnumerator EE(F);
     while (IRBuilder<> *AtExit = EE.Next())
     {
@@ -1791,7 +1796,7 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
     IRB.CreateCall(TrecBranch,
-                   {IRB.CreateBitOrPointerCast(cond, IRB.getInt8PtrTy()),
+                   {IRB.CreateBitOrPointerCast(cond, IRB.getPtrTy()),
                     VSI.Reform(IRB), IRB.getInt64(debugID)});
     Res |= true;
   }
@@ -1807,7 +1812,7 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
     IRB.CreateCall(TrecBranch,
-                   {IRB.CreateBitOrPointerCast(cond, IRB.getInt8PtrTy()),
+                   {IRB.CreateBitOrPointerCast(cond, IRB.getPtrTy()),
                     VSI.Reform(IRB), IRB.getInt64(debugID)});
     Res |= true;
   }
@@ -1823,7 +1828,7 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
     IRB.CreateCall(TrecBranch,
-                   {IRB.CreateBitOrPointerCast(cond, IRB.getInt8PtrTy()),
+                   {IRB.CreateBitOrPointerCast(cond, IRB.getPtrTy()),
                     VSI.Reform(IRB), IRB.getInt64(debugID)});
     Res |= true;
   }
@@ -1854,9 +1859,9 @@ bool TraceRecorder::instrumentReturn(Instruction *I)
     VSI_val.Reform(IRB);
     Value *RetValInst = nullptr;
     if (RetVal->getType()->isPointerTy() || RetVal->getType()->isIntegerTy())
-      RetValInst = IRB.CreateBitOrPointerCast(RetVal, IRB.getInt8PtrTy());
+      RetValInst = IRB.CreateBitOrPointerCast(RetVal, IRB.getPtrTy());
     else
-      RetValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getInt8PtrTy());
+      RetValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
     if (RetValInst)
     {
       int nameA = debuger.getOrInitDebuger()->getVarID(RetVal->getName().str().c_str());
@@ -1910,9 +1915,9 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
       if (CI->getArgOperand(i)->getType()->isIntegerTy() ||
           CI->getArgOperand(i)->getType()->isPointerTy())
         ValInst = IRB.CreateBitOrPointerCast(CI->getArgOperand(i),
-                                             IRB.getInt8PtrTy());
+                                             IRB.getPtrTy());
       else
-        ValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getInt8PtrTy());
+        ValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
       std::string varname = CI->getArgOperand(i)->getName().str();
       if (isa<Function>(CI->getArgOperand(i)))
       {
@@ -1932,7 +1937,6 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
                                      ValInst, IRB.getInt64(debugID)});
     }
   }
-  
 
   Function *CalledF = CI->getCalledFunction();
   StringRef CalledFName = CalledF ? CalledF->getName() : "";
@@ -1959,7 +1963,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
   if (nameA != 1 || nameB != 1)
     debugID = debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
   IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
-                                 IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(isa<InlineAsm>(CI->getCalledOperand())?IRB.getInt8(0):CI->getCalledOperand(), IRB.getInt8PtrTy())});
+                                 IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(isa<InlineAsm>(CI->getCalledOperand()) ? IRB.getInt8(0) : CI->getCalledOperand(), IRB.getPtrTy())});
   if (CalledFName == "pthread_create")
   {
     std::string createdFuncName = "", createdFileName = "";
@@ -1994,7 +1998,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(argnameA, argnameB, line, col));
     IRB.CreateCall(
         TrecThreadCreate,
-        {IRB.CreateBitOrPointerCast(CI->getArgOperand(3), IRB.getInt8PtrTy()),
+        {IRB.CreateBitOrPointerCast(CI->getArgOperand(3), IRB.getPtrTy()),
          IRB.getInt64(argDebugID), IRB.getInt64(createdDebugID)});
   }
   if (I->getNextNode())
@@ -2081,10 +2085,10 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
           debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
       ValSourceInfo VSI_val =
           getSource(StoredValue, II.Inst->getParent()->getParent());
-      StoredValue = IRB.CreateBitOrPointerCast(StoredValue, IRB.getInt8PtrTy());
+      StoredValue = IRB.CreateBitOrPointerCast(StoredValue, IRB.getPtrTy());
       auto newInst = IRB.CreateCall(
           OnAccessFunc,
-          {IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
+          {IRB.CreatePointerCast(Addr, IRB.getPtrTy()),
            IRB.getInt1(isPtrTy), StoredValue, VSI_addr.Reform(IRB),
            VSI_val.Reform(IRB), IRB.getInt64(debugID)});
       newInst->setDebugLoc(II.Inst->getDebugLoc());
@@ -2106,9 +2110,9 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
       int col = II.Inst->getDebugLoc().getCol();
       uint64_t debugID =
           debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
-      LoadedValue = IRB.CreateBitOrPointerCast(LoadedValue, IRB.getInt8PtrTy());
+      LoadedValue = IRB.CreateBitOrPointerCast(LoadedValue, IRB.getPtrTy());
       auto newInst = IRB.CreateCall(
-          OnAccessFunc, {IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
+          OnAccessFunc, {IRB.CreatePointerCast(Addr, IRB.getPtrTy()),
                          IRB.getInt1(isPtrTy), LoadedValue,
                          VSI_addr.Reform(IRB), IRB.getInt64(debugID)});
       newInst->setDebugLoc(II.Inst->getDebugLoc());
@@ -2432,7 +2436,7 @@ bool TraceRecorder::instrumentMemIntrinsic(Instruction *I)
   {
     CallInst *NewInst = IRB.CreateCall(
         MemsetFn,
-        {IRB.CreatePointerCast(M->getArgOperand(0), IRB.getInt8PtrTy()),
+        {IRB.CreatePointerCast(M->getArgOperand(0), IRB.getPtrTy()),
          IRB.CreateIntCast(M->getArgOperand(1), IRB.getInt32Ty(), false),
          IRB.CreateIntCast(M->getArgOperand(2), IntptrTy, false)});
     NewInst->setDebugLoc(M->getDebugLoc());
@@ -2442,8 +2446,8 @@ bool TraceRecorder::instrumentMemIntrinsic(Instruction *I)
   {
     CallInst *NewInst = IRB.CreateCall(
         isa<MemCpyInst>(M) ? MemcpyFn : MemmoveFn,
-        {IRB.CreatePointerCast(M->getArgOperand(0), IRB.getInt8PtrTy()),
-         IRB.CreatePointerCast(M->getArgOperand(1), IRB.getInt8PtrTy()),
+        {IRB.CreatePointerCast(M->getArgOperand(0), IRB.getPtrTy()),
+         IRB.CreatePointerCast(M->getArgOperand(1), IRB.getPtrTy()),
          IRB.CreateIntCast(M->getArgOperand(2), IntptrTy, false)});
     NewInst->setDebugLoc(M->getDebugLoc());
     I->eraseFromParent();
