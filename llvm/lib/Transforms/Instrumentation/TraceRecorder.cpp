@@ -1308,7 +1308,7 @@ namespace
       auto succNum = BrInst->getNumSuccessors();
       for (uint idx = 0; idx < succNum; idx++)
       {
-        succs[BrInst->getSuccessor(idx)] = (succNum > 1 ? idx : std::optional<uint32_t>());
+        succs[BrInst->getSuccessor(idx)] = (succNum > 1 ? (1 - idx) : std::optional<uint32_t>());
       }
     }
     else if (isa<SwitchInst>(lastInst))
