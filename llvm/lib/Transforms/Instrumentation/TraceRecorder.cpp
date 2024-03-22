@@ -1030,11 +1030,14 @@ namespace
     void insertPathProfiling(FunctionCallee &TrecPathProfile);
 
   private:
+    // 0 is start, 1 is end
+    uint32_t currentID = 2;
     uint32_t FuncID;
     int DBID;
     Function &Func;
     SqliteDebugWriter &writer;
     std::set<BasicBlock *> visited, onpath;
+    std::set<BasicBlock *> duplicated_edge_nodes;
     AllocaInst *profileVar;
     struct EdgeInfo
     {
@@ -1056,6 +1059,8 @@ namespace
     static Instruction *getLastInst(BasicBlock *blk);
     std::map<BasicBlock *, std::optional<int32_t>> getSuccessors(BasicBlock *blk);
     Instruction *getLastNotImplicit(BasicBlock *blk);
+
+    BasicBlock *handleDuplicatedSuccessor(BasicBlock *blk, BasicBlock *succBlk, Instruction *Inst, int idx);
   };
 
   PathProfiler::PathProfiler(Function &f, SqliteDebugWriter &w) : Func(f), writer(w)
@@ -1165,8 +1170,7 @@ namespace
 
   void PathProfiler::initializeGraph()
   {
-    // 0 is start, 1 is end
-    uint32_t currentID = 2;
+    currentID = 2;
     for (auto &BB : Func)
     {
       blkIDs[&BB] = currentID++;
@@ -1260,7 +1264,9 @@ namespace
         col = lastNonImplicit->getDebugLoc().getCol();
       }
       if (lastNonImplicit != lastInst)
-        jmpType = "(implicit)" + jmpType;
+        jmpType = "(impl)" + jmpType;
+      if (duplicated_edge_nodes.count(blk))
+        jmpType = "(fall)" + jmpType;
       std::string funcName = "", fileName = "";
 
       if (lastInst->getFunction() && lastInst->getFunction()->getSubprogram())
@@ -1297,6 +1303,28 @@ namespace
     return Inst;
   }
 
+  BasicBlock *PathProfiler::handleDuplicatedSuccessor(BasicBlock *blk, BasicBlock *succBlk, Instruction *Inst, int idx)
+  {
+
+    auto newsuccBlk = BasicBlock::Create(blk->getContext(), blk->getName() + ".duplicated_successor", &Func, succBlk);
+    IRBuilder<> IRB(newsuccBlk);
+    IRB.CreateBr(succBlk);
+    Inst->setSuccessor(idx, newsuccBlk);
+    blkIDs[newsuccBlk] = currentID++;
+    for (auto &I : *succBlk)
+    {
+      if (isa<PHINode>(&I))
+      {
+        PHINode *phiInst = dyn_cast<PHINode>(&I);
+        auto idx = phiInst->getBasicBlockIndex(blk);
+        assert(idx >= 0 && "invalid predecessor block");
+        phiInst->setIncomingBlock(idx, newsuccBlk);
+      }
+    }
+    duplicated_edge_nodes.emplace(newsuccBlk);
+    return newsuccBlk;
+  }
+
   std::map<BasicBlock *, std::optional<int32_t>> PathProfiler::getSuccessors(BasicBlock *blk)
   {
     auto lastInst = getLastInst(blk);
@@ -1308,7 +1336,12 @@ namespace
       auto succNum = BrInst->getNumSuccessors();
       for (uint idx = 0; idx < succNum; idx++)
       {
-        succs[BrInst->getSuccessor(idx)] = (succNum > 1 ? (1 - idx) : std::optional<uint32_t>());
+        auto succBlk = BrInst->getSuccessor(idx);
+        if (succs.count(succBlk))
+        {
+          succBlk = handleDuplicatedSuccessor(blk, succBlk, BrInst, idx);
+        }
+        succs[succBlk] = (succNum > 1 ? (1 - idx) : std::optional<uint32_t>());
       }
     }
     else if (isa<SwitchInst>(lastInst))
@@ -1318,10 +1351,15 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto CaseVal = SWInst->findCaseDest(SWInst->getSuccessor(idx));
+        auto succBlk = SWInst->getSuccessor(idx);
+        if (succs.count(succBlk))
+        {
+          succBlk = handleDuplicatedSuccessor(blk, succBlk, SWInst, idx);
+        }
         if (CaseVal)
-          succs[SWInst->getSuccessor(idx)] = CaseVal->getSExtValue();
+          succs[succBlk] = CaseVal->getSExtValue();
         else
-          succs[SWInst->getSuccessor(idx)] = std::nullopt;
+          succs[succBlk] = std::nullopt;
       }
     }
     else if (isa<IndirectBrInst>(lastInst))
@@ -1330,7 +1368,12 @@ namespace
       auto succNum = Indirect->getNumSuccessors();
       for (uint idx = 0; idx < succNum; idx++)
       {
-        succs[Indirect->getSuccessor(idx)] = idx;
+        auto succBlk = Indirect->getSuccessor(idx);
+        if (succs.count(succBlk))
+        {
+          succBlk = handleDuplicatedSuccessor(blk, succBlk, Indirect, idx);
+        }
+        succs[succBlk] = idx;
       }
     }
     else if (isa<CallBrInst>(lastInst))
@@ -1339,7 +1382,12 @@ namespace
       auto succNum = CallBr->getNumSuccessors();
       for (uint idx = 0; idx < succNum; idx++)
       {
-        succs[CallBr->getSuccessor(idx)] = idx;
+        auto succBlk = CallBr->getSuccessor(idx);
+        if (succs.count(succBlk))
+        {
+          succBlk = handleDuplicatedSuccessor(blk, succBlk, CallBr, idx);
+        }
+        succs[succBlk] = idx;
       }
     }
     else if (isa<InvokeInst>(lastInst))
@@ -1348,7 +1396,12 @@ namespace
       auto succNum = Invoke->getNumSuccessors();
       for (uint idx = 0; idx < succNum; idx++)
       {
-        succs[Invoke->getSuccessor(idx)] = idx;
+        auto succBlk = Invoke->getSuccessor(idx);
+        if (succs.count(succBlk))
+        {
+          succBlk = handleDuplicatedSuccessor(blk, succBlk, Invoke, idx);
+        }
+        succs[succBlk] = idx;
       }
     }
     else if (isa<CatchSwitchInst>(lastInst))
@@ -1357,7 +1410,12 @@ namespace
       auto succNum = CSInst->getNumSuccessors();
       for (uint idx = 0; idx < succNum; idx++)
       {
-        succs[CSInst->getSuccessor(idx)] = idx;
+        auto succBlk = CSInst->getSuccessor(idx);
+        if (succs.count(succBlk))
+        {
+          succBlk = handleDuplicatedSuccessor(blk, succBlk, CSInst, idx);
+        }
+        succs[succBlk] = idx;
       }
     }
     else if (isa<CatchReturnInst>(lastInst))
@@ -1681,6 +1739,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   {
     std::set<BasicBlock *> visited;
     profiler.insertPathProfiling(TrecPathProfile);
+    Res |= true;
     for (auto Inst : FuncCalls)
     {
       bool res = false;
