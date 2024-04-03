@@ -78,7 +78,7 @@ static cl::opt<bool> ClInstrumentMemIntrinsics(
     "trec-instrument-memintrinsics", cl::init(true),
     cl::desc("Instrument memintrinsics (memset/memcpy/memmove)"), cl::Hidden);
 static cl::opt<bool> ClInstrumentBranch(
-    "trec-instrument-branch", cl::init(false),
+    "trec-instrument-branch", cl::init(true),
     cl::desc("Instrument branch points (indirectcalls/invoke calls/conditional "
              "branches/switches)"),
     cl::Hidden);
