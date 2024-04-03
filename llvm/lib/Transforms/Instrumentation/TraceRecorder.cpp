@@ -1248,7 +1248,6 @@ namespace
         writer.insertPathProfile(FuncID, fromID, toID, edgeinfo.caseVal, edgeinfo.pathVal);
       }
     }
-    flushGraphNodeDebugInfo();
   }
   void PathProfiler::flushGraphNodeDebugInfo()
   {
