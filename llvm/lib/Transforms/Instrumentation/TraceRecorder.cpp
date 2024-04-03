@@ -1036,7 +1036,7 @@ namespace
     int DBID;
     Function &Func;
     SqliteDebugWriter &writer;
-    std::set<BasicBlock *> visited, onpath;
+    std::set<BasicBlock *> visited;
     std::set<BasicBlock *> duplicated_edge_nodes;
     AllocaInst *profileVar;
     struct EdgeInfo
@@ -1044,8 +1044,9 @@ namespace
       std::optional<int32_t> caseVal;
       uint32_t pathVal;
     };
-    std::map<BasicBlock *, std::map<BasicBlock *, EdgeInfo>> edges;
-    std::map<BasicBlock *, uint64_t> nodes, blkIDs;
+    std::map<uint32_t, std::map<uint32_t, EdgeInfo>> edges;
+    std::map<BasicBlock *, uint64_t> blkIDs;
+    std::map<uint32_t, uint64_t> nodes;
     std::map<BasicBlock *, std::string> nodeTypes;
     std::map<BasicBlock *, std::set<BasicBlock *>> BlkSuccessors;
     void initializeGraph();
@@ -1099,8 +1100,8 @@ namespace
       bool should_reset;
     };
     std::map<BasicBlock *, std::map<BasicBlock *, PhiInfo>> PhiInfos;
-
-    PhiInfos[oldEntry][newEntryBlk].pathVal = edges.at(nullptr).at(oldEntry).pathVal;
+    auto oldEntryID = blkIDs.at(oldEntry);
+    PhiInfos[oldEntry][newEntryBlk].pathVal = edges.at(0).at(oldEntryID).pathVal;
     PhiInfos[oldEntry][newEntryBlk].should_reset = false;
     for (auto &[from, toSet] : BlkSuccessors)
     {
@@ -1115,15 +1116,15 @@ namespace
         {
           bool should_reset = false;
           int16_t pathVal;
-          if (edges.count(from) && edges.at(from).count(to))
+          if (edges.count(blkIDs.at(from)) && edges.at(blkIDs.at(from)).count(blkIDs.at(to)))
           {
             should_reset = false;
-            pathVal = edges.at(from).at(to).pathVal;
+            pathVal = edges.at(blkIDs.at(from)).at(blkIDs.at(to)).pathVal;
           }
           else
           {
             should_reset = true;
-            pathVal = edges.at(nullptr).at(to).pathVal;
+            pathVal = edges.at(0).at(blkIDs.at(to)).pathVal;
           }
           PhiInfos[to][from].pathVal = pathVal;
           PhiInfos[to][from].should_reset = should_reset;
@@ -1176,15 +1177,16 @@ namespace
       blkIDs[&BB] = currentID++;
     }
     auto entry = &Func.getEntryBlock();
-    nodes[nullptr] = 1;
-    edges[nullptr][entry].caseVal = std::nullopt;
-    edges[nullptr][entry].pathVal = 0;
+    nodes[1] = 1;
+    auto entryID = blkIDs.at(entry);
+    edges[0][entryID].caseVal = std::nullopt;
+    edges[0][entryID].pathVal = 0;
     initializeNode(entry);
     uint64_t acc = 0;
-    for (auto &[succ, edgeinfo] : edges[nullptr])
+    for (auto &[succ, edgeinfo] : edges[0])
     {
-      edges[nullptr][succ].caseVal = std::nullopt;
-      edges[nullptr][succ].pathVal = acc;
+      edges[0][succ].caseVal = std::nullopt;
+      edges[0][succ].pathVal = acc;
       acc += nodes[succ];
     }
   }
@@ -1192,11 +1194,11 @@ namespace
   void PathProfiler::initializeNode(BasicBlock *blk)
   {
     visited.emplace(blk);
-    onpath.emplace(blk);
     auto succs = getSuccessors(blk);
 
     // always initialize BlkSuccessors, even if blk has no successor
     BlkSuccessors[blk] = {};
+    auto blkID = blkIDs.at(blk);
     for (auto &[succ, val] : succs)
     {
       BlkSuccessors[blk].emplace(succ);
@@ -1204,47 +1206,45 @@ namespace
 
     if (succs.size() == 0)
     {
-      edges[blk][nullptr].caseVal = std::nullopt;
-      edges[blk][nullptr].pathVal = 0;
+      edges[blkID][1].caseVal = std::nullopt;
+      edges[blkID][1].pathVal = 0;
     }
     else
     {
       for (auto &[succ, caseVal] : succs)
       {
-        if (!onpath.count(succ))
+        auto succID = blkIDs.at(succ);
+        if (blkIDs[succ] > blkIDs[blk])
         {
-          edges[blk][succ].caseVal = caseVal;
-          edges[blk][succ].pathVal = 0;
+          edges[blkID][succID].caseVal = caseVal;
+          edges[blkID][succID].pathVal = 0;
           if (!visited.count(succ))
             initializeNode(succ);
         }
         else
         {
-          edges[blk][nullptr].caseVal = caseVal;
-          edges[blk][nullptr].pathVal = 0;
-          edges[nullptr][succ].caseVal = std::nullopt;
-          edges[nullptr][succ].pathVal = 0;
+          edges[blkID][1].caseVal = caseVal;
+          edges[blkID][1].pathVal = 0;
+          edges[0][succID].caseVal = std::nullopt;
+          edges[0][succID].pathVal = 0;
         }
       }
     }
     uint64_t acc = 0;
-    for (auto &[succ, edgeinfo] : edges[blk])
+    for (auto &[succID, edgeinfo] : edges[blkID])
     {
-      edges[blk][succ].pathVal = acc;
-      acc += nodes[succ];
+      edges[blkID][succID].pathVal = acc;
+      acc += nodes[succID];
     }
-    nodes[blk] = acc;
+    nodes[blkID] = acc;
     nodeTypes[blk] = std::string(getLastInst(blk)->getOpcodeName());
-    onpath.erase(blk);
   }
   void PathProfiler::flushGraph()
   {
-    for (auto &[fromBlk, to] : edges)
+    for (auto &[fromID, to] : edges)
     {
-      for (auto &[toBlk, edgeinfo] : to)
+      for (auto &[toID, edgeinfo] : to)
       {
-        uint32_t fromID = fromBlk ? blkIDs.at(fromBlk) : 0;
-        uint32_t toID = toBlk ? blkIDs.at(toBlk) : 1;
         writer.insertPathProfile(FuncID, fromID, toID, edgeinfo.caseVal, edgeinfo.pathVal);
       }
     }
