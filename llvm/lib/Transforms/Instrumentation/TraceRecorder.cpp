@@ -1307,7 +1307,8 @@ namespace
 
     auto newsuccBlk = BasicBlock::Create(blk->getContext(), blk->getName() + ".duplicated_successor", &Func, succBlk);
     IRBuilder<> IRB(newsuccBlk);
-    IRB.CreateBr(succBlk);
+    auto newBr = IRB.CreateBr(succBlk);
+    newBr->setDebugLoc(Inst->getDebugLoc());
     Inst->setSuccessor(idx, newsuccBlk);
     blkIDs[newsuccBlk] = currentID++;
     for (auto &I : *succBlk)
