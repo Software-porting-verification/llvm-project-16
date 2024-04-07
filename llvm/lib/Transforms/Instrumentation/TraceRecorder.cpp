@@ -214,10 +214,6 @@ namespace
     // Instruction from prior analysis.
     struct InstructionInfo
     {
-      // Instrumentation emitted for this instruction is for a compounded set of
-      // read and write operations in the same basic block.
-      static constexpr unsigned kCompoundRW = (1U << 0);
-
       explicit InstructionInfo(Instruction *Inst) : Inst(Inst) {}
 
       Instruction *Inst;
@@ -1080,6 +1076,8 @@ namespace
   {
     IRBuilder<> IRB(I);
     IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getPtrTy()), IRB.getInt32(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
+    auto BlkID = blkIDs.at(I->getParent());
+    IRB.CreateStore(IRB.getInt16(edges.at(0).at(BlkID).pathVal), profileVar);
     return true;
   }
 
@@ -1175,6 +1173,17 @@ namespace
     for (auto &BB : Func)
     {
       blkIDs[&BB] = currentID++;
+      auto BlkID = blkIDs.at(&BB);
+      for (auto &Inst : BB)
+      {
+        if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst))
+        {
+          edges[0][BlkID].caseVal = std::nullopt;
+          edges[0][BlkID].pathVal = 0;
+          edges[BlkID][1].caseVal = std::nullopt;
+          edges[BlkID][1].pathVal = 0;
+        }
+      }
     }
     auto entry = &Func.getEntryBlock();
     nodes[1] = 1;
@@ -1680,7 +1689,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
       else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst))
       {
-        if (!(dyn_cast<CallBase>(&Inst)->getCalledFunction() && dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().startswith("llvm.")) &&
+        if (!(dyn_cast<CallBase>(&Inst)->getCalledFunction() && dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().starts_with("llvm.")) &&
             !Inst.getDebugLoc().isImplicitCode())
           FuncCalls.push_back(&Inst);
 
