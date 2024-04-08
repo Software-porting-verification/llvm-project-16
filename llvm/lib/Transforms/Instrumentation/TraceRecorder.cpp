@@ -1632,7 +1632,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   LoadsToBeInstrumented.clear();
   AddrAllStores.clear();
   SeperatedExits.clear();
-  PathProfiler profiler(F, *debuger.getOrInitDebuger());
+
   SmallVector<Instruction *> AtomicAccesses;
   SmallVector<Instruction *> MemIntrinCalls;
   SmallVector<Instruction *> Branches;
@@ -1667,6 +1667,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       Res |= instrumentMemIntrinsic(Inst);
     }
 
+  PathProfiler profiler(F, *debuger.getOrInitDebuger());
   // Traverse all instructions, collect loads/stores/calls/branches.
   for (auto &BB : F)
   {
