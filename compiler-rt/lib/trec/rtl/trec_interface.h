@@ -41,7 +41,7 @@ extern "C"
                                                      __sanitizer::u64 debugID);
 
 
-    SANITIZER_INTERFACE_ATTRIBUTE void __trec_path_profile(void* addr, __sanitizer::u32 funcID,__sanitizer::u16 databaseID,
+    SANITIZER_INTERFACE_ATTRIBUTE void __trec_path_profile(void* addr, __sanitizer::u16 funcID,__sanitizer::u16 databaseID,
                                                      bool should_flush);
 
     SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_param(__sanitizer::u16 param_idx,

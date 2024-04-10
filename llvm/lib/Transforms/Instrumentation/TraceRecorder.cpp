@@ -1028,7 +1028,7 @@ namespace
   private:
     // 0 is start, 1 is end
     uint32_t currentID = 2;
-    uint32_t FuncID;
+    uint16_t FuncID;
     int DBID;
     Function &Func;
     SqliteDebugWriter &writer;
@@ -1075,9 +1075,9 @@ namespace
   bool PathProfiler::instrumentPathProfileBeforeFuncCalls(FunctionCallee &TrecPathProfile, Instruction *I)
   {
     IRBuilder<> IRB(I);
-    IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getPtrTy()), IRB.getInt32(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
+    IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getPtrTy()), IRB.getInt16(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
     auto BlkID = blkIDs.at(I->getParent());
-    IRB.CreateStore(IRB.getInt16(edges.at(0).at(BlkID).pathVal), profileVar);
+    IRB.CreateStore(IRB.getInt32(edges.at(0).at(BlkID).pathVal), profileVar);
     return true;
   }
 
@@ -1088,13 +1088,13 @@ namespace
     auto newEntryBlk = BasicBlock::Create(oldEntry->getContext(), "startNode", &Func, oldEntry);
     {
       IRBuilder<> IRB(newEntryBlk);
-      profileVar = IRB.CreateAlloca(IRB.getInt16Ty(), nullptr, "profile.var");
-      IRB.CreateStore(IRB.getInt16(0), profileVar);
+      profileVar = IRB.CreateAlloca(IRB.getInt32Ty(), nullptr, "profile.var");
+      IRB.CreateStore(IRB.getInt32(0), profileVar);
       IRB.CreateBr(oldEntry);
     }
     struct PhiInfo
     {
-      uint16_t pathVal;
+      uint32_t pathVal;
       bool should_reset;
     };
     std::map<BasicBlock *, std::map<BasicBlock *, PhiInfo>> PhiInfos;
@@ -1106,14 +1106,14 @@ namespace
       if (toSet.empty())
       {
         IRBuilder<> IRB(getLastInst(from));
-        IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getPtrTy()), IRB.getInt32(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
+        IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getPtrTy()), IRB.getInt16(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
       }
       else
       {
         for (auto to : toSet)
         {
           bool should_reset = false;
-          int16_t pathVal;
+          int32_t pathVal;
           if (edges.count(blkIDs.at(from)) && edges.at(blkIDs.at(from)).count(blkIDs.at(to)))
           {
             should_reset = false;
@@ -1149,20 +1149,20 @@ namespace
 
       bool should_reset = false;
       int sz = fromInfo.size();
-      auto valuePhi = PHIIRB.CreatePHI(PHIIRB.getInt16Ty(), sz, "profile.value");
+      auto valuePhi = PHIIRB.CreatePHI(PHIIRB.getInt32Ty(), sz, "profile.value");
       auto resetPhi = PHIIRB.CreatePHI(PHIIRB.getInt1Ty(), sz, "profile.reset.flag");
       for (auto &[from, info] : fromInfo)
       {
 
-        valuePhi->addIncoming(PHIIRB.getInt16(info.pathVal), from);
+        valuePhi->addIncoming(PHIIRB.getInt32(info.pathVal), from);
         resetPhi->addIncoming(PHIIRB.getInt1(info.should_reset), from);
         should_reset |= info.should_reset;
       }
 
       if (should_reset)
-        AfterIRB.CreateCall(TrecPathProfile, {AfterIRB.CreatePointerCast(profileVar, AfterIRB.getPtrTy()), AfterIRB.getInt32(FuncID), AfterIRB.getInt16(DBID), resetPhi});
+        AfterIRB.CreateCall(TrecPathProfile, {AfterIRB.CreatePointerCast(profileVar, AfterIRB.getPtrTy()), AfterIRB.getInt16(FuncID), AfterIRB.getInt16(DBID), resetPhi});
 
-      auto ValToAdd = AfterIRB.CreateSelect(resetPhi, AfterIRB.getInt16(0), AfterIRB.CreateLoad(AfterIRB.getInt16Ty(), profileVar));
+      auto ValToAdd = AfterIRB.CreateSelect(resetPhi, AfterIRB.getInt32(0), AfterIRB.CreateLoad(AfterIRB.getInt32Ty(), profileVar));
       AfterIRB.CreateStore(AfterIRB.CreateAdd(ValToAdd, valuePhi), profileVar);
     }
   }
@@ -1570,7 +1570,7 @@ void TraceRecorder::initialize(Module &M)
                                      IRB.getPtrTy(), IRB.getInt64Ty(),
                                      IRB.getInt64Ty());
   TrecPathProfile = M.getOrInsertFunction("__trec_path_profile", Attr, IRB.getVoidTy(),
-                                          IRB.getPtrTy(), IRB.getInt32Ty(),
+                                          IRB.getPtrTy(), IRB.getInt16Ty(),
                                           IRB.getInt16Ty(),
                                           IRB.getInt1Ty());
   TrecFuncParam = M.getOrInsertFunction(
