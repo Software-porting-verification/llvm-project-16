@@ -25,12 +25,12 @@ void __trec_branch(void *cond, __sanitizer::u64 sa, __sanitizer::u64 debugID)
 {
   CondBranch(cur_thread(), CALLERPC, (uptr)cond, sa, debugID);
 }
-void __trec_path_profile(void *addr, __sanitizer::u32 funcID, __sanitizer::u16 databaseID,
+void __trec_path_profile(void *addr, __sanitizer::u16 funcID, __sanitizer::u16 databaseID,
                          bool should_flush)
 {
   if (UNLIKELY(should_flush))
   {
-    __sanitizer::u64 pathID = (((__sanitizer::u64)databaseID) << 48) | (((__sanitizer::u64)(*(__sanitizer::u16 *)addr)) << 32) | ((__sanitizer::u64)funcID);
+    __sanitizer::u64 pathID = (((__sanitizer::u64)databaseID) << 48) | ((__sanitizer::u64)funcID << 32) | ((*(__sanitizer::u32 *)addr));
     PathProfileFlush(cur_thread(), pathID);
   }
 }
