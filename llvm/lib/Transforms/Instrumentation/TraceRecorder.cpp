@@ -1035,6 +1035,8 @@ namespace
     std::set<BasicBlock *> visited;
     std::set<BasicBlock *> duplicated_edge_nodes;
     AllocaInst *profileVar;
+    std::set<BasicBlock *> toStartNodes;
+
     struct EdgeInfo
     {
       std::optional<int32_t> caseVal;
@@ -1182,6 +1184,8 @@ namespace
           edges[0][BlkID].pathVal = 0;
           edges[BlkID][1].caseVal = std::nullopt;
           edges[BlkID][1].pathVal = 0;
+          toStartNodes.emplace(&BB);
+          break;
         }
       }
     }
@@ -1190,13 +1194,24 @@ namespace
     auto entryID = blkIDs.at(entry);
     edges[0][entryID].caseVal = std::nullopt;
     edges[0][entryID].pathVal = 0;
-    initializeNode(entry);
+    toStartNodes.emplace(entry);
+    while (!toStartNodes.empty())
+    {
+      std::set<BasicBlock *> StartNodes;
+      std::swap(StartNodes, toStartNodes);
+      for (auto &startBlk : StartNodes)
+      {
+        if (!visited.count(startBlk))
+          initializeNode(startBlk);
+      }
+    }
+
     uint64_t acc = 0;
     for (auto &[succ, edgeinfo] : edges[0])
     {
       edges[0][succ].caseVal = std::nullopt;
       edges[0][succ].pathVal = acc;
-      acc += nodes[succ];
+      acc += nodes.at(succ);
     }
   }
 
@@ -1236,6 +1251,8 @@ namespace
           edges[blkID][1].pathVal = 0;
           edges[0][succID].caseVal = std::nullopt;
           edges[0][succID].pathVal = 0;
+          if (!visited.count(succ))
+            toStartNodes.emplace(succ);
         }
       }
     }
@@ -1243,7 +1260,7 @@ namespace
     for (auto &[succID, edgeinfo] : edges[blkID])
     {
       edges[blkID][succID].pathVal = acc;
-      acc += nodes[succID];
+      acc += nodes.at(succID);
     }
     nodes[blkID] = acc;
     nodeTypes[blk] = std::string(getLastInst(blk)->getOpcodeName());
@@ -1265,14 +1282,24 @@ namespace
       auto lastInst = getLastInst(blk);
       uint32_t blkID = blkIDs.at(blk);
       int line = 0, col = 0;
-      auto lastNonImplicit = getLastNotImplicit(blk);
-      if (lastNonImplicit)
+      if (lastInst->getDebugLoc())
       {
-        line = lastNonImplicit->getDebugLoc().getLine();
-        col = lastNonImplicit->getDebugLoc().getCol();
+        line = lastInst->getDebugLoc().getLine();
+        col = lastInst->getDebugLoc().getCol();
       }
-      if (lastNonImplicit != lastInst)
-        jmpType = "(impl)" + jmpType;
+      else
+      {
+        auto prevInst = lastInst;
+        while (prevInst = prevInst->getPrevNonDebugInstruction())
+        {
+          if (prevInst->getDebugLoc())
+          {
+            line = prevInst->getDebugLoc().getLine();
+            col = prevInst->getDebugLoc().getCol();
+            break;
+          }
+        }
+      }
       if (duplicated_edge_nodes.count(blk))
         jmpType = "(fall)" + jmpType;
       std::string funcName = "", fileName = "";
