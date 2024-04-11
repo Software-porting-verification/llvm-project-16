@@ -31,7 +31,7 @@ TREC_FLAG(bool, record_mutex, true, "Record Mutex Lock/Unlock Operations?")
 TREC_FLAG(bool, record_rwlock, true, "Record Reader/Writer Lock/Unlock Operations?")
 TREC_FLAG(bool, record_cond, true, "Record Conditions?")
 TREC_FLAG(bool, record_alloc_free, true, "Record Memory Object Allocate/Free?")
-TREC_FLAG(bool, record_branch, false, "Record conditional branch insts.")
+TREC_FLAG(bool, record_branch, true, "Record conditional branch insts.")
 TREC_FLAG(bool, record_func_enter_exit, true,
           "Record function enter/exit insts.")
 TREC_FLAG(bool, record_func_param, true, "Record function parameter insts.")
