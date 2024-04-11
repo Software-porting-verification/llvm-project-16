@@ -135,8 +135,8 @@ namespace __trec_trace
                     jmp_buf address : 48
      * PathProfile:
                     databaseID : 8
-                    funcID : 18
-                    pathID : 38
+                    funcID : 16
+                    pathID : 40
      * None:        0
      */
     __sanitizer::u64 oid;

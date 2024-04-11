@@ -145,6 +145,7 @@ namespace __trec
     bool is_freeing;
     bool is_vptr_access;
     ThreadContext *tctx;
+    bool bare_thread;
 
     // Current wired Processor, or nullptr. Required to handle any events.
     Processor *proc1;
