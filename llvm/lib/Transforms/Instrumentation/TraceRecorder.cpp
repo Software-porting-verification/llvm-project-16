@@ -1217,7 +1217,7 @@ namespace
       edges[0][succ].caseVal = std::nullopt;
       edges[0][succ].pathVal = acc;
       acc += nodes.at(succ);
-      if (acc >= (1ULL << 38))
+      if (acc >= (1ULL << 40))
         path_overflow_flag = true;
     }
   }
@@ -1268,7 +1268,7 @@ namespace
     {
       edges[blkID][succID].pathVal = acc;
       acc += nodes.at(succID);
-      if (acc >= (1ULL << 38))
+      if (acc >= (1ULL << 40))
         path_overflow_flag = true;
     }
     nodes[blkID] = acc;
@@ -1746,7 +1746,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, &TLI);
         }
       }
-      else if (isa<BranchInst>(Inst) && (dyn_cast<BranchInst>(&Inst)->isConditional()) || (profiler.path_overflow_flag))
+      else if (isa<BranchInst>(Inst) && dyn_cast<BranchInst>(&Inst)->isConditional())
       {
         Branches.push_back(&Inst); // conditional branch or each branch under path profiling mode
       }
@@ -1771,7 +1771,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
 
   // branches must be instrumented before function entries/exits
 
-  if (ClInstrumentBranch || (ClInstrumentPathProfile && profiler.path_overflow_flag))
+  if (ClInstrumentBranch)
     for (auto Inst : Branches)
     {
       Res |= instrumentBranch(Inst, DL);

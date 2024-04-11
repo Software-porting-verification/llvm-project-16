@@ -30,7 +30,7 @@ void __trec_path_profile(void *addr, __sanitizer::u16 funcID, __sanitizer::u16 d
 {
   if (UNLIKELY(should_flush))
   {
-    __sanitizer::u64 pathID = (((__sanitizer::u64)databaseID) << 56) | ((__sanitizer::u64)funcID << 38) | ((*(__sanitizer::u64 *)addr) & ((1ULL << 38) - 1));
+    __sanitizer::u64 pathID = (((__sanitizer::u64)databaseID) << 56) | ((__sanitizer::u64)funcID << 40) | ((*(__sanitizer::u64 *)addr) & ((1ULL << 40) - 1));
     PathProfileFlush(cur_thread(), pathID);
   }
 }

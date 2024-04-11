@@ -260,7 +260,7 @@ namespace __trec
 
   // The objects are allocated in TLS, so one may rely on zero-initialization.
   ThreadState::ThreadState(Context *ctx, int tid, int unique_id)
-      : tid(tid), unique_id(unique_id) {}
+      : tid(tid), unique_id(unique_id), bare_thread(true) {}
 
 #if !SANITIZER_GO
 
@@ -514,7 +514,7 @@ namespace __trec
                                      __sanitizer::u64 debugID)
   {
     if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.record_branch) &&
-        LIKELY(thr->ignore_interceptors == 0))
+        LIKELY(thr->ignore_interceptors == 0) && !thr->bare_thread)
     {
       __trec_metadata::BranchMeta meta(sa.getAsUInt64(), debugID);
       thr->tctx->writer.put_record(__trec_trace::EventType::Branch, cond, pc,
@@ -623,6 +623,7 @@ namespace __trec
                                           __sanitizer::u64 &debugID,
                                           __sanitizer::u64 pc, __sanitizer::u64 func)
   {
+    thr->bare_thread = false;
     if (LIKELY(ctx->flags.output_trace) &&
         LIKELY(ctx->flags.record_func_enter_exit) &&
         LIKELY(thr->ignore_interceptors == 0))
