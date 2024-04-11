@@ -36,13 +36,12 @@ extern "C"
     // before any instrumented code is executed and before any call to malloc.
     SANITIZER_INTERFACE_ATTRIBUTE void __trec_init();
 
-    SANITIZER_INTERFACE_ATTRIBUTE void __trec_branch(void *cond,
+    SANITIZER_INTERFACE_ATTRIBUTE void __trec_branch(__sanitizer::u16 jmpType, void *cond,
                                                      __sanitizer::u64 sa,
                                                      __sanitizer::u64 debugID);
 
-
-    SANITIZER_INTERFACE_ATTRIBUTE void __trec_path_profile(void* addr, __sanitizer::u16 funcID,__sanitizer::u16 databaseID,
-                                                     bool should_flush);
+    SANITIZER_INTERFACE_ATTRIBUTE void __trec_path_profile(void *addr, __sanitizer::u16 funcID, __sanitizer::u16 databaseID,
+                                                           bool should_flush);
 
     SANITIZER_INTERFACE_ATTRIBUTE void __trec_func_param(__sanitizer::u16 param_idx,
                                                          __sanitizer::u64 sa,
