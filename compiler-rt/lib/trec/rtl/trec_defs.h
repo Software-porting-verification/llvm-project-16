@@ -56,7 +56,7 @@ namespace __trec
 
 namespace __trec_trace
 {
-  const __sanitizer::u64 TREC_TRACE_VER = 20240410UL;
+  const __sanitizer::u64 TREC_TRACE_VER = 20240411UL;
   enum EventType : __sanitizer::u64
   {
     ThreadBegin,
@@ -134,9 +134,9 @@ namespace __trec_trace
                     (not used) : 16
                     jmp_buf address : 48
      * PathProfile:
-                    databaseID : 16
-                    funcID : 16
-                    pathID : 32
+                    databaseID : 8
+                    funcID : 18
+                    pathID : 38
      * None:        0
      */
     __sanitizer::u64 oid;

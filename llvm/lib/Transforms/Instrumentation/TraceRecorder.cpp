@@ -141,7 +141,7 @@ namespace
     void commitSQL();
     void beginSQL();
     void insertPathDebug(int funcID, int blkID, std::string type, int debugID);
-    void insertPathProfile(int funcID, int from, int to, std::optional<int32_t> caseVal, int pathVal);
+    void insertPathProfile(int funcID, int from, int to, std::optional<int32_t> caseVal, uint64_t pathVal);
 
     inline int getDBID() const
     {
@@ -176,6 +176,7 @@ namespace
   /// function declarations into the module if they don't exist already.
   /// Instantiating ensures the __trec_init function is in the list of global
   /// constructors for the module.
+
   struct TraceRecorder
   {
     TraceRecorder()
@@ -974,7 +975,7 @@ namespace
       exit(status);
     };
   }
-  void SqliteDebugWriter::insertPathProfile(int funcID, int from, int to, std::optional<int32_t> caseVal, int pathVal)
+  void SqliteDebugWriter::insertPathProfile(int funcID, int from, int to, std::optional<int32_t> caseVal, uint64_t pathVal)
   {
     sqlite3_reset(insertEdgeStmt);
     int status = sqlite3_bind_int(insertEdgeStmt, 1, funcID);
@@ -1004,7 +1005,7 @@ namespace
       printf("bind 4th param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
       exit(status);
     }
-    status = sqlite3_bind_int(insertEdgeStmt, 5, pathVal);
+    status = sqlite3_bind_int64(insertEdgeStmt, 5, pathVal);
     if (status != SQLITE_OK)
     {
       printf("bind 5th param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
@@ -1020,6 +1021,7 @@ namespace
   class PathProfiler
   {
   public:
+    bool path_overflow_flag = false;
     PathProfiler(Function &f, SqliteDebugWriter &w);
     ~PathProfiler() = default;
     bool instrumentPathProfileBeforeFuncCalls(FunctionCallee &TrecPathProfile, Instruction *I);
@@ -1040,7 +1042,7 @@ namespace
     struct EdgeInfo
     {
       std::optional<int32_t> caseVal;
-      uint32_t pathVal;
+      uint64_t pathVal;
     };
     std::map<uint32_t, std::map<uint32_t, EdgeInfo>> edges;
     std::map<BasicBlock *, uint64_t> blkIDs;
@@ -1069,8 +1071,11 @@ namespace
       FuncID = writer.getFuncID();
       DBID = writer.getDBID();
       initializeGraph();
-      flushGraph();
-      flushGraphNodeDebugInfo();
+      if (!path_overflow_flag)
+      {
+        flushGraph();
+        flushGraphNodeDebugInfo();
+      }
     }
   }
 
@@ -1079,7 +1084,7 @@ namespace
     IRBuilder<> IRB(I);
     IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getPtrTy()), IRB.getInt16(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
     auto BlkID = blkIDs.at(I->getParent());
-    IRB.CreateStore(IRB.getInt32(edges.at(0).at(BlkID).pathVal), profileVar);
+    IRB.CreateStore(IRB.getInt64(edges.at(0).at(BlkID).pathVal), profileVar);
     return true;
   }
 
@@ -1090,13 +1095,13 @@ namespace
     auto newEntryBlk = BasicBlock::Create(oldEntry->getContext(), "startNode", &Func, oldEntry);
     {
       IRBuilder<> IRB(newEntryBlk);
-      profileVar = IRB.CreateAlloca(IRB.getInt32Ty(), nullptr, "profile.var");
-      IRB.CreateStore(IRB.getInt32(0), profileVar);
+      profileVar = IRB.CreateAlloca(IRB.getInt64Ty(), nullptr, "profile.var");
+      IRB.CreateStore(IRB.getInt64(0), profileVar);
       IRB.CreateBr(oldEntry);
     }
     struct PhiInfo
     {
-      uint32_t pathVal;
+      uint64_t pathVal;
       bool should_reset;
     };
     std::map<BasicBlock *, std::map<BasicBlock *, PhiInfo>> PhiInfos;
@@ -1115,7 +1120,7 @@ namespace
         for (auto to : toSet)
         {
           bool should_reset = false;
-          int32_t pathVal;
+          uint64_t pathVal;
           if (edges.count(blkIDs.at(from)) && edges.at(blkIDs.at(from)).count(blkIDs.at(to)))
           {
             should_reset = false;
@@ -1151,12 +1156,12 @@ namespace
 
       bool should_reset = false;
       int sz = fromInfo.size();
-      auto valuePhi = PHIIRB.CreatePHI(PHIIRB.getInt32Ty(), sz, "profile.value");
+      auto valuePhi = PHIIRB.CreatePHI(PHIIRB.getInt64Ty(), sz, "profile.value");
       auto resetPhi = PHIIRB.CreatePHI(PHIIRB.getInt1Ty(), sz, "profile.reset.flag");
       for (auto &[from, info] : fromInfo)
       {
 
-        valuePhi->addIncoming(PHIIRB.getInt32(info.pathVal), from);
+        valuePhi->addIncoming(PHIIRB.getInt64(info.pathVal), from);
         resetPhi->addIncoming(PHIIRB.getInt1(info.should_reset), from);
         should_reset |= info.should_reset;
       }
@@ -1164,7 +1169,7 @@ namespace
       if (should_reset)
         AfterIRB.CreateCall(TrecPathProfile, {AfterIRB.CreatePointerCast(profileVar, AfterIRB.getPtrTy()), AfterIRB.getInt16(FuncID), AfterIRB.getInt16(DBID), resetPhi});
 
-      auto ValToAdd = AfterIRB.CreateSelect(resetPhi, AfterIRB.getInt32(0), AfterIRB.CreateLoad(AfterIRB.getInt32Ty(), profileVar));
+      auto ValToAdd = AfterIRB.CreateSelect(resetPhi, AfterIRB.getInt64(0), AfterIRB.CreateLoad(AfterIRB.getInt64Ty(), profileVar));
       AfterIRB.CreateStore(AfterIRB.CreateAdd(ValToAdd, valuePhi), profileVar);
     }
   }
@@ -1212,6 +1217,8 @@ namespace
       edges[0][succ].caseVal = std::nullopt;
       edges[0][succ].pathVal = acc;
       acc += nodes.at(succ);
+      if (acc >= (1ULL << 38))
+        path_overflow_flag = true;
     }
   }
 
@@ -1261,6 +1268,8 @@ namespace
     {
       edges[blkID][succID].pathVal = acc;
       acc += nodes.at(succID);
+      if (acc >= (1ULL << 38))
+        path_overflow_flag = true;
     }
     nodes[blkID] = acc;
     nodeTypes[blk] = std::string(getLastInst(blk)->getOpcodeName());
@@ -1318,6 +1327,7 @@ namespace
       writer.insertPathDebug(FuncID, blkID, jmpType.substr(0, 31), debugID);
     }
   }
+
   Instruction *PathProfiler::getLastInst(BasicBlock *blk)
   {
     return &blk->back();
@@ -1594,7 +1604,7 @@ void TraceRecorder::initialize(Module &M)
       M.getOrInsertFunction("memset", Attr, IRB.getPtrTy(),
                             IRB.getPtrTy(), IRB.getInt32Ty(), IntptrTy);
   TrecBranch = M.getOrInsertFunction("__trec_branch", Attr, IRB.getVoidTy(),
-                                     IRB.getPtrTy(), IRB.getInt64Ty(),
+                                     IRB.getInt16Ty(), IRB.getPtrTy(), IRB.getInt64Ty(),
                                      IRB.getInt64Ty());
   TrecPathProfile = M.getOrInsertFunction("__trec_path_profile", Attr, IRB.getVoidTy(),
                                           IRB.getPtrTy(), IRB.getInt16Ty(),
@@ -1736,18 +1746,13 @@ bool TraceRecorder::sanitizeFunction(Function &F,
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, &TLI);
         }
       }
-      else if (isa<BranchInst>(Inst) &&
-               dyn_cast<BranchInst>(&Inst)->isConditional())
+      else if (isa<BranchInst>(Inst) && (dyn_cast<BranchInst>(&Inst)->isConditional()) || (profiler.path_overflow_flag))
       {
-        Branches.push_back(&Inst); // conditional branch
+        Branches.push_back(&Inst); // conditional branch or each branch under path profiling mode
       }
       else if (isa<SwitchInst>(Inst))
       {
         Branches.push_back(&Inst); // switch
-      }
-      else if (isa<IndirectBrInst>(Inst))
-      {
-        Branches.push_back(&Inst);
       }
       else if (isa<ReturnInst>(Inst))
       {
@@ -1766,13 +1771,13 @@ bool TraceRecorder::sanitizeFunction(Function &F,
 
   // branches must be instrumented before function entries/exits
 
-  if (ClInstrumentBranch)
+  if (ClInstrumentBranch || (ClInstrumentPathProfile && profiler.path_overflow_flag))
     for (auto Inst : Branches)
     {
       Res |= instrumentBranch(Inst, DL);
     }
 
-  if (ClInstrumentPathProfile)
+  if (ClInstrumentPathProfile && !profiler.path_overflow_flag)
   {
     std::set<BasicBlock *> visited;
     profiler.insertPathProfiling(TrecPathProfile);
@@ -1880,24 +1885,45 @@ bool TraceRecorder::sanitizeFunction(Function &F,
 
 bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
 {
+  enum JumpType : uint16_t
+  {
+    UncondBr,
+    CondBr,
+    Switch,
+  };
   if (I->getDebugLoc().isImplicitCode())
     return false;
   IRBuilder<> IRB(I);
   bool Res = false;
   Function *F = I->getParent()->getParent();
+
+  std::string funcName = "", fileName = "";
+
+  if (F && F->getSubprogram())
+  {
+    funcName = F->getSubprogram()->getName().str();
+    fileName = F->getSubprogram()->getFilename().str();
+    if (F->getSubprogram()->getFile())
+      fileName = (std::filesystem::path(F->getSubprogram()->getFile()->getDirectory().str()) /
+                  std::filesystem::path(F->getSubprogram()->getFile()->getFilename().str()))
+                     .string();
+  }
+  int nameA = debuger.getOrInitDebuger()->getVarID(funcName.c_str()), nameB = debuger.getOrInitDebuger()->getFileID(fileName.c_str());
   if (isa<BranchInst>(I))
   {
     BranchInst *Br = dyn_cast<BranchInst>(I);
-    Value *cond = Br->getCondition();
-    int nameA = debuger.getOrInitDebuger()->getVarID(cond->getName().str().c_str());
-    int nameB = 0;
+    Value *cond;
+    if (Br->isConditional())
+      cond = Br->getCondition();
+    else
+      cond = IRB.getInt64(0);
     int line = Br->getDebugLoc().getLine();
     int col = Br->getDebugLoc().getCol();
     uint64_t debugID =
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
     IRB.CreateCall(TrecBranch,
-                   {IRB.CreateBitOrPointerCast(cond, IRB.getPtrTy()),
+                   {IRB.getInt16(Br->isConditional() ? CondBr : UncondBr), IRB.CreateBitOrPointerCast(cond, IRB.getPtrTy()),
                     VSI.Reform(IRB), IRB.getInt64(debugID)});
     Res |= true;
   }
@@ -1905,31 +1931,13 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
   {
     SwitchInst *sw = dyn_cast<SwitchInst>(I);
     Value *cond = sw->getCondition();
-    int nameA = debuger.getOrInitDebuger()->getVarID(cond->getName().str().c_str());
-    int nameB = 0;
     int line = sw->getDebugLoc().getLine();
     int col = sw->getDebugLoc().getCol();
     uint64_t debugID =
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
     IRB.CreateCall(TrecBranch,
-                   {IRB.CreateBitOrPointerCast(cond, IRB.getPtrTy()),
-                    VSI.Reform(IRB), IRB.getInt64(debugID)});
-    Res |= true;
-  }
-  else if (isa<IndirectBrInst>(I))
-  {
-    IndirectBrInst *IBr = dyn_cast<IndirectBrInst>(I);
-    Value *cond = IBr->getAddress();
-    int nameA = debuger.getOrInitDebuger()->getVarID(cond->getName().str().c_str());
-    int nameB = 0;
-    int line = IBr->getDebugLoc().getLine();
-    int col = IBr->getDebugLoc().getCol();
-    uint64_t debugID =
-        debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
-    ValSourceInfo VSI = getSource(cond, F);
-    IRB.CreateCall(TrecBranch,
-                   {IRB.CreateBitOrPointerCast(cond, IRB.getPtrTy()),
+                   {IRB.getInt16(Switch), IRB.CreateBitOrPointerCast(cond, IRB.getPtrTy()),
                     VSI.Reform(IRB), IRB.getInt64(debugID)});
     Res |= true;
   }

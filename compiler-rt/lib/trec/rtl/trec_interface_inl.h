@@ -21,16 +21,16 @@
   (StackTrace::GetPreviousInstructionPc((uptr)__builtin_return_address(0)))
 using namespace __trec;
 using namespace __trec_metadata;
-void __trec_branch(void *cond, __sanitizer::u64 sa, __sanitizer::u64 debugID)
+void __trec_branch(__sanitizer::u16 jmpType, void *cond, __sanitizer::u64 sa, __sanitizer::u64 debugID)
 {
-  CondBranch(cur_thread(), CALLERPC, (uptr)cond, sa, debugID);
+  CondBranch(cur_thread(), CALLERPC, (((__sanitizer::u64)jmpType << 60) | ((__sanitizer::u64)cond & ((1ULL << 60) - 1))), sa, debugID);
 }
 void __trec_path_profile(void *addr, __sanitizer::u16 funcID, __sanitizer::u16 databaseID,
                          bool should_flush)
 {
   if (UNLIKELY(should_flush))
   {
-    __sanitizer::u64 pathID = (((__sanitizer::u64)databaseID) << 48) | ((__sanitizer::u64)funcID << 32) | ((*(__sanitizer::u32 *)addr));
+    __sanitizer::u64 pathID = (((__sanitizer::u64)databaseID) << 56) | ((__sanitizer::u64)funcID << 38) | ((*(__sanitizer::u64 *)addr) & ((1ULL << 38) - 1));
     PathProfileFlush(cur_thread(), pathID);
   }
 }
