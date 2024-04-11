@@ -1183,7 +1183,7 @@ namespace
       auto BlkID = blkIDs.at(&BB);
       for (auto &Inst : BB)
       {
-        if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst))
+        if (!isa<DbgInfoIntrinsic>(Inst) && (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)))
         {
           edges[0][BlkID].caseVal = std::nullopt;
           edges[0][BlkID].pathVal = 0;
@@ -1727,7 +1727,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
       else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst))
       {
-        if (!(dyn_cast<CallBase>(&Inst)->getCalledFunction() && dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().starts_with("llvm.")) &&
+        if (!isa<DbgInfoIntrinsic>(Inst) &&
             !Inst.getDebugLoc().isImplicitCode())
           FuncCalls.push_back(&Inst);
 
