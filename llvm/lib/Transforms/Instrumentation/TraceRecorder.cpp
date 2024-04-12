@@ -1183,7 +1183,7 @@ namespace
       auto BlkID = blkIDs.at(&BB);
       for (auto &Inst : BB)
       {
-        if (!isa<DbgInfoIntrinsic>(Inst) && (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)))
+        if (!isa<IntrinsicInst>(Inst) && (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)))
         {
           edges[0][BlkID].caseVal = std::nullopt;
           edges[0][BlkID].pathVal = 0;
@@ -1299,7 +1299,7 @@ namespace
       else
       {
         auto prevInst = lastInst;
-        while (prevInst = prevInst->getPrevNonDebugInstruction())
+        while ((prevInst = prevInst->getPrevNonDebugInstruction()) != nullptr)
         {
           if (prevInst->getDebugLoc())
           {
@@ -1727,9 +1727,10 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
       else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst))
       {
-        if (!isa<DbgInfoIntrinsic>(Inst) &&
+        if (!isa<IntrinsicInst>(Inst) &&
             !Inst.getDebugLoc().isImplicitCode())
           FuncCalls.push_back(&Inst);
+        
 
         // Although these are also branches, we do not instrument them because
         // we cannot get to know the exact conditional variable that causes the
