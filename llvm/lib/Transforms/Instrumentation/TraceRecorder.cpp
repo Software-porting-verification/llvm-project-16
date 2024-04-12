@@ -71,11 +71,11 @@ static cl::opt<bool>
                               cl::desc("Instrument function entry and exit"),
                               cl::Hidden);
 static cl::opt<bool> ClInstrumentAtomics("trec-instrument-atomics",
-                                         cl::init(true),
+                                         cl::init(false),
                                          cl::desc("Instrument atomics"),
                                          cl::Hidden);
 static cl::opt<bool> ClInstrumentMemIntrinsics(
-    "trec-instrument-memintrinsics", cl::init(true),
+    "trec-instrument-memintrinsics", cl::init(false),
     cl::desc("Instrument memintrinsics (memset/memcpy/memmove)"), cl::Hidden);
 static cl::opt<bool> ClInstrumentBranch(
     "trec-instrument-branch", cl::init(false),
