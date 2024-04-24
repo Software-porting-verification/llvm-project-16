@@ -818,7 +818,6 @@ namespace __trec
 
   bool TraceWriter::state_restore()
   {
-    TrecMutexGuard guard(mtx);
     struct stat _st = {0};
     char path[2 * TREC_DIR_PATH_LEN];
     __sanitizer::internal_snprintf(path, 2 * TREC_DIR_PATH_LEN - 1,
@@ -830,7 +829,6 @@ namespace __trec
       int header_fd = internal_open(path, O_RDONLY);
       if (header_fd < 0)
       {
-        Report("Restore header from %s failed\n", path);
         return false;
       }
       else

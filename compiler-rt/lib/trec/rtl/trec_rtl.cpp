@@ -446,6 +446,7 @@ namespace __trec
     if (ctx->flags.output_trace && ctx->temp_dir_path)
     {
       ctx->InheritDir(ctx->temp_dir_path, internal_getpid());
+      thr->tctx->writer.state_restore();
       ctx->thread_after_fork = true;
       internal_free(ctx->temp_dir_path);
       ctx->temp_dir_path = nullptr;
