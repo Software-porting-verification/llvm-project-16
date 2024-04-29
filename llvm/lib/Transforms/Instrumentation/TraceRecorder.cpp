@@ -1075,14 +1075,6 @@ namespace
       {
         flushGraph();
         flushGraphNodeDebugInfo();
-        if (Func.getName() == "addService")
-          for (auto &BB : Func)
-          {
-            if (blkIDs.count(&BB))
-              printf("Block ID: %lu\n", blkIDs.at(&BB));
-            BB.print(llvm::outs());
-            printf("\n");
-          }
       }
     }
   }
@@ -1738,6 +1730,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
         if (!isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) &&
             !Inst.getDebugLoc().isImplicitCode())
           FuncCalls.push_back(&Inst);
+        
 
         // Although these are also branches, we do not instrument them because
         // we cannot get to know the exact conditional variable that causes the
