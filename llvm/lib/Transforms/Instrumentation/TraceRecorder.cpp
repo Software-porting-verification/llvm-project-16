@@ -1182,7 +1182,7 @@ namespace
       auto BlkID = blkIDs.at(&BB);
       for (auto &Inst : BB)
       {
-        if (!isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) && ((isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) && dyn_cast<CallBase>(&Inst)->isNoBuiltin()))
+        if (!isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) && ((isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) && !dyn_cast<CallBase>(&Inst)->hasFnAttr(Attribute::Builtin)))
         {
           edges[0][BlkID].caseVal = std::nullopt;
           edges[0][BlkID].pathVal = 0;
@@ -1727,7 +1727,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
                isa<InvokeInst>(Inst))
       {
         if (isa<CallInst>(Inst) && !isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) &&
-            !Inst.getDebugLoc().isImplicitCode() && dyn_cast<CallBase>(&Inst)->isNoBuiltin())
+            !Inst.getDebugLoc().isImplicitCode() && !dyn_cast<CallBase>(&Inst)->hasFnAttr(Attribute::Builtin))
           FuncCalls.push_back(&Inst);
 
         // Although these are also branches, we do not instrument them because
