@@ -209,7 +209,6 @@ namespace
     SmallDenseMap<Value *, unsigned int> VarOrders;
     std::map<unsigned int, bool> outsideVars;
     unsigned int VarOrderCounter;
-    std::set<Instruction *> SeperatedExits;
 
     // Internal Instruction wrapper that contains more information about the
     // Instruction from prior analysis.
@@ -1183,7 +1182,7 @@ namespace
       auto BlkID = blkIDs.at(&BB);
       for (auto &Inst : BB)
       {
-        if (!isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) && (isa<CallInst>(Inst) || isa<InvokeInst>(Inst)))
+        if (!isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) && ((isa<CallInst>(Inst) || isa<InvokeInst>(Inst)) && dyn_cast<CallBase>(&Inst)->isNoBuiltin()))
         {
           edges[0][BlkID].caseVal = std::nullopt;
           edges[0][BlkID].pathVal = 0;
@@ -1668,7 +1667,6 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   StoresToBeInstrumented.clear();
   LoadsToBeInstrumented.clear();
   AddrAllStores.clear();
-  SeperatedExits.clear();
 
   SmallVector<Instruction *> AtomicAccesses;
   SmallVector<Instruction *> MemIntrinCalls;
@@ -1725,12 +1723,12 @@ bool TraceRecorder::sanitizeFunction(Function &F,
           StoresToBeInstrumented.insert(SI);
         NumAllWrites++;
       }
-      else if (isa<CallInst>(Inst) || isa<InvokeInst>(Inst))
+      else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
+               isa<InvokeInst>(Inst))
       {
-        if (!isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) &&
-            !Inst.getDebugLoc().isImplicitCode())
+        if (isa<CallInst>(Inst) && !isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) &&
+            !Inst.getDebugLoc().isImplicitCode() && dyn_cast<CallBase>(&Inst)->isNoBuiltin())
           FuncCalls.push_back(&Inst);
-        
 
         // Although these are also branches, we do not instrument them because
         // we cannot get to know the exact conditional variable that causes the
@@ -1990,6 +1988,8 @@ bool TraceRecorder::instrumentReturn(Instruction *I)
 
 bool TraceRecorder::instrumentFunctionCall(Instruction *I)
 {
+  if (!I->getNextNonDebugInstruction())
+    return false;
   IRBuilder<> IRB(I);
   CallBase *CI = dyn_cast<CallBase>(I);
   unsigned int order = 0;
@@ -2051,29 +2051,45 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
   Function *CalledF = CI->getCalledFunction();
   StringRef CalledFName = CalledF ? CalledF->getName() : "";
   std::string CurrentFileName = "";
-  if (CalledF)
+  int line = 0;
+  int col = 0;
+  if (CalledF && CalledF->getSubprogram())
   {
-    if (CalledF->getSubprogram())
+    CalledFName = CalledF->getSubprogram()->getName();
+    line = CalledF->getSubprogram()->getLine();
+    if (CalledF->getSubprogram()->getFile())
     {
-      CalledFName = CalledF->getSubprogram()->getName();
-      if (CalledF->getSubprogram() && CalledF->getSubprogram()->getFile())
-      {
-        CurrentFileName = concatFileName(
-            CalledF->getSubprogram()->getFile()->getDirectory().str(),
-            CalledF->getSubprogram()->getFile()->getFilename().str());
-      }
+      CurrentFileName = concatFileName(
+          CalledF->getSubprogram()->getFile()->getDirectory().str(),
+          CalledF->getSubprogram()->getFile()->getFilename().str());
+    }
+  }
+  else if (CI->getDebugLoc())
+  {
+    line = CI->getDebugLoc().getLine();
+    col = CI->getDebugLoc().getCol();
+    if (auto loc = CI->getDebugLoc().getFnDebugLoc().get())
+    {
+      line = loc->getLine();
+      col = loc->getColumn();
+      CurrentFileName = concatFileName(
+          loc->getDirectory().str(),
+          loc->getFilename().str());
     }
   }
 
+  if (CurrentFileName == "")
+    return false;
+
   int nameA = debuger.getOrInitDebuger()->getVarID(CalledFName.str().c_str());
   int nameB = debuger.getOrInitDebuger()->getFileID(CurrentFileName.c_str());
-  int line = (CalledF && CalledF->getSubprogram()) ? CalledF->getSubprogram()->getLine() : 0;
-  int col = 0;
+
   uint64_t debugID = 0;
   if (nameA != 1 || nameB != 1)
     debugID = debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
-  IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
-                                 IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(isa<InlineAsm>(CI->getCalledOperand()) ? IRB.getInt8(0) : CI->getCalledOperand(), IRB.getPtrTy())});
+  auto entryInst = IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
+                                                  IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(isa<InlineAsm>(CI->getCalledOperand()) ? IRB.getInt8(0) : CI->getCalledOperand(), IRB.getPtrTy())});
+  entryInst->setDebugLoc(I->getDebugLoc());
   if (CalledFName == "pthread_create")
   {
     std::string createdFuncName = "", createdFileName = "";
@@ -2111,35 +2127,11 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
         {IRB.CreateBitOrPointerCast(CI->getArgOperand(3), IRB.getPtrTy()),
          IRB.getInt64(argDebugID), IRB.getInt64(createdDebugID)});
   }
-  if (I->getNextNode())
-  {
-    IRBuilder<> IRB2(I->getNextNode());
-    auto exitInst = IRB2.CreateCall(TrecFuncExit, {IRB.getInt64(debugID)});
-    exitInst->setDebugLoc(I->getDebugLoc());
-  }
-  else
-  {
-    for (auto b = succ_begin(I->getParent()), e = succ_end(I->getParent());
-         b != e; b++)
-    {
-      if (!SeperatedExits.count(&*((*b)->getFirstInsertionPt())))
-      {
-        IRBuilder<> IRB2(&*((*b)->getFirstInsertionPt()));
-        auto exitInst = IRB2.CreateCall(TrecFuncExit, {IRB.getInt64(debugID)});
-        exitInst->setDebugLoc(I->getDebugLoc());
-        SeperatedExits.insert(exitInst);
-      }
-      else
-      {
-        IRBuilder<> IRB2(&*((*b)->getFirstInsertionPt()));
-        CallInst *exitInst =
-            dyn_cast<CallInst>(&*((*b)->getFirstInsertionPt()));
-        auto prev_debug = dyn_cast<ConstantInt>(exitInst->getArgOperand(0));
-        if (*prev_debug->getValue().getRawData() != debugID)
-          exitInst->setArgOperand(0, IRB2.getInt64(0));
-      }
-    }
-  }
+
+  IRBuilder<> IRB2(I->getNextNonDebugInstruction());
+  auto exitInst = IRB2.CreateCall(TrecFuncExit, {IRB.getInt64(debugID)});
+  exitInst->setDebugLoc(I->getDebugLoc());
+
   return true;
 }
 
