@@ -2070,8 +2070,6 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
     col = CI->getDebugLoc().getCol();
     if (auto loc = CI->getDebugLoc().getFnDebugLoc().get())
     {
-      line = loc->getLine();
-      col = loc->getColumn();
       CurrentFileName = concatFileName(
           loc->getDirectory().str(),
           loc->getFilename().str());
