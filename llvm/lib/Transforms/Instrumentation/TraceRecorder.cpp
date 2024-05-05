@@ -1897,7 +1897,6 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
   Function *F = I->getParent()->getParent();
 
   std::string funcName = "", fileName = "";
-
   if (F && F->getSubprogram())
   {
     funcName = F->getSubprogram()->getName().str();
@@ -1907,7 +1906,7 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
                   std::filesystem::path(F->getSubprogram()->getFile()->getFilename().str()))
                      .string();
   }
-  int nameA = debuger.getOrInitDebuger()->getVarID(funcName.c_str()), nameB = debuger.getOrInitDebuger()->getFileID(fileName.c_str());
+
   if (isa<BranchInst>(I))
   {
     BranchInst *Br = dyn_cast<BranchInst>(I);
@@ -1918,6 +1917,18 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
       cond = IRB.getInt64(0);
     int line = Br->getDebugLoc().getLine();
     int col = Br->getDebugLoc().getCol();
+
+    if (auto loc = Br->getDebugLoc().getFnDebugLoc().get())
+    {
+      auto newFileName = concatFileName(loc->getDirectory().str(), loc->getFilename().str());
+      if (newFileName != fileName)
+      {
+        fileName = newFileName;
+        funcName = "";
+      }
+    }
+
+    int nameA = debuger.getOrInitDebuger()->getVarID(funcName.c_str()), nameB = debuger.getOrInitDebuger()->getFileID(fileName.c_str());
     uint64_t debugID =
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
@@ -1932,6 +1943,19 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
     Value *cond = sw->getCondition();
     int line = sw->getDebugLoc().getLine();
     int col = sw->getDebugLoc().getCol();
+
+    if (auto loc = sw->getDebugLoc().getFnDebugLoc().get())
+    {
+      auto newFileName = concatFileName(loc->getDirectory().str(), loc->getFilename().str());
+      if (newFileName != fileName)
+      {
+        fileName = newFileName;
+        funcName = "";
+      }
+    }
+
+    int nameA = debuger.getOrInitDebuger()->getVarID(funcName.c_str()), nameB = debuger.getOrInitDebuger()->getFileID(fileName.c_str());
+
     uint64_t debugID =
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
