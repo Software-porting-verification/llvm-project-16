@@ -36,6 +36,7 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/CommandLine.h"
@@ -78,7 +79,7 @@ static cl::opt<bool> ClInstrumentMemIntrinsics(
     "trec-instrument-memintrinsics", cl::init(false),
     cl::desc("Instrument memintrinsics (memset/memcpy/memmove)"), cl::Hidden);
 static cl::opt<bool> ClInstrumentBranch(
-    "trec-instrument-branch", cl::init(false),
+    "trec-instrument-branch", cl::init(true),
     cl::desc("Instrument branch points (indirectcalls/invoke calls/conditional "
              "branches/switches)"),
     cl::Hidden);
@@ -1831,12 +1832,11 @@ bool TraceRecorder::sanitizeFunction(Function &F,
   {
     IRBuilder<> IRB(&*F.getEntryBlock().getFirstInsertionPt());
     std::string CurrentFileName = "";
-    if (F.getSubprogram()->getFile())
-    {
-      CurrentFileName =
-          concatFileName(F.getSubprogram()->getFile()->getDirectory().str(),
-                         F.getSubprogram()->getFile()->getFilename().str());
-    }
+
+    CurrentFileName =
+        concatFileName(F.getSubprogram()->getDirectory().str(),
+                        F.getSubprogram()->getFilename().str());
+
     int nameA = debuger.getOrInitDebuger()->getVarID(FuncName.str().c_str());
     int nameB = debuger.getOrInitDebuger()->getFileID(CurrentFileName.c_str());
     int col = 0;
@@ -1897,15 +1897,18 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
   Function *F = I->getParent()->getParent();
 
   std::string funcName = "", fileName = "";
-  if (F && F->getSubprogram())
-  {
-    funcName = F->getSubprogram()->getName().str();
-    fileName = F->getSubprogram()->getFilename().str();
-    if (F->getSubprogram()->getFile())
-      fileName = (std::filesystem::path(F->getSubprogram()->getFile()->getDirectory().str()) /
-                  std::filesystem::path(F->getSubprogram()->getFile()->getFilename().str()))
-                     .string();
+  int line = 0, col = 0;
+  if (I->getDebugLoc().get()){
+    line = I->getDebugLoc().getLine();
+    col = I->getDebugLoc().getCol();
+    if (auto SP = getDISubprogram(I->getDebugLoc().getScope()))
+    {
+      fileName = concatFileName(SP->getDirectory().str(),SP->getFilename().str());
+      funcName = SP->getName();
+    }
   }
+
+  int nameA = debuger.getOrInitDebuger()->getVarID(funcName.c_str()), nameB = debuger.getOrInitDebuger()->getFileID(fileName.c_str());
 
   if (isa<BranchInst>(I))
   {
@@ -1915,20 +1918,7 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
       cond = Br->getCondition();
     else
       cond = IRB.getInt64(0);
-    int line = Br->getDebugLoc().getLine();
-    int col = Br->getDebugLoc().getCol();
 
-    if (auto loc = Br->getDebugLoc().getFnDebugLoc().get())
-    {
-      auto newFileName = concatFileName(loc->getDirectory().str(), loc->getFilename().str());
-      if (newFileName != fileName)
-      {
-        fileName = newFileName;
-        funcName = "";
-      }
-    }
-
-    int nameA = debuger.getOrInitDebuger()->getVarID(funcName.c_str()), nameB = debuger.getOrInitDebuger()->getFileID(fileName.c_str());
     uint64_t debugID =
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
     ValSourceInfo VSI = getSource(cond, F);
@@ -1941,20 +1931,6 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
   {
     SwitchInst *sw = dyn_cast<SwitchInst>(I);
     Value *cond = sw->getCondition();
-    int line = sw->getDebugLoc().getLine();
-    int col = sw->getDebugLoc().getCol();
-
-    if (auto loc = sw->getDebugLoc().getFnDebugLoc().get())
-    {
-      auto newFileName = concatFileName(loc->getDirectory().str(), loc->getFilename().str());
-      if (newFileName != fileName)
-      {
-        fileName = newFileName;
-        funcName = "";
-      }
-    }
-
-    int nameA = debuger.getOrInitDebuger()->getVarID(funcName.c_str()), nameB = debuger.getOrInitDebuger()->getFileID(fileName.c_str());
 
     uint64_t debugID =
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
@@ -2081,22 +2057,20 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
   {
     CalledFName = CalledF->getSubprogram()->getName();
     line = CalledF->getSubprogram()->getLine();
-    if (CalledF->getSubprogram()->getFile())
-    {
-      CurrentFileName = concatFileName(
-          CalledF->getSubprogram()->getFile()->getDirectory().str(),
-          CalledF->getSubprogram()->getFile()->getFilename().str());
-    }
+    CurrentFileName = concatFileName(
+        CalledF->getSubprogram()->getDirectory().str(),
+        CalledF->getSubprogram()->getFilename().str());
+    
   }
   else if (CI->getDebugLoc())
   {
     line = CI->getDebugLoc().getLine();
     col = CI->getDebugLoc().getCol();
-    if (auto loc = CI->getDebugLoc().getFnDebugLoc().get())
+    if (auto SP = getDISubprogram(CI->getDebugLoc().getScope()))
     {
       CurrentFileName = concatFileName(
-          loc->getDirectory().str(),
-          loc->getFilename().str());
+          SP->getDirectory().str(),
+          SP->getFilename().str());
     }
   }
 
