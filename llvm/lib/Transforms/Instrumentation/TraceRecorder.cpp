@@ -1254,8 +1254,21 @@ namespace
         }
         else
         {
-          edges[blkID][1].caseVal = caseVal;
-          edges[blkID][1].pathVal = 0;
+          if (!edges[blkIDs.at(blk)].count(1))
+          {
+            edges[blkID][1].caseVal = caseVal;
+            edges[blkID][1].pathVal = 0;
+          }
+          else
+          {
+            auto newBlkID = currentID++;
+            edges[blkIDs.at(blk)][newBlkID].caseVal = caseVal;
+            edges[blkIDs.at(blk)][newBlkID].pathVal = 0;
+            nodes[newBlkID] = 1;
+            edges[newBlkID][1].caseVal = std::nullopt;
+            edges[newBlkID][1].pathVal = 0;
+          }
+
           edges[0][succID].caseVal = std::nullopt;
           edges[0][succID].pathVal = 0;
           if (!visited.count(succ))
@@ -1288,6 +1301,8 @@ namespace
   {
     for (auto &[blk, jmpType] : nodeTypes)
     {
+      if (duplicated_edge_nodes.count(blk))
+        continue;
       auto lastInst = getLastInst(blk);
       uint32_t blkID = blkIDs.at(blk);
       int line = 0, col = 0;
@@ -1309,8 +1324,6 @@ namespace
           }
         }
       }
-      if (duplicated_edge_nodes.count(blk))
-        jmpType = "(fall)" + jmpType;
       std::string funcName = "", fileName = "";
 
       if (lastInst->getFunction() && lastInst->getFunction()->getSubprogram())
@@ -1376,7 +1389,6 @@ namespace
     auto lastInst = getLastInst(blk);
     assert(lastInst);
     std::map<BasicBlock *, std::optional<int32_t>> succs;
-    int backEdges = 0;
     if (isa<BranchInst>(lastInst))
     {
       BranchInst *BrInst = dyn_cast<BranchInst>(lastInst);
@@ -1385,12 +1397,10 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto succBlk = BrInst->getSuccessor(idx);
-        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, BrInst, idx);
         }
-        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
-          backEdges += 1;
         succs[succBlk] = (succNum > 1 ? (1 - idx) : std::optional<uint32_t>());
       }
     }
@@ -1402,12 +1412,10 @@ namespace
       {
         auto CaseVal = SWInst->findCaseDest(SWInst->getSuccessor(idx));
         auto succBlk = SWInst->getSuccessor(idx);
-        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, SWInst, idx);
         }
-        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
-          backEdges += 1;
         if (CaseVal)
           succs[succBlk] = CaseVal->getSExtValue();
         else
@@ -1421,12 +1429,10 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto succBlk = Indirect->getSuccessor(idx);
-        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, Indirect, idx);
         }
-        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
-          backEdges += 1;
         succs[succBlk] = idx;
       }
     }
@@ -1437,12 +1443,10 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto succBlk = CallBr->getSuccessor(idx);
-        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, CallBr, idx);
         }
-        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
-          backEdges += 1;
         succs[succBlk] = idx;
       }
     }
@@ -1453,12 +1457,10 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto succBlk = Invoke->getSuccessor(idx);
-        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, Invoke, idx);
         }
-        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
-          backEdges += 1;
         succs[succBlk] = idx;
       }
     }
@@ -1469,12 +1471,10 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto succBlk = CSInst->getSuccessor(idx);
-        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, CSInst, idx);
         }
-        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
-          backEdges += 1;
         succs[succBlk] = idx;
       }
     }
