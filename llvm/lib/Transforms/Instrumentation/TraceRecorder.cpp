@@ -1252,7 +1252,7 @@ namespace
           if (!visited.count(succ))
             initializeNode(succ);
         }
-        else 
+        else
         {
           edges[blkID][1].caseVal = caseVal;
           edges[blkID][1].pathVal = 0;
@@ -1376,7 +1376,7 @@ namespace
     auto lastInst = getLastInst(blk);
     assert(lastInst);
     std::map<BasicBlock *, std::optional<int32_t>> succs;
-    int backEdges=0;
+    int backEdges = 0;
     if (isa<BranchInst>(lastInst))
     {
       BranchInst *BrInst = dyn_cast<BranchInst>(lastInst);
@@ -1385,12 +1385,12 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto succBlk = BrInst->getSuccessor(idx);
-        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk)<=blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, BrInst, idx);
         }
-        if (blkIDs.at(succBlk)<=blkIDs.at(blk))
-          backEdges+=1;
+        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
+          backEdges += 1;
         succs[succBlk] = (succNum > 1 ? (1 - idx) : std::optional<uint32_t>());
       }
     }
@@ -1402,12 +1402,12 @@ namespace
       {
         auto CaseVal = SWInst->findCaseDest(SWInst->getSuccessor(idx));
         auto succBlk = SWInst->getSuccessor(idx);
-        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk)<=blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, SWInst, idx);
         }
-         if (blkIDs.at(succBlk)<=blkIDs.at(blk))
-          backEdges+=1;
+        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
+          backEdges += 1;
         if (CaseVal)
           succs[succBlk] = CaseVal->getSExtValue();
         else
@@ -1421,12 +1421,12 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto succBlk = Indirect->getSuccessor(idx);
-        if (succs.count(succBlk)|| backEdges || (blkIDs.at(succBlk)<=blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, Indirect, idx);
         }
-         if (blkIDs.at(succBlk)<=blkIDs.at(blk))
-          backEdges+=1;
+        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
+          backEdges += 1;
         succs[succBlk] = idx;
       }
     }
@@ -1437,12 +1437,12 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto succBlk = CallBr->getSuccessor(idx);
-        if (succs.count(succBlk)|| backEdges || (blkIDs.at(succBlk)<=blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, CallBr, idx);
         }
-         if (blkIDs.at(succBlk)<=blkIDs.at(blk))
-          backEdges+=1;
+        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
+          backEdges += 1;
         succs[succBlk] = idx;
       }
     }
@@ -1453,12 +1453,12 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto succBlk = Invoke->getSuccessor(idx);
-        if (succs.count(succBlk)|| backEdges || (blkIDs.at(succBlk)<=blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, Invoke, idx);
         }
-         if (blkIDs.at(succBlk)<=blkIDs.at(blk))
-          backEdges+=1;
+        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
+          backEdges += 1;
         succs[succBlk] = idx;
       }
     }
@@ -1469,12 +1469,12 @@ namespace
       for (uint idx = 0; idx < succNum; idx++)
       {
         auto succBlk = CSInst->getSuccessor(idx);
-        if (succs.count(succBlk)|| backEdges || (blkIDs.at(succBlk)<=blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
+        if (succs.count(succBlk) || backEdges || (blkIDs.at(succBlk) <= blkIDs.at(blk) && edges[blkIDs.at(blk)].count(1)))
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, CSInst, idx);
         }
-         if (blkIDs.at(succBlk)<=blkIDs.at(blk))
-          backEdges+=1;
+        if (blkIDs.at(succBlk) <= blkIDs.at(blk))
+          backEdges += 1;
         succs[succBlk] = idx;
       }
     }
@@ -1849,7 +1849,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
 
     CurrentFileName =
         concatFileName(F.getSubprogram()->getDirectory().str(),
-                        F.getSubprogram()->getFilename().str());
+                       F.getSubprogram()->getFilename().str());
 
     int nameA = debuger.getOrInitDebuger()->getVarID(FuncName.str().c_str());
     int nameB = debuger.getOrInitDebuger()->getFileID(CurrentFileName.c_str());
@@ -1912,12 +1912,13 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
 
   std::string funcName = "", fileName = "";
   int line = 0, col = 0;
-  if (I->getDebugLoc().get()){
+  if (I->getDebugLoc().get())
+  {
     line = I->getDebugLoc().getLine();
     col = I->getDebugLoc().getCol();
     if (auto SP = getDISubprogram(I->getDebugLoc().getScope()))
     {
-      fileName = concatFileName(SP->getDirectory().str(),SP->getFilename().str());
+      fileName = concatFileName(SP->getDirectory().str(), SP->getFilename().str());
       funcName = SP->getName();
     }
   }
@@ -2074,7 +2075,6 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
     CurrentFileName = concatFileName(
         CalledF->getSubprogram()->getDirectory().str(),
         CalledF->getSubprogram()->getFilename().str());
-    
   }
   else if (CI->getDebugLoc())
   {
