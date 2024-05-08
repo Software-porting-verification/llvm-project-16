@@ -316,7 +316,7 @@ namespace
     inline std::string concatFileName(std::filesystem::path dir,
                                       std::filesystem::path file)
     {
-      return (dir / file).string();
+      return (dir / file).lexically_normal().string();
     }
 
     Type *IntptrTy;
@@ -1326,14 +1326,24 @@ namespace
       }
       std::string funcName = "", fileName = "";
 
-      if (lastInst->getFunction() && lastInst->getFunction()->getSubprogram())
+      if (lastInst->getDebugLoc().get() && lastInst->getDebugLoc().getScope())
+      {
+        if (auto SP = getDISubprogram(lastInst->getDebugLoc().getScope()))
+        {
+          funcName = SP->getName();
+          fileName = (std::filesystem::path(SP->getDirectory().str()) /
+                      std::filesystem::path(SP->getFilename().str()))
+                         .lexically_normal()
+                         .string();
+        }
+      }
+      else if (lastInst->getFunction() && lastInst->getFunction()->getSubprogram())
       {
         funcName = lastInst->getFunction()->getSubprogram()->getName().str();
-        fileName = lastInst->getFunction()->getSubprogram()->getFilename().str();
-        if (lastInst->getFunction()->getSubprogram()->getFile())
-          fileName = (std::filesystem::path(lastInst->getFunction()->getSubprogram()->getFile()->getDirectory().str()) /
-                      std::filesystem::path(lastInst->getFunction()->getSubprogram()->getFile()->getFilename().str()))
-                         .string();
+        fileName = (std::filesystem::path(lastInst->getFunction()->getSubprogram()->getDirectory().str()) /
+                    std::filesystem::path(lastInst->getFunction()->getSubprogram()->getFilename().str()))
+                       .lexically_normal()
+                       .string();
       }
       int nameA = writer.getVarID(funcName.c_str()), nameB = writer.getFileID(fileName.c_str());
       uint32_t debugID = writer.getDebugInfoID(nameA, nameB, line, col);
