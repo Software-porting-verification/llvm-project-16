@@ -1306,44 +1306,24 @@ namespace
       auto lastInst = getLastInst(blk);
       uint32_t blkID = blkIDs.at(blk);
       int line = 0, col = 0;
-      if (lastInst->getDebugLoc())
-      {
-        line = lastInst->getDebugLoc().getLine();
-        col = lastInst->getDebugLoc().getCol();
-      }
-      else
-      {
-        auto prevInst = lastInst;
-        while ((prevInst = prevInst->getPrevNonDebugInstruction()) != nullptr)
-        {
-          if (prevInst->getDebugLoc())
-          {
-            line = prevInst->getDebugLoc().getLine();
-            col = prevInst->getDebugLoc().getCol();
-            break;
-          }
-        }
-      }
       std::string funcName = "", fileName = "";
 
-      if (lastInst->getDebugLoc().get() && lastInst->getDebugLoc().getScope())
+      auto lastDebug = lastInst;
+      while (lastDebug->getDebugLoc().get() == nullptr && lastDebug->getPrevNonDebugInstruction())
+        lastDebug = lastDebug->getPrevNonDebugInstruction();
+
+      if (lastDebug->getDebugLoc().get())
       {
-        if (auto SP = getDISubprogram(lastInst->getDebugLoc().getScope()))
+        line = lastDebug->getDebugLoc().getLine();
+        col = lastDebug->getDebugLoc().getCol();
+        if (lastDebug->getDebugLoc().getScope())
         {
-          funcName = SP->getName();
-          fileName = (std::filesystem::path(SP->getDirectory().str()) /
-                      std::filesystem::path(SP->getFilename().str()))
+          fileName = (std::filesystem::path(lastDebug->getDebugLoc().get()->getScope()->getDirectory().str()) /
+                      std::filesystem::path(lastDebug->getDebugLoc().get()->getScope()->getFilename().str()))
                          .lexically_normal()
                          .string();
+          funcName = lastDebug->getDebugLoc().get()->getScope()->getName();
         }
-      }
-      else if (lastInst->getFunction() && lastInst->getFunction()->getSubprogram())
-      {
-        funcName = lastInst->getFunction()->getSubprogram()->getName().str();
-        fileName = (std::filesystem::path(lastInst->getFunction()->getSubprogram()->getDirectory().str()) /
-                    std::filesystem::path(lastInst->getFunction()->getSubprogram()->getFilename().str()))
-                       .lexically_normal()
-                       .string();
       }
       int nameA = writer.getVarID(funcName.c_str()), nameB = writer.getFileID(fileName.c_str());
       uint32_t debugID = writer.getDebugInfoID(nameA, nameB, line, col);
@@ -1926,10 +1906,10 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
   {
     line = I->getDebugLoc().getLine();
     col = I->getDebugLoc().getCol();
-    if (auto SP = getDISubprogram(I->getDebugLoc().getScope()))
+    if (I->getDebugLoc().getScope())
     {
-      fileName = concatFileName(SP->getDirectory().str(), SP->getFilename().str());
-      funcName = SP->getName();
+      fileName = concatFileName(I->getDebugLoc().get()->getScope()->getDirectory().str(), I->getDebugLoc().get()->getScope()->getFilename().str());
+      funcName = I->getDebugLoc().get()->getScope()->getName().str();
     }
   }
 
@@ -2086,15 +2066,15 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
         CalledF->getSubprogram()->getDirectory().str(),
         CalledF->getSubprogram()->getFilename().str());
   }
-  else if (CI->getDebugLoc())
+  else if (CI->getDebugLoc().get())
   {
     line = CI->getDebugLoc().getLine();
     col = CI->getDebugLoc().getCol();
-    if (auto SP = getDISubprogram(CI->getDebugLoc().getScope()))
+    if (CI->getDebugLoc().getScope())
     {
       CurrentFileName = concatFileName(
-          SP->getDirectory().str(),
-          SP->getFilename().str());
+          CI->getDebugLoc().get()->getScope()->getDirectory().str(),
+          CI->getDebugLoc().get()->getScope()->getFilename().str());
     }
   }
 
