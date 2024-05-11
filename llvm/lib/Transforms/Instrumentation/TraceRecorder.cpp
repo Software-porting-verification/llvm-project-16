@@ -128,7 +128,7 @@ namespace
     int queryVarID(const char *name);
     int queryID(sqlite3_stmt *stmt, const char *name);
     int queryDebugInfoID(int nameA, int nameB, int line, int col);
-    sqlite3_stmt *insertFileNameStmt, *insertVarNameStmt, *insertDebugStmt, *queryMaxIDStmt, *queryFileNameStmt, *queryVarNameStmt, *queryDebugStmt, *beginStmt, *commitStmt, *getFuncIDStmt, *updateFuncIDStmt, *insertNodeStmt, *insertEdgeStmt;
+    sqlite3_stmt *insertFileNameStmt, *insertVarNameStmt, *insertDebugStmt, *queryMaxIDStmt, *queryFileNameStmt, *queryVarNameStmt, *queryDebugStmt, *beginStmt, *commitStmt, *getFuncIDStmt, *updateFuncIDStmt, *insertEdgeStmt;
 
   public:
     SqliteDebugWriter();
@@ -141,8 +141,7 @@ namespace
 
     void commitSQL();
     void beginSQL();
-    void insertPathDebug(int funcID, int blkID, std::string type, int debugID);
-    void insertPathProfile(int funcID, int from, int to, std::optional<int32_t> caseVal, uint64_t pathVal);
+    void insertPathProfile(int funcID, int from, int to, std::string &jmpType, std::optional<std::string> caseVal, uint64_t pathVal, int line, int col, std::string &funcName, std::string &fileName);
 
     inline int getDBID() const
     {
@@ -475,6 +474,8 @@ namespace
   int SqliteDebugWriter::queryDebugInfoID(int nameA, int nameB, int line,
                                           int col)
   {
+    if (nameA == 1 && nameB == 1 && line == 0 && col == 0)
+      return 1;
     int ID = -1;
     sqlite3_reset(queryDebugStmt);
     int status = sqlite3_bind_int(queryDebugStmt, 1, nameA);
@@ -575,7 +576,7 @@ namespace
     return funcID;
   }
 
-  SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1), insertFileNameStmt(nullptr), insertVarNameStmt(nullptr), insertDebugStmt(nullptr), queryMaxIDStmt(nullptr), queryFileNameStmt(nullptr), queryVarNameStmt(nullptr), queryDebugStmt(nullptr), beginStmt(nullptr), commitStmt(nullptr), getFuncIDStmt(nullptr), updateFuncIDStmt(nullptr), insertNodeStmt(nullptr), insertEdgeStmt(nullptr)
+  SqliteDebugWriter::SqliteDebugWriter() : db(nullptr), DBID(-1), insertFileNameStmt(nullptr), insertVarNameStmt(nullptr), insertDebugStmt(nullptr), queryMaxIDStmt(nullptr), queryFileNameStmt(nullptr), queryVarNameStmt(nullptr), queryDebugStmt(nullptr), beginStmt(nullptr), commitStmt(nullptr), getFuncIDStmt(nullptr), updateFuncIDStmt(nullptr), insertEdgeStmt(nullptr)
   {
     char *DatabaseDir = getenv("TREC_DATABASE_DIR");
     if (DatabaseDir == nullptr)
@@ -709,17 +710,15 @@ namespace
                             "CREATE TABLE FUNCNUMCNT ("
                             "ID INTEGER PRIMARY KEY,"
                             "FUNCID INTEGER NOT NULL);"
-                            "CREATE TABLE PATHDEBUG ("
-                            "FUNCID INTEGER NOT NULL,"
-                            "BLKID INTEGER NOT NULL,"
-                            "JUMPTYPE CHAR(32),"
-                            "DEBUGID INTEGER);"
                             "CREATE TABLE PATHPROFILE ("
                             "FUNCID INTEGER NOT NULL,"
                             "FROMID INTEGER,"
                             "TOID INTEGER,"
-                            "CASEVAL INTEGER,"
-                            "PATHVAL INTEGER NOT NULL);"
+                            "JMPTYPE CHAR(16),"
+                            "CASEVAL CHAR(32),"
+                            "PATHVAL INTEGER NOT NULL,"
+                            "DEBUGID INTEGER);"
+                            "INSERT INTO DEBUGINFO VALUES(NULL, 1, 1, 0, 0);"
                             "INSERT INTO DEBUGVARNAME VALUES (NULL, '');"
                             "INSERT INTO DEBUGFILENAME VALUES (NULL, '');"
                             "INSERT INTO FUNCNUMCNT VALUES(1, 0);",
@@ -805,16 +804,10 @@ namespace
           printf("prepare sqlite statement '%s' failed: %s\n", "UPDATE FUNCNUMCNT SET FUNCID=? where ID=1;", sqlite3_errmsg(db));
           exit(status);
         }
-        status = sqlite3_prepare_v2(db, "INSERT INTO PATHDEBUG VALUES (?, ?, ?, ?);", -1, &insertNodeStmt, nullptr);
+        status = sqlite3_prepare_v2(db, "INSERT INTO PATHPROFILE VALUES (?, ?, ?, ?, ?, ?, ?);", -1, &insertEdgeStmt, nullptr);
         if (status != SQLITE_OK)
         {
-          printf("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO PATHDEBUG VALUES (?, ?, ?, ?);", sqlite3_errmsg(db));
-          exit(status);
-        }
-        status = sqlite3_prepare_v2(db, "INSERT INTO PATHPROFILE VALUES (?, ?, ?, ?, ?);", -1, &insertEdgeStmt, nullptr);
-        if (status != SQLITE_OK)
-        {
-          printf("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO PATHPROFILE VALUES (?, ?, ?, ?, ?);", sqlite3_errmsg(db));
+          printf("prepare sqlite statement '%s' failed: %s\n", "INSERT INTO PATHPROFILE VALUES (?, ?, ?, ?, ?, ?, ?);", sqlite3_errmsg(db));
           exit(status);
         }
       }
@@ -844,8 +837,6 @@ namespace
       sqlite3_finalize(getFuncIDStmt);
     if (updateFuncIDStmt)
       sqlite3_finalize(updateFuncIDStmt);
-    if (insertNodeStmt)
-      sqlite3_finalize(insertNodeStmt);
     if (insertEdgeStmt)
       sqlite3_finalize(insertEdgeStmt);
     sqlite3_close(db);
@@ -941,43 +932,10 @@ namespace
     insertName(insertVarNameStmt);
     return queryMaxID("DEBUGVARNAME");
   }
-  void SqliteDebugWriter::insertPathDebug(int funcID, int blkID, std::string type, int debugID)
-  {
-    sqlite3_reset(insertNodeStmt);
-    int status = sqlite3_bind_int(insertNodeStmt, 1, funcID);
-    if (status != SQLITE_OK)
-    {
-      printf("bind 1st param to insertNodeStmt failed: %s", sqlite3_errmsg(db));
-      exit(status);
-    }
-    status = sqlite3_bind_int(insertNodeStmt, 2, blkID);
-    if (status != SQLITE_OK)
-    {
-      printf("bind 2nd param to insertNodeStmt failed: %s", sqlite3_errmsg(db));
-      exit(status);
-    }
-    status = sqlite3_bind_text(insertNodeStmt, 3, type.c_str(), -1, nullptr);
-    if (status != SQLITE_OK)
-    {
-      printf("bind 3rd param to insertNodeStmt failed: %s", sqlite3_errmsg(db));
-      exit(status);
-    }
-    status = sqlite3_bind_int(insertNodeStmt, 4, debugID);
-    if (status != SQLITE_OK)
-    {
-      printf("bind 4th param to insertNodeStmt failed: %s", sqlite3_errmsg(db));
-      exit(status);
-    }
-    status = sqlite3_step(insertNodeStmt);
-    if (status != SQLITE_DONE)
-    {
-      printf("insert node debug error(%d): %s\n", status, sqlite3_errmsg(db));
-      exit(status);
-    };
-  }
-  void SqliteDebugWriter::insertPathProfile(int funcID, int from, int to, std::optional<int32_t> caseVal, uint64_t pathVal)
+  void SqliteDebugWriter::insertPathProfile(int funcID, int from, int to, std::string &jmpType, std::optional<std::string> caseVal, uint64_t pathVal, int line, int col, std::string &funcName, std::string &fileName)
   {
     sqlite3_reset(insertEdgeStmt);
+    auto debugID = getDebugInfoID(getVarID(funcName.c_str()), getFileID(fileName.c_str()), line, col);
     int status = sqlite3_bind_int(insertEdgeStmt, 1, funcID);
     if (status != SQLITE_OK)
     {
@@ -996,19 +954,31 @@ namespace
       printf("bind 3rd param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
       exit(status);
     }
-    if (caseVal)
-      status = sqlite3_bind_int(insertEdgeStmt, 4, *caseVal);
-    else
-      status = sqlite3_bind_null(insertEdgeStmt, 4);
+    status = sqlite3_bind_text(insertEdgeStmt, 4, jmpType.c_str(), -1, nullptr);
     if (status != SQLITE_OK)
     {
       printf("bind 4th param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
       exit(status);
     }
-    status = sqlite3_bind_int64(insertEdgeStmt, 5, pathVal);
+    if (caseVal)
+      status = sqlite3_bind_text(insertEdgeStmt, 5, (*caseVal).c_str(), -1, nullptr);
+    else
+      status = sqlite3_bind_null(insertEdgeStmt, 5);
     if (status != SQLITE_OK)
     {
       printf("bind 5th param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    status = sqlite3_bind_int64(insertEdgeStmt, 6, pathVal);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 6th param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
+      exit(status);
+    }
+    status = sqlite3_bind_int(insertEdgeStmt, 7, debugID);
+    if (status != SQLITE_OK)
+    {
+      printf("bind 7th param to insertEdgeStmt failed: %s", sqlite3_errmsg(db));
       exit(status);
     }
     status = sqlite3_step(insertEdgeStmt);
@@ -1041,25 +1011,48 @@ namespace
 
     struct EdgeInfo
     {
-      std::optional<int32_t> caseVal;
+      std::string jmpType;
+      std::optional<std::string> caseVal;
       uint64_t pathVal;
+      int line, col;
+      std::string funcName, fileName;
+      EdgeInfo(const std::string &jmp, const std::optional<std::string> &c, const uint64_t p) : jmpType(jmp), caseVal(c), pathVal(p), line(0), col(0) {}
+      EdgeInfo() : pathVal(0), line(0), col(0) {}
+      void fillInDebugInfo(Instruction *I)
+      {
+        if (I->getDebugLoc().get())
+        {
+          line = I->getDebugLoc().getLine();
+          col = I->getDebugLoc().getCol();
+          if (I->getDebugLoc().getScope())
+          {
+            fileName = (std::filesystem::path(I->getDebugLoc().get()->getScope()->getDirectory().str()) /
+                        std::filesystem::path(I->getDebugLoc().get()->getScope()->getFilename().str()))
+                           .lexically_normal()
+                           .string();
+            funcName = I->getDebugLoc().get()->getScope()->getName();
+            if (auto SP = getDISubprogram(I->getDebugLoc().getScope()))
+            {
+              funcName = SP->getName();
+            }
+          }
+        }
+      }
     };
     std::map<uint32_t, std::map<uint32_t, EdgeInfo>> edges;
-    std::map<BasicBlock *, uint64_t> blkIDs;
+    std::map<BasicBlock *, uint32_t> blkIDs;
     std::map<uint32_t, uint64_t> nodes;
-    std::map<BasicBlock *, std::string> nodeTypes;
-    std::map<BasicBlock *, std::set<BasicBlock *>> BlkSuccessors;
+    std::map<Instruction *, uint32_t> ExitEdges;
+    std::map<BasicBlock *, std::map<BasicBlock *, uint32_t>> BlkSuccessors;
     void initializeGraph();
 
     /// @brief initialize nodes, nodeTypes, edges for node `blk`
     void initializeNode(BasicBlock *blk);
 
     void flushGraph();
-    void flushGraphNodeDebugInfo();
 
     static Instruction *getLastInst(BasicBlock *blk);
-    std::map<BasicBlock *, std::optional<int32_t>> getSuccessors(BasicBlock *blk);
-    Instruction *getLastNotImplicit(BasicBlock *blk);
+    std::map<BasicBlock *, EdgeInfo> getSuccessors(BasicBlock *blk);
 
     BasicBlock *handleDuplicatedSuccessor(BasicBlock *blk, BasicBlock *succBlk, Instruction *Inst, int idx);
   };
@@ -1074,7 +1067,6 @@ namespace
       if (!path_overflow_flag)
       {
         flushGraph();
-        flushGraphNodeDebugInfo();
       }
     }
   }
@@ -1082,8 +1074,12 @@ namespace
   bool PathProfiler::instrumentPathProfileBeforeFuncCalls(FunctionCallee &TrecPathProfile, Instruction *I)
   {
     IRBuilder<> IRB(I);
-    IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getPtrTy()), IRB.getInt16(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
+    auto succBlk = ExitEdges.at(I);
     auto BlkID = blkIDs.at(I->getParent());
+    auto pathValToAdd = edges.at(BlkID).at(succBlk).pathVal;
+    IRB.CreateStore(IRB.CreateAdd(IRB.CreateLoad(IRB.getInt64Ty(), profileVar), IRB.getInt64(pathValToAdd)), profileVar);
+    IRB.CreateCall(TrecPathProfile, {IRB.CreatePointerCast(profileVar, IRB.getPtrTy()), IRB.getInt16(FuncID), IRB.getInt16(DBID), IRB.getInt1(true)});
+
     IRB.CreateStore(IRB.getInt64(edges.at(0).at(BlkID).pathVal), profileVar);
     return true;
   }
@@ -1101,13 +1097,14 @@ namespace
     }
     struct PhiInfo
     {
-      uint64_t pathVal;
+      uint64_t pathValNoReset;
       bool should_reset;
     };
     std::map<BasicBlock *, std::map<BasicBlock *, PhiInfo>> PhiInfos;
     auto oldEntryID = blkIDs.at(oldEntry);
-    PhiInfos[oldEntry][newEntryBlk].pathVal = edges.at(0).at(oldEntryID).pathVal;
+    PhiInfos[oldEntry][newEntryBlk].pathValNoReset = edges.at(0).at(oldEntryID).pathVal;
     PhiInfos[oldEntry][newEntryBlk].should_reset = false;
+
     for (auto &[from, toSet] : BlkSuccessors)
     {
       if (toSet.empty())
@@ -1117,25 +1114,14 @@ namespace
       }
       else
       {
-        for (auto to : toSet)
+        for (auto &[to, succID] : toSet)
         {
-          bool should_reset = false;
-          uint64_t pathVal;
-          if (edges.count(blkIDs.at(from)) && edges.at(blkIDs.at(from)).count(blkIDs.at(to)))
-          {
-            should_reset = false;
-            pathVal = edges.at(blkIDs.at(from)).at(blkIDs.at(to)).pathVal;
-          }
-          else
-          {
-            should_reset = true;
-            pathVal = edges.at(0).at(blkIDs.at(to)).pathVal;
-          }
-          PhiInfos[to][from].pathVal = pathVal;
-          PhiInfos[to][from].should_reset = should_reset;
+          PhiInfos[to][from].pathValNoReset = edges.at(blkIDs.at(from)).at(succID).pathVal;
+          PhiInfos[to][from].should_reset = (succID != blkIDs.at(to));
         }
       }
     }
+
     for (auto &[to, fromInfo] : PhiInfos)
     {
 
@@ -1147,7 +1133,7 @@ namespace
         auto real_pred = *pred;
         if (!fromInfo.count(real_pred))
         {
-          fromInfo[real_pred].pathVal = 0;
+          fromInfo[real_pred].pathValNoReset = 0;
           fromInfo[real_pred].should_reset = false;
         }
       }
@@ -1156,21 +1142,34 @@ namespace
 
       bool should_reset = false;
       int sz = fromInfo.size();
-      auto valuePhi = PHIIRB.CreatePHI(PHIIRB.getInt64Ty(), sz, "profile.value");
+      auto valuePhiBefore = PHIIRB.CreatePHI(PHIIRB.getInt64Ty(), sz, "profile.value.before");
       auto resetPhi = PHIIRB.CreatePHI(PHIIRB.getInt1Ty(), sz, "profile.reset.flag");
+      std::set<uint64_t> pathVals;
+      std::set<bool> resets;
       for (auto &[from, info] : fromInfo)
       {
-
-        valuePhi->addIncoming(PHIIRB.getInt64(info.pathVal), from);
+        valuePhiBefore->addIncoming(PHIIRB.getInt64(info.pathValNoReset), from);
         resetPhi->addIncoming(PHIIRB.getInt1(info.should_reset), from);
+        pathVals.emplace(info.pathValNoReset);
+        resets.emplace(info.should_reset);
         should_reset |= info.should_reset;
       }
-
+      Value *valueBefore = valuePhiBefore, *reset = resetPhi;
+      if (pathVals.size() == 1)
+      {
+        valuePhiBefore->eraseFromParent();
+        valueBefore = AfterIRB.getInt64(*pathVals.begin());
+      }
+      if (resets.size() == 1)
+      {
+        resetPhi->eraseFromParent();
+        reset = AfterIRB.getInt1(*resets.begin());
+      }
+      AfterIRB.CreateStore(AfterIRB.CreateAdd(AfterIRB.CreateLoad(AfterIRB.getInt64Ty(), profileVar), valueBefore), profileVar);
       if (should_reset)
-        AfterIRB.CreateCall(TrecPathProfile, {AfterIRB.CreatePointerCast(profileVar, AfterIRB.getPtrTy()), AfterIRB.getInt16(FuncID), AfterIRB.getInt16(DBID), resetPhi});
+        AfterIRB.CreateCall(TrecPathProfile, {AfterIRB.CreatePointerCast(profileVar, AfterIRB.getPtrTy()), AfterIRB.getInt16(FuncID), AfterIRB.getInt16(DBID), reset});
 
-      auto ValToAdd = AfterIRB.CreateSelect(resetPhi, AfterIRB.getInt64(0), AfterIRB.CreateLoad(AfterIRB.getInt64Ty(), profileVar));
-      AfterIRB.CreateStore(AfterIRB.CreateAdd(ValToAdd, valuePhi), profileVar);
+      AfterIRB.CreateStore(AfterIRB.CreateSelect(reset, AfterIRB.getInt64(should_reset ? edges.at(0).at(blkIDs.at(to)).pathVal : 0), AfterIRB.CreateLoad(AfterIRB.getInt64Ty(), profileVar)), profileVar);
     }
   }
 
@@ -1183,12 +1182,24 @@ namespace
       auto BlkID = blkIDs.at(&BB);
       for (auto &Inst : BB)
       {
-        if (!isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) && (isa<CallInst>(Inst) && !dyn_cast<CallBase>(&Inst)->hasFnAttr(Attribute::Builtin)))
+        if (!isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) && isa<CallInst>(Inst) && !dyn_cast<CallBase>(&Inst)->hasFnAttr(Attribute::Builtin))
         {
-          edges[0][BlkID].caseVal = std::nullopt;
-          edges[0][BlkID].pathVal = 0;
-          edges[BlkID][1].caseVal = std::nullopt;
-          edges[BlkID][1].pathVal = 0;
+          edges[0][BlkID] = {"entry", std::nullopt, 0};
+          const auto newBlkID = currentID++;
+          std::optional<std::string> funcName = std::nullopt;
+          if (dyn_cast<CallBase>(&Inst)->getCalledFunction())
+          {
+            funcName = dyn_cast<CallBase>(&Inst)->getCalledFunction()->getName().str();
+            if (dyn_cast<CallBase>(&Inst)->getCalledFunction()->getSubprogram())
+            {
+              funcName = dyn_cast<CallBase>(&Inst)->getCalledFunction()->getSubprogram()->getName().str();
+            }
+          }
+          edges[BlkID][newBlkID] = {isa<CallInst>(Inst) ? "call" : "invoke", funcName, 0};
+          edges[BlkID][newBlkID].fillInDebugInfo(&Inst);
+          edges[newBlkID][1] = {"exit", std::nullopt, 0};
+          nodes[newBlkID] = 1;
+          ExitEdges[&Inst] = newBlkID;
           toStartNodes.emplace(&BB);
           break;
         }
@@ -1197,8 +1208,7 @@ namespace
     auto entry = &Func.getEntryBlock();
     nodes[1] = 1;
     auto entryID = blkIDs.at(entry);
-    edges[0][entryID].caseVal = std::nullopt;
-    edges[0][entryID].pathVal = 0;
+    edges[0][entryID] = {"entry", std::nullopt, 0};
     toStartNodes.emplace(entry);
     while (!toStartNodes.empty())
     {
@@ -1212,13 +1222,15 @@ namespace
     }
 
     uint64_t acc = 0;
-    for (auto &[succ, edgeinfo] : edges[0])
+    for (auto &[succ, edgeinfo] : edges.at(0))
     {
-      edges[0][succ].caseVal = std::nullopt;
-      edges[0][succ].pathVal = acc;
+      edges.at(0).at(succ).pathVal = acc;
       acc += nodes.at(succ);
       if (acc >= (1ULL << 40))
+      {
         path_overflow_flag = true;
+        break;
+      }
     }
   }
 
@@ -1230,62 +1242,63 @@ namespace
     // always initialize BlkSuccessors, even if blk has no successor
     BlkSuccessors[blk] = {};
     auto blkID = blkIDs.at(blk);
-    for (auto &[succ, val] : succs)
-    {
-      BlkSuccessors[blk].emplace(succ);
-    }
-
     if (succs.size() == 0)
     {
-      edges[blkID][1].caseVal = std::nullopt;
-      edges[blkID][1].pathVal = 0;
+      auto lastDebugInst = getLastInst(blk);
+      std::optional<std::string> funcName = std::nullopt;
+      auto F = blk->getParent();
+      if (F->getSubprogram())
+      {
+        funcName = F->getSubprogram()->getName().str();
+      }
+      else if (F->getName() != "")
+      {
+        funcName = F->getName();
+      }
+      edges[blkID][1] = {lastDebugInst->getOpcodeName(), funcName, 0};
+      while (lastDebugInst->getDebugLoc().get() == nullptr && lastDebugInst->getPrevNonDebugInstruction())
+        lastDebugInst = lastDebugInst->getPrevNonDebugInstruction();
+      edges[blkID][1].fillInDebugInfo(lastDebugInst);
     }
     else
     {
-      for (auto &[succ, caseVal] : succs)
+      for (auto &[succ, info] : succs)
       {
         auto succID = blkIDs.at(succ);
-        if (blkIDs[succ] > blkIDs[blk])
+        if (succID > blkID)
         {
-          edges[blkID][succID].caseVal = caseVal;
-          edges[blkID][succID].pathVal = 0;
+          edges[blkID][succID] = info;
           if (!visited.count(succ))
             initializeNode(succ);
         }
         else
         {
-          if (!edges[blkIDs.at(blk)].count(1))
-          {
-            edges[blkID][1].caseVal = caseVal;
-            edges[blkID][1].pathVal = 0;
-          }
-          else
-          {
-            auto newBlkID = currentID++;
-            edges[blkIDs.at(blk)][newBlkID].caseVal = caseVal;
-            edges[blkIDs.at(blk)][newBlkID].pathVal = 0;
-            nodes[newBlkID] = 1;
-            edges[newBlkID][1].caseVal = std::nullopt;
-            edges[newBlkID][1].pathVal = 0;
-          }
-
-          edges[0][succID].caseVal = std::nullopt;
-          edges[0][succID].pathVal = 0;
+          edges[0][succID] = {"entry", std::nullopt, 0};
+          succID = currentID++;
+          edges[blkIDs.at(blk)][succID] = info;
+          edges[blkIDs.at(blk)][succID].jmpType += "(BackEdge)";
+          nodes[succID] = 1;
+          edges[succID][1] = {"exit", std::nullopt, 0};
           if (!visited.count(succ))
             toStartNodes.emplace(succ);
         }
+
+        BlkSuccessors[blk][succ] = succID;
       }
     }
+
     uint64_t acc = 0;
-    for (auto &[succID, edgeinfo] : edges[blkID])
+    for (auto &[succID, info] : edges.at(blkID))
     {
-      edges[blkID][succID].pathVal = acc;
+      edges.at(blkID).at(succID).pathVal = acc;
       acc += nodes.at(succID);
       if (acc >= (1ULL << 40))
+      {
         path_overflow_flag = true;
+        break;
+      }
     }
     nodes[blkID] = acc;
-    nodeTypes[blk] = std::string(getLastInst(blk)->getOpcodeName());
   }
   void PathProfiler::flushGraph()
   {
@@ -1293,62 +1306,14 @@ namespace
     {
       for (auto &[toID, edgeinfo] : to)
       {
-        writer.insertPathProfile(FuncID, fromID, toID, edgeinfo.caseVal, edgeinfo.pathVal);
+        writer.insertPathProfile(FuncID, fromID, toID, edgeinfo.jmpType, edgeinfo.caseVal, edgeinfo.pathVal, edgeinfo.line, edgeinfo.col, edgeinfo.funcName, edgeinfo.fileName);
       }
-    }
-  }
-  void PathProfiler::flushGraphNodeDebugInfo()
-  {
-    for (auto &[blk, jmpType] : nodeTypes)
-    {
-      if (duplicated_edge_nodes.count(blk))
-        continue;
-      auto lastInst = getLastInst(blk);
-      uint32_t blkID = blkIDs.at(blk);
-      int line = 0, col = 0;
-      std::string funcName = "", fileName = "";
-
-      auto lastDebug = lastInst;
-      while (lastDebug->getDebugLoc().get() == nullptr && lastDebug->getPrevNonDebugInstruction())
-        lastDebug = lastDebug->getPrevNonDebugInstruction();
-
-      if (lastDebug->getDebugLoc().get())
-      {
-        line = lastDebug->getDebugLoc().getLine();
-        col = lastDebug->getDebugLoc().getCol();
-        if (lastDebug->getDebugLoc().getScope())
-        {
-          fileName = (std::filesystem::path(lastDebug->getDebugLoc().get()->getScope()->getDirectory().str()) /
-                      std::filesystem::path(lastDebug->getDebugLoc().get()->getScope()->getFilename().str()))
-                         .lexically_normal()
-                         .string();
-          funcName = lastDebug->getDebugLoc().get()->getScope()->getName();
-        }
-      }
-      int nameA = writer.getVarID(funcName.c_str()), nameB = writer.getFileID(fileName.c_str());
-      uint32_t debugID = writer.getDebugInfoID(nameA, nameB, line, col);
-      writer.insertPathDebug(FuncID, blkID, jmpType.substr(0, 31), debugID);
     }
   }
 
   Instruction *PathProfiler::getLastInst(BasicBlock *blk)
   {
     return &blk->back();
-  }
-
-  Instruction *PathProfiler::getLastNotImplicit(BasicBlock *blk)
-  {
-    Instruction *Inst = nullptr;
-    for (auto I = blk->rbegin(); I != blk->rend(); I++)
-    {
-      auto item = &*I;
-      if (!item->getDebugLoc().isImplicitCode())
-      {
-        Inst = item;
-        break;
-      }
-    }
-    return Inst;
   }
 
   BasicBlock *PathProfiler::handleDuplicatedSuccessor(BasicBlock *blk, BasicBlock *succBlk, Instruction *Inst, int idx)
@@ -1374,11 +1339,11 @@ namespace
     return newsuccBlk;
   }
 
-  std::map<BasicBlock *, std::optional<int32_t>> PathProfiler::getSuccessors(BasicBlock *blk)
+  std::map<BasicBlock *, PathProfiler::EdgeInfo> PathProfiler::getSuccessors(BasicBlock *blk)
   {
     auto lastInst = getLastInst(blk);
     assert(lastInst);
-    std::map<BasicBlock *, std::optional<int32_t>> succs;
+    std::map<BasicBlock *, PathProfiler::EdgeInfo> succs;
     if (isa<BranchInst>(lastInst))
     {
       BranchInst *BrInst = dyn_cast<BranchInst>(lastInst);
@@ -1391,7 +1356,8 @@ namespace
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, BrInst, idx);
         }
-        succs[succBlk] = (succNum > 1 ? (1 - idx) : std::optional<uint32_t>());
+        succs[succBlk] = {BrInst->getOpcodeName(), (succNum > 1 ? std::to_string(1 - idx) : "Uncond"), 0};
+        succs[succBlk].fillInDebugInfo(BrInst);
       }
     }
     else if (isa<SwitchInst>(lastInst))
@@ -1407,9 +1373,11 @@ namespace
           succBlk = handleDuplicatedSuccessor(blk, succBlk, SWInst, idx);
         }
         if (CaseVal)
-          succs[succBlk] = CaseVal->getSExtValue();
+          succs[succBlk] = {SWInst->getOpcodeName(), std::to_string(CaseVal->getSExtValue()), 0};
         else
-          succs[succBlk] = std::nullopt;
+          succs[succBlk] = {SWInst->getOpcodeName(), "Default", 0};
+
+        succs[succBlk].fillInDebugInfo(SWInst);
       }
     }
     else if (isa<IndirectBrInst>(lastInst))
@@ -1423,7 +1391,8 @@ namespace
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, Indirect, idx);
         }
-        succs[succBlk] = idx;
+        succs[succBlk] = {Indirect->getOpcodeName(), std::to_string(idx), 0};
+        succs[succBlk].fillInDebugInfo(Indirect);
       }
     }
     else if (isa<CallBrInst>(lastInst))
@@ -1437,7 +1406,8 @@ namespace
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, CallBr, idx);
         }
-        succs[succBlk] = idx;
+        succs[succBlk] = {CallBr->getOpcodeName(), std::to_string(idx), 0};
+        succs[succBlk].fillInDebugInfo(CallBr);
       }
     }
     else if (isa<InvokeInst>(lastInst))
@@ -1451,7 +1421,8 @@ namespace
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, Invoke, idx);
         }
-        succs[succBlk] = idx;
+        succs[succBlk] = {Invoke->getOpcodeName(), std::to_string(idx), 0};
+        succs[succBlk].fillInDebugInfo(Invoke);
       }
     }
     else if (isa<CatchSwitchInst>(lastInst))
@@ -1465,13 +1436,15 @@ namespace
         {
           succBlk = handleDuplicatedSuccessor(blk, succBlk, CSInst, idx);
         }
-        succs[succBlk] = idx;
+        succs[succBlk] = {CSInst->getOpcodeName(), std::to_string(idx), 0};
+        succs[succBlk].fillInDebugInfo(CSInst);
       }
     }
     else if (isa<CatchReturnInst>(lastInst))
     {
       CatchReturnInst *CRInst = dyn_cast<CatchReturnInst>(lastInst);
-      succs[CRInst->getSuccessor()] = std::nullopt;
+      succs[CRInst->getSuccessor()] = {CRInst->getOpcodeName(), "Default", 0};
+      succs[CRInst->getSuccessor()].fillInDebugInfo(CRInst);
     }
     else if (isa<CleanupReturnInst>(lastInst))
     {
@@ -1479,7 +1452,8 @@ namespace
 
       if (CRInst->getNumSuccessors())
       {
-        succs[CRInst->getUnwindDest()] = std::nullopt;
+        succs[CRInst->getUnwindDest()] = {CRInst->getOpcodeName(), "Default", 0};
+        succs[CRInst->getUnwindDest()].fillInDebugInfo(CRInst);
       }
     }
     return succs;
@@ -1910,6 +1884,10 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
     {
       fileName = concatFileName(I->getDebugLoc().get()->getScope()->getDirectory().str(), I->getDebugLoc().get()->getScope()->getFilename().str());
       funcName = I->getDebugLoc().get()->getScope()->getName().str();
+      if (auto SP = getDISubprogram(I->getDebugLoc().getScope()))
+      {
+        funcName = SP->getName();
+      }
     }
   }
 
