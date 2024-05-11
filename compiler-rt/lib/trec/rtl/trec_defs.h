@@ -56,7 +56,7 @@ namespace __trec
 
 namespace __trec_trace
 {
-  const __sanitizer::u64 TREC_TRACE_VER = 20240411UL;
+  const __sanitizer::u64 TREC_TRACE_VER = 20240512UL;
   enum EventType : __sanitizer::u64
   {
     ThreadBegin,
