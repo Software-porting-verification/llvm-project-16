@@ -898,7 +898,13 @@ TREC_INTERCEPTOR(void, pthread_exit, void *retval)
     CHECK_EQ(thr, &cur_thread_placeholder);
 #endif
   }
-  DestroyThreadState();
+  ThreadState *thr = cur_thread();
+  if (LIKELY(ctx->flags.output_trace))
+  {
+    thr->tctx->writer.put_record(__trec_trace::EventType::ThreadEnd, thr->tid,
+                                 0);
+    thr->tctx->writer.flush_all();
+  }
   REAL(pthread_exit)
   (retval);
 }

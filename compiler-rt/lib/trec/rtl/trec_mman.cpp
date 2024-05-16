@@ -126,6 +126,11 @@ namespace __trec
       uptr malloc_limit =
           Min(kMaxAllowedMallocSize, max_user_defined_malloc_size);
     }
+    if (UNLIKELY(IsRssLimitExceeded()))
+    {
+      if (AllocatorMayReturnNull())
+        return nullptr;
+    }
     void *p = allocator()->Allocate(&thr->proc()->alloc_cache, sz, align);
     if (UNLIKELY(!p))
     {
