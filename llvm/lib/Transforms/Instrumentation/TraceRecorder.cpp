@@ -1020,6 +1020,8 @@ namespace
       EdgeInfo() : pathVal(0), line(0), col(0) {}
       void fillInDebugInfo(Instruction *I)
       {
+        while (I->getDebugLoc().get() == nullptr && I->getPrevNonDebugInstruction())
+          I = I->getPrevNonDebugInstruction();
         if (I->getDebugLoc().get())
         {
           line = I->getDebugLoc().getLine();
