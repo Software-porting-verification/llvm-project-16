@@ -138,7 +138,7 @@ namespace __trec
       if (AllocatorMayReturnNull())
         return nullptr;
     }
-    if (ctx && ctx->initialized)
+    if (ctx && ctx->initialized && LIKELY(p))
     {
       OnUserAlloc(thr, pc, (uptr)p, user_alloc_usable_size(p), true);
     }
