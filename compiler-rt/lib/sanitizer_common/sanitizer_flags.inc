@@ -80,7 +80,7 @@ COMMON_FLAG(
     "Invoke leak checking in an atexit handler. Has no effect if "
     "detect_leaks=false, or if __lsan_do_leak_check() is called before the "
     "handler has a chance to run.")
-COMMON_FLAG(bool, allocator_may_return_null, false,
+COMMON_FLAG(bool, allocator_may_return_null, true,
             "If false, the allocator will crash instead of returning 0 on "
             "out-of-memory.")
 COMMON_FLAG(bool, print_summary, true,
