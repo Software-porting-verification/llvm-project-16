@@ -835,6 +835,13 @@ TREC_INTERCEPTOR(int, pthread_create, void *th, void *attr,
   p.callback = callback;
   p.param = param;
   p.tid = kMainTid;
+  if (!thr->tctx->createArgs)
+  {
+    thr->tctx->createArgs = (TrecThreadCreateArgs *)internal_alloc(MBlockShadowStack, sizeof(TrecThreadCreateArgs));
+    thr->tctx->createArgs->arg_val = (u64)param;
+    thr->tctx->createArgs->arg_debugID = 1;
+    thr->tctx->createArgs->debugID = 1;
+  }
   p.createdArgs = thr->tctx->createArgs;
   p.createdArgs->pc = pc;
 
