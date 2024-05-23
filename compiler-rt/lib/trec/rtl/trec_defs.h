@@ -147,8 +147,8 @@ namespace __trec_trace
           __sanitizer::u64 _oid, __sanitizer::u64 _meta_size,
           __sanitizer::u64 _pc)
         : type(_type),
-          tid(_tid),
           meta_size(_meta_size),
+          tid(_tid),
           gid(_gid),
           oid(_oid)
     {
