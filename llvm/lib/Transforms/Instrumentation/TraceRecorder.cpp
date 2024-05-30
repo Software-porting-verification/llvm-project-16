@@ -2097,6 +2097,8 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
       createdDebugID = debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(
           creatednameA, creatednameB, createdLine, createdCol));
 
+    CI->print(llvm::outs());
+
     int argnameA =
         debuger.getOrInitDebuger()->getVarID(CI->getArgOperand(3)->getName().str().c_str());
     int argnameB = 0;
