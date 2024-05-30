@@ -2070,7 +2070,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
   auto entryInst = IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
                                                   IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(isa<InlineAsm>(CI->getCalledOperand()) ? IRB.getInt8(0) : CI->getCalledOperand(), IRB.getPtrTy())});
   entryInst->setDebugLoc(I->getDebugLoc());
-  if (CalledFName == "pthread_create")
+  if (CalledFName == "pthread_create" && arg_size >= 4)
   {
     std::string createdFuncName = "", createdFileName = "";
     int createdLine = 0, createdCol = 0;
@@ -2096,8 +2096,6 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
     if (creatednameA != 1 || creatednameB != 1)
       createdDebugID = debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(
           creatednameA, creatednameB, createdLine, createdCol));
-
-    CI->print(llvm::outs());
 
     int argnameA =
         debuger.getOrInitDebuger()->getVarID(CI->getArgOperand(3)->getName().str().c_str());
