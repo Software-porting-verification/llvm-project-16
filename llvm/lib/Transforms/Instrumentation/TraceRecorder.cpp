@@ -2032,7 +2032,8 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
                                      ValInst, IRB.getInt64(debugID)});
     }
   }
-
+  if (I->getParent()->getParent()->getName() == "yyparse" && I->getParent()->getName() == "if.then54:")
+    printf("calledF=%p\n");
   Function *CalledF = CI->getCalledFunction();
   StringRef CalledFName = CalledF ? CalledF->getName() : "";
   std::string CurrentFileName = "";
