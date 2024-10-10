@@ -348,7 +348,7 @@ void freebsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     if (NeedsSanitizerDeps)
       linkSanitizerRuntimeDeps(ToolChain, Args, CmdArgs);
     if (NeedsTrecDeps)
-        linkTrecSanitizerRuntimeDeps(ToolChain, CmdArgs);
+        linkTrecSanitizerRuntimeDeps(ToolChain, Args,CmdArgs);
     if (NeedsXRayDeps)
       linkXRayRuntimeDeps(ToolChain, Args, CmdArgs);
     // FIXME: For some reason GCC passes -lgcc and -lgcc_s before adding

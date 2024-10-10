@@ -1464,9 +1464,14 @@ void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
 }
 
 void tools::linkTrecSanitizerRuntimeDeps(const ToolChain &TC,
+                                         const llvm::opt::ArgList &Args,
                                          llvm::opt::ArgStringList &CmdArgs)
 {
   CmdArgs.push_back("-lsqlite3");
+  if (Args.hasArg(options::OPT_shared))
+  {
+    CmdArgs.push_back("-lclang_rt.trec");
+  }
 }
 
 static void

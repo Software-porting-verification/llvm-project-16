@@ -251,7 +251,7 @@ void openbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       linkSanitizerRuntimeDeps(ToolChain, Args, CmdArgs);
     }
     if (NeedsTrecDeps)
-      linkTrecSanitizerRuntimeDeps(ToolChain, CmdArgs);
+      linkTrecSanitizerRuntimeDeps(ToolChain, Args,CmdArgs);
     if (NeedsXRayDeps) {
       CmdArgs.push_back(ToolChain.getCompilerRTArgString(Args, "builtins"));
       linkXRayRuntimeDeps(ToolChain, Args, CmdArgs);

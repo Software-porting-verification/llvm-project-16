@@ -45,6 +45,7 @@ void linkSanitizerRuntimeDeps(const ToolChain &TC,
                               llvm::opt::ArgStringList &CmdArgs);
 
 void linkTrecSanitizerRuntimeDeps(const ToolChain &TC,
+                              const llvm::opt::ArgList &Args,
                               llvm::opt::ArgStringList &CmdArgs);
 
 bool addXRayRuntime(const ToolChain &TC, const llvm::opt::ArgList &Args,
