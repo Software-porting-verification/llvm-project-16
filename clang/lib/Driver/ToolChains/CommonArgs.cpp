@@ -1589,9 +1589,10 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
   }
   if (!SanArgs.needsSharedRt() && SanArgs.needsTrecRt())
   {
-    StaticRuntimes.push_back("trec");
-    if (SanArgs.linkCXXRuntimes())
-      StaticRuntimes.push_back("trec_cxx");
+    // StaticRuntimes.push_back("trec");
+    // if (SanArgs.linkCXXRuntimes())
+    //   StaticRuntimes.push_back("trec_cxx");
+    SharedRuntimes.push_back("trec");
   }
   if (!SanArgs.needsSharedRt() && SanArgs.needsUbsanRt())
   {
