@@ -163,7 +163,7 @@ namespace __trec
     int nomalloc;
 
     explicit ThreadState(Context *ctx, int tid, int unique_id);
-  } ALIGNED(64);
+  };
 
 #if !SANITIZER_GO
 #if SANITIZER_APPLE || SANITIZER_ANDROID
