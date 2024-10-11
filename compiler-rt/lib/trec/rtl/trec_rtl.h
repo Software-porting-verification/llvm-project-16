@@ -163,7 +163,7 @@ namespace __trec
     int nomalloc;
 
     explicit ThreadState(Context *ctx, int tid, int unique_id);
-  };
+  } ALIGNED(64);
 
 #if !SANITIZER_GO
 #if SANITIZER_APPLE || SANITIZER_ANDROID
@@ -173,7 +173,7 @@ namespace __trec
   inline void cur_thread_init() {}
 #else
   __attribute__((tls_model(
-      "initial-exec"))) extern THREADLOCAL char cur_thread_placeholder[];
+      "global-dynamic"))) extern THREADLOCAL char cur_thread_placeholder[];
   inline ThreadState *cur_thread()
   {
     return reinterpret_cast<ThreadState *>(cur_thread_placeholder)->current;
