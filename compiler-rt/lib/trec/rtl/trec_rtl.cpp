@@ -49,7 +49,7 @@ namespace __trec
 {
 
 #if !SANITIZER_GO && !SANITIZER_APPLE
-  __attribute__((tls_model("initial-exec")))
+  __attribute__((tls_model("global-dynamic")))
   THREADLOCAL char cur_thread_placeholder[sizeof(ThreadState)] ALIGNED(64);
 #endif
   static char ctx_placeholder[sizeof(Context)] ALIGNED(64);
