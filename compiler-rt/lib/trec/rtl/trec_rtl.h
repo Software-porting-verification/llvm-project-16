@@ -173,7 +173,7 @@ namespace __trec
   inline void cur_thread_init() {}
 #else
   __attribute__((tls_model(
-      "global-dynamic"))) extern THREADLOCAL char cur_thread_placeholder[];
+      "initial-exec"))) extern THREADLOCAL char cur_thread_placeholder[];
   inline ThreadState *cur_thread()
   {
     return reinterpret_cast<ThreadState *>(cur_thread_placeholder)->current;
