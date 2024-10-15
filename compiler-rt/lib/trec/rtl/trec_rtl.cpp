@@ -161,15 +161,15 @@ namespace __trec
       Report("Parent copy bin header failed\n");
       Die();
     }
-    internal_snprintf(src_path, 2 * TREC_DIR_PATH_LEN - 1,
-                      "%s/header/modules_%u.txt", parent_path, Maintid);
-    internal_snprintf(dest_path, 2 * TREC_DIR_PATH_LEN - 1,
-                      "%s/header/modules_%u.txt", path, Maintid);
-    if (CopyFile(src_path, dest_path))
-    {
-      Report("Parent copy module file failed\n");
-      Die();
-    }
+    // internal_snprintf(src_path, 2 * TREC_DIR_PATH_LEN - 1,
+    //                   "%s/header/modules_%u.txt", parent_path, Maintid);
+    // internal_snprintf(dest_path, 2 * TREC_DIR_PATH_LEN - 1,
+    //                   "%s/header/modules_%u.txt", path, Maintid);
+    // if (CopyFile(src_path, dest_path))
+    // {
+    //   Report("Parent copy module file failed\n");
+    //   Die();
+    // }
 
     internal_snprintf(src_path, 2 * TREC_DIR_PATH_LEN - 1, "%s/metadata/%u.bin",
                       parent_path, Maintid);
