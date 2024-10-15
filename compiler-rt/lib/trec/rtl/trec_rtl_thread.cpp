@@ -1021,7 +1021,7 @@ namespace __trec
     // we should put the trace after it thr->tctx has been initialized
     if (LIKELY(ctx->flags.output_trace))
     {
-      thr->tctx->writer.flush_module();
+      // thr->tctx->writer.flush_module();
       thr->tctx->writer.reset();
 
       thr->tctx->writer.put_record(
