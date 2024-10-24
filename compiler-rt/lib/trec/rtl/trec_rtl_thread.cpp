@@ -715,6 +715,7 @@ namespace __trec
 
     __sanitizer::internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1, "%s/trec_%lu/trace/%d.bin",
                                    ctx->trace_dir, internal_getpid(), id);
+    ctx->open_directory(ctx->trace_dir);
     int fd_trace = internal_open(filepath, O_CREAT | O_WRONLY | O_APPEND, 0700);
 
     if (UNLIKELY(fd_trace < 0))
@@ -750,6 +751,7 @@ namespace __trec
     __sanitizer::internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1,
                                    "%s/trec_%lu/metadata/%d.bin", ctx->trace_dir,
                                    internal_getpid(), id);
+    ctx->open_directory(ctx->trace_dir);
     int fd_metadata =
         internal_open(filepath, O_CREAT | O_WRONLY | O_APPEND, 0700);
 
@@ -785,6 +787,7 @@ namespace __trec
     __sanitizer::internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1,
                                    "%s/trec_%lu/header/%d.bin", ctx->trace_dir,
                                    internal_getpid(), id);
+    ctx->open_directory(ctx->trace_dir);
 
     int fd_header = internal_open(filepath, O_CREAT | O_WRONLY | O_TRUNC, 0700);
 
