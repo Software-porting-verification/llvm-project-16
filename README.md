@@ -26,7 +26,7 @@ the [LLD linker](https://lld.llvm.org), and more.
 
 ## TraceRecoder Quick Start
 
-Build and install ld.gold (optional, if you want to use LTO)
+Build and install ld.gold (optional, if you want to use LTO. Otherwise, skip this)
 ```
 $ git submodule init
 $ git submodule update binutils
@@ -38,7 +38,7 @@ $ make all-gold
 $ sudo make install
 ```
 
-Build with LLVMgold.so
+Build with LLVMgold.so (if you do not want to use LTO, please remove the `-DLLVM_BINUTILS_INCDIR=../binutils/include/` option below)
 ```
 $ mkdir build
 $ cd build
@@ -48,10 +48,13 @@ We highly recommend you use clang to compiler the LLVM project.
 The `-DLLVM_BINUTILS_INCDIR=../binutils/include/` is optional as it is used only to build the `LLVMgold.so`. 
 If you do not intend to use LTO, `LLVMgold.so` will not be used, so it does not need to be built.
 
-Compile your program
+Compile your program (`%{trec_install_root}` below is the path of the directory where you installed TraceRecorder)
 ```
 $ export TREC_DATABASE_DIR=/path/to/database/folder
+$ export TREC_OPTIONS="output_trace=0 record_mutex=0 record_rwlock=0 record_cond=0 record_alloc_free=0 record_func_param=0 record_read=0 record_write=0 record_range=0 symbolize_at_runtime=0"
+$ export LD_LIBRARY_PATH="$(dirname $(find %{trec_install_root} -name libclang_rt.trec.so)):$LD_LIBRARY_PATH"
 $ ./build/bin/clang -g -fsanitize=trace -fno-discard-value-names /your/source/code -o ./output.out
+$ export TREC_OPTIONS="record_mutex=0 record_rwlock=0 record_cond=0 record_alloc_free=0 record_func_param=0 record_read=0 record_write=0 record_range=0 symbolize_at_runtime=0"
 $ export TREC_TRACE_DIR=/path/to/trace/folder
 $ ./output.out
 ```
