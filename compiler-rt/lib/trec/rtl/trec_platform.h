@@ -134,7 +134,7 @@ struct Mapping {
   static const __sanitizer::uptr kVdsoBeg = 0x7000000000000000ull;
 };
 
-#elif defined(__aarch64__)
+#elif defined(__aarch64__) && defined(__riscv)
 // AArch64 supports multiple VMA which leads to multiple address transformation
 // functions.  To support these multiple VMAS transformations and mappings
 // TREC runtime for AArch64 uses an external memory read (vmaSize) to
