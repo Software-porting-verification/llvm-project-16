@@ -13,6 +13,7 @@
 #ifndef SANITIZER_MUTEX_H
 #define SANITIZER_MUTEX_H
 
+#include <string.h>
 #include "sanitizer_atomic.h"
 #include "sanitizer_internal_defs.h"
 #include "sanitizer_libc.h"
@@ -166,13 +167,13 @@ class SANITIZER_MUTEX Mutex : CheckedMutex {
   void Lock() SANITIZER_ACQUIRE() {
     CheckedMutex::Lock();
     u64 reset_mask = ~0ull;
-    Report("hit1\n");
+    printf("hit1\n");
     u64 state = atomic_load_relaxed(&state_);
-    Report("hit2\n");
+    printf("hit2\n");
     for (uptr spin_iters = 0;; spin_iters++) {
       u64 new_state;
       bool locked = (state & (kWriterLock | kReaderLockMask)) != 0;
-      Report("hit3\n");
+      printf("hit3\n");
       if (LIKELY(!locked)) {
         // The mutex is not read-/write-locked, try to lock.
         new_state = (state | kWriterLock) & reset_mask;
@@ -189,11 +190,11 @@ class SANITIZER_MUTEX Mutex : CheckedMutex {
         state = atomic_load(&state_, memory_order_relaxed);
         continue;
       }
-      Report("hit4\n");
+      printf("hit4\n");
       if (UNLIKELY(!atomic_compare_exchange_weak(&state_, &state, new_state,
                                                  memory_order_acquire)))
         continue;
-      Report("hit5\n");
+      printf("hit5\n");
       if (LIKELY(!locked))
         return;  // We've locked the mutex.
       if (spin_iters > kMaxSpinIters) {
@@ -207,11 +208,11 @@ class SANITIZER_MUTEX Mutex : CheckedMutex {
       // or we just spun but set kWriterSpinWait.
       // Either way we need to reset kWriterSpinWait
       // next time we take the lock or block again.
-      Report("hit6\n");
+      printf("hit6\n");
       reset_mask = ~kWriterSpinWait;
       state = atomic_load(&state_, memory_order_relaxed);
       DCHECK_NE(state & kWriterSpinWait, 0);
-      Report("hit7\n");
+      printf("hit7\n");
     }
   }
 
