@@ -12,12 +12,11 @@
 
 #ifndef SANITIZER_MUTEX_H
 #define SANITIZER_MUTEX_H
-
 #include "sanitizer_atomic.h"
 #include "sanitizer_internal_defs.h"
 #include "sanitizer_libc.h"
 #include "sanitizer_thread_safety.h"
-#include "sanitizer_common.h"
+
 
 namespace __sanitizer {
 
@@ -154,7 +153,7 @@ class CheckedMutex {
   static void CheckNoLocksImpl();
 #endif
 };
-
+void Report(const char *format, ...) FORMAT(1, 2);
 // Reader-writer mutex.
 // Derive from CheckedMutex for the purposes of EBO.
 // We could make it a field marked with [[no_unique_address]],
@@ -166,7 +165,7 @@ class SANITIZER_MUTEX Mutex : CheckedMutex {
 
   void Lock() SANITIZER_ACQUIRE() {
     CheckedMutex::Lock();
-    u64 reset_mask = ~0ull;
+    u64 reset_mask = ~0ull; 
     Report("hit1\n");
     u64 state = atomic_load_relaxed(&state_);
     Report("hit2\n");
