@@ -85,7 +85,6 @@ inline typename T::Type atomic_exchange(volatile T *a, typename T::Type v,
   DCHECK(!((uptr)a % sizeof(*a)));
   return __atomic_exchange_n(&a->val_dont_use, v, mo);
 }
-
 template <typename T>
 inline bool atomic_compare_exchange_strong(volatile T *a, typename T::Type *cmp,
                                            typename T::Type xchg,
