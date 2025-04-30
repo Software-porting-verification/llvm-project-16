@@ -69,7 +69,6 @@ inline typename T::Type atomic_exchange(volatile T *a,
     __sync_synchronize();
   return v;
 }
-
 template <typename T>
 inline bool atomic_compare_exchange_strong(volatile T *a, typename T::Type *cmp,
                                            typename T::Type xchg,

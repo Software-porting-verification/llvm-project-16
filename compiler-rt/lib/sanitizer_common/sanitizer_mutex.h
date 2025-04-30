@@ -17,14 +17,11 @@
 #include "sanitizer_libc.h"
 #include "sanitizer_thread_safety.h"
 
-
 namespace __sanitizer {
 
 class SANITIZER_MUTEX StaticSpinMutex {
  public:
-  void Init() {
-    atomic_store(&state_, 0, memory_order_relaxed);
-  }
+  void Init() { atomic_store(&state_, 0, memory_order_relaxed); }
 
   void Lock() SANITIZER_ACQUIRE() {
     if (LIKELY(TryLock()))
@@ -52,9 +49,7 @@ class SANITIZER_MUTEX StaticSpinMutex {
 
 class SANITIZER_MUTEX SpinMutex : public StaticSpinMutex {
  public:
-  SpinMutex() {
-    Init();
-  }
+  SpinMutex() { Init(); }
 
   SpinMutex(const SpinMutex &) = delete;
   void operator=(const SpinMutex &) = delete;
@@ -100,8 +95,9 @@ enum {
 // Disable checked locks on Darwin. Although Darwin platforms support
 // THREADLOCAL variables they are not usable early on during process init when
 // `__sanitizer::Mutex` is used.
-#define SANITIZER_CHECK_DEADLOCKS \
-  (SANITIZER_DEBUG && !SANITIZER_GO && SANITIZER_SUPPORTS_THREADLOCAL && !SANITIZER_APPLE)
+#define SANITIZER_CHECK_DEADLOCKS                                        \
+  (SANITIZER_DEBUG && !SANITIZER_GO && SANITIZER_SUPPORTS_THREADLOCAL && \
+   !SANITIZER_APPLE)
 
 #if SANITIZER_CHECK_DEADLOCKS
 struct MutexMeta {
@@ -165,7 +161,7 @@ class SANITIZER_MUTEX Mutex : CheckedMutex {
 
   void Lock() SANITIZER_ACQUIRE() {
     CheckedMutex::Lock();
-    u64 reset_mask = ~0ull; 
+    u64 reset_mask = ~0ull;
     Report("hit1\n");
     u64 state = atomic_load_relaxed(&state_);
     Report("hit2\n");
@@ -189,7 +185,7 @@ class SANITIZER_MUTEX Mutex : CheckedMutex {
         state = atomic_load(&state_, memory_order_relaxed);
         continue;
       }
-      Report("hit4\n");
+      Report("hit4 %p %p %p %llu\n", (void*)&state_, (void*)&state_.val_dont_use, (void*)&state, new_state);
       if (UNLIKELY(!atomic_compare_exchange_weak(&state_, &state, new_state,
                                                  memory_order_acquire)))
         continue;
