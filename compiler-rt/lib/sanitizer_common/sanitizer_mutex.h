@@ -327,7 +327,7 @@ class SANITIZER_MUTEX Mutex : CheckedMutex {
   }
 
  private:
-  atomic_uint64_t state_ = {0};
+  ALIGNED(8) atomic_uint64_t state_ = {0};
   Semaphore writers_;
   Semaphore readers_;
 
