@@ -980,10 +980,8 @@ namespace __trec
   {
     OnCreatedArgs args = {thr, pc};
     u32 parent_tid = thr ? thr->tid : kInvalidTid; // No parent for GCD workers.
-    Report("Before CreateThread\n");
     int tid =
         ctx->thread_registry->CreateThread(uid, detached, parent_tid, &args);
-    Report("After CreateThread\n");
     DPrintf("#%d: ThreadCreate tid=%d uid=%zu\n", parent_tid, tid, uid);
     if (tid == 0)
     {
