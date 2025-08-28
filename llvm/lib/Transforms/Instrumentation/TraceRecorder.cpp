@@ -84,7 +84,7 @@ static cl::opt<bool> ClInstrumentBranch(
              "branches/switches)"),
     cl::Hidden);
 static cl::opt<bool>
-    ClInstrumentFuncParam("trec-instrument-function-parameters", cl::init(true),
+    ClInstrumentFuncParam("trec-instrument-function-parameters", cl::init(false),
                           cl::desc("Instrument function parameters"),
                           cl::Hidden);
 static cl::opt<bool>
@@ -1948,25 +1948,25 @@ bool TraceRecorder::instrumentReturn(Instruction *I)
     {
       StoresToBeInstrumented.emplace(store);
     }
-    auto VSI_val = getSource(RetVal, I->getParent()->getParent());
-    VSI_val.Reform(IRB);
-    Value *RetValInst = nullptr;
-    if (RetVal->getType()->isPointerTy() || RetVal->getType()->isIntegerTy())
-      RetValInst = IRB.CreateBitOrPointerCast(RetVal, IRB.getPtrTy());
-    else
-      RetValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
-    if (RetValInst)
-    {
-      int nameA = debuger.getOrInitDebuger()->getVarID(RetVal->getName().str().c_str());
-      int nameB = 0;
-      int line = I->getDebugLoc().getLine();
-      int col = I->getDebugLoc().getCol();
-      uint64_t debugID =
-          debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
-      IRB.CreateCall(TrecFuncExitParam,
-                     {VSI_val.Reform(IRB), RetValInst, IRB.getInt64(debugID)});
-      res = true;
-    }
+    // auto VSI_val = getSource(RetVal, I->getParent()->getParent());
+    // VSI_val.Reform(IRB);
+    // Value *RetValInst = nullptr;
+    // if (RetVal->getType()->isPointerTy() || RetVal->getType()->isIntegerTy())
+    //   RetValInst = IRB.CreateBitOrPointerCast(RetVal, IRB.getPtrTy());
+    // else
+    //   RetValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
+    // if (RetValInst)
+    // {
+    //   int nameA = debuger.getOrInitDebuger()->getVarID(RetVal->getName().str().c_str());
+    //   int nameB = 0;
+    //   int line = I->getDebugLoc().getLine();
+    //   int col = I->getDebugLoc().getCol();
+    //   uint64_t debugID =
+    //       debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
+    //   IRB.CreateCall(TrecFuncExitParam,
+    //                  {VSI_val.Reform(IRB), RetValInst, IRB.getInt64(debugID)});
+    //   res = true;
+    // }
   }
   return res;
 }
@@ -2003,34 +2003,34 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
     {
       StoresToBeInstrumented.emplace(store);
     }
-    ValSourceInfo VSI = getSource(CI->getArgOperand(i), F);
-    if (!VSI.isNull())
-    {
-      Value *ValInst;
-      if (CI->getArgOperand(i)->getType()->isIntegerTy() ||
-          CI->getArgOperand(i)->getType()->isPointerTy())
-        ValInst = IRB.CreateBitOrPointerCast(CI->getArgOperand(i),
-                                             IRB.getPtrTy());
-      else
-        ValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
-      std::string varname = CI->getArgOperand(i)->getName().str();
-      if (isa<Function>(CI->getArgOperand(i)))
-      {
-        Function *created = dyn_cast<Function>(CI->getArgOperand(i));
-        if (created->getSubprogram())
-        {
-          varname = created->getSubprogram()->getName();
-        }
-      }
-      int nameA = debuger.getOrInitDebuger()->getVarID(varname.c_str());
-      int nameB = 0;
-      int line = I->getDebugLoc().getLine();
-      int col = I->getDebugLoc().getCol();
-      uint64_t debugID =
-          debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
-      IRB.CreateCall(TrecFuncParam, {IRB.getInt16(i + 1), VSI.Reform(IRB),
-                                     ValInst, IRB.getInt64(debugID)});
-    }
+    // ValSourceInfo VSI = getSource(CI->getArgOperand(i), F);
+    // if (!VSI.isNull())
+    // {
+    //   Value *ValInst;
+    //   if (CI->getArgOperand(i)->getType()->isIntegerTy() ||
+    //       CI->getArgOperand(i)->getType()->isPointerTy())
+    //     ValInst = IRB.CreateBitOrPointerCast(CI->getArgOperand(i),
+    //                                          IRB.getPtrTy());
+    //   else
+    //     ValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
+    //   std::string varname = CI->getArgOperand(i)->getName().str();
+    //   if (isa<Function>(CI->getArgOperand(i)))
+    //   {
+    //     Function *created = dyn_cast<Function>(CI->getArgOperand(i));
+    //     if (created->getSubprogram())
+    //     {
+    //       varname = created->getSubprogram()->getName();
+    //     }
+    //   }
+    //   int nameA = debuger.getOrInitDebuger()->getVarID(varname.c_str());
+    //   int nameB = 0;
+    //   int line = I->getDebugLoc().getLine();
+    //   int col = I->getDebugLoc().getCol();
+    //   uint64_t debugID =
+    //       debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
+    //   IRB.CreateCall(TrecFuncParam, {IRB.getInt16(i + 1), VSI.Reform(IRB),
+    //                                  ValInst, IRB.getInt64(debugID)});
+    // }
   }
   Function *CalledF = CI->getCalledFunction();
   StringRef CalledFName = CI->getCalledOperand() ?  CI->getCalledOperand()->getName() : "";
