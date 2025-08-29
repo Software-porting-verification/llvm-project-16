@@ -1906,10 +1906,10 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
 
     uint64_t debugID =
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
-    ValSourceInfo VSI = getSource(cond, F);
+    // ValSourceInfo VSI = getSource(cond, F);
     IRB.CreateCall(TrecBranch,
                    {IRB.getInt16(Br->isConditional() ? CondBr : UncondBr), IRB.CreateBitOrPointerCast(cond, IRB.getPtrTy()),
-                    VSI.Reform(IRB), IRB.getInt64(debugID)});
+                    IRB.getInt64(0), IRB.getInt64(debugID)});
     Res |= true;
   }
   else if (isa<SwitchInst>(I))
@@ -1919,10 +1919,10 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
 
     uint64_t debugID =
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
-    ValSourceInfo VSI = getSource(cond, F);
+    // ValSourceInfo VSI = getSource(cond, F);
     IRB.CreateCall(TrecBranch,
                    {IRB.getInt16(Switch), IRB.CreateBitOrPointerCast(cond, IRB.getPtrTy()),
-                    VSI.Reform(IRB), IRB.getInt64(debugID)});
+                    IRB.getInt64(0), IRB.getInt64(debugID)});
     Res |= true;
   }
   return Res;
@@ -1948,8 +1948,8 @@ bool TraceRecorder::instrumentReturn(Instruction *I)
     {
       StoresToBeInstrumented.emplace(store);
     }
-    auto VSI_val = getSource(RetVal, I->getParent()->getParent());
-    VSI_val.Reform(IRB);
+    // auto VSI_val = getSource(RetVal, I->getParent()->getParent());
+    // VSI_val.Reform(IRB);
     Value *RetValInst = nullptr;
     if (RetVal->getType()->isPointerTy() || RetVal->getType()->isIntegerTy())
       RetValInst = IRB.CreateBitOrPointerCast(RetVal, IRB.getPtrTy());
@@ -1964,7 +1964,7 @@ bool TraceRecorder::instrumentReturn(Instruction *I)
       uint64_t debugID =
           debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
       IRB.CreateCall(TrecFuncExitParam,
-                     {VSI_val.Reform(IRB), RetValInst, IRB.getInt64(debugID)});
+                     {IRB.getInt64(0), RetValInst, IRB.getInt64(debugID)});
       res = true;
     }
   }
@@ -2003,34 +2003,34 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
     {
       StoresToBeInstrumented.emplace(store);
     }
-    ValSourceInfo VSI = getSource(CI->getArgOperand(i), F);
-    if (!VSI.isNull())
-    {
-      Value *ValInst;
-      if (CI->getArgOperand(i)->getType()->isIntegerTy() ||
-          CI->getArgOperand(i)->getType()->isPointerTy())
-        ValInst = IRB.CreateBitOrPointerCast(CI->getArgOperand(i),
-                                             IRB.getPtrTy());
-      else
-        ValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
-      std::string varname = CI->getArgOperand(i)->getName().str();
-      if (isa<Function>(CI->getArgOperand(i)))
-      {
-        Function *created = dyn_cast<Function>(CI->getArgOperand(i));
-        if (created->getSubprogram())
-        {
-          varname = created->getSubprogram()->getName();
-        }
-      }
-      int nameA = debuger.getOrInitDebuger()->getVarID(varname.c_str());
-      int nameB = 0;
-      int line = I->getDebugLoc().getLine();
-      int col = I->getDebugLoc().getCol();
-      uint64_t debugID =
-          debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
-      IRB.CreateCall(TrecFuncParam, {IRB.getInt16(i + 1), VSI.Reform(IRB),
-                                     ValInst, IRB.getInt64(debugID)});
-    }
+  //   ValSourceInfo VSI = getSource(CI->getArgOperand(i), F);
+  //   if (!VSI.isNull())
+  //   {
+  //     Value *ValInst;
+  //     if (CI->getArgOperand(i)->getType()->isIntegerTy() ||
+  //         CI->getArgOperand(i)->getType()->isPointerTy())
+  //       ValInst = IRB.CreateBitOrPointerCast(CI->getArgOperand(i),
+  //                                            IRB.getPtrTy());
+  //     else
+  //       ValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
+  //     std::string varname = CI->getArgOperand(i)->getName().str();
+  //     if (isa<Function>(CI->getArgOperand(i)))
+  //     {
+  //       Function *created = dyn_cast<Function>(CI->getArgOperand(i));
+  //       if (created->getSubprogram())
+  //       {
+  //         varname = created->getSubprogram()->getName();
+  //       }
+  //     }
+  //     int nameA = debuger.getOrInitDebuger()->getVarID(varname.c_str());
+  //     int nameB = 0;
+  //     int line = I->getDebugLoc().getLine();
+  //     int col = I->getDebugLoc().getCol();
+  //     uint64_t debugID =
+  //         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
+  //     IRB.CreateCall(TrecFuncParam, {IRB.getInt16(i + 1), VSI.Reform(IRB),
+  //                                    ValInst, IRB.getInt64(debugID)});
+  //   }
   }
   Function *CalledF = CI->getCalledFunction();
   StringRef CalledFName = CI->getCalledOperand() ?  CI->getCalledOperand()->getName() : "";
@@ -2150,7 +2150,7 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
     OnAccessFunc = IsWrite ? TrecUnalignedWrite[Idx] : TrecUnalignedRead[Idx];
   }
 
-  ValSourceInfo VSI_addr = getSource(Addr, II.Inst->getParent()->getParent());
+  // ValSourceInfo VSI_addr = getSource(Addr, II.Inst->getParent()->getParent());
 
   if (IsWrite)
   {
@@ -2164,14 +2164,14 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
       int col = II.Inst->getDebugLoc().getCol();
       uint64_t debugID =
           debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
-      ValSourceInfo VSI_val =
-          getSource(StoredValue, II.Inst->getParent()->getParent());
+      // ValSourceInfo VSI_val =
+      //     getSource(StoredValue, II.Inst->getParent()->getParent());
       StoredValue = IRB.CreateBitOrPointerCast(StoredValue, IRB.getPtrTy());
       auto newInst = IRB.CreateCall(
           OnAccessFunc,
           {IRB.CreatePointerCast(Addr, IRB.getPtrTy()),
-           IRB.getInt1(isPtrTy), StoredValue, VSI_addr.Reform(IRB),
-           VSI_val.Reform(IRB), IRB.getInt64(debugID)});
+           IRB.getInt1(isPtrTy), StoredValue, IRB.getInt64(0),
+           IRB.getInt64(0), IRB.getInt64(debugID)});
       newInst->setDebugLoc(II.Inst->getDebugLoc());
 
       NumInstrumentedWrites++;
@@ -2195,7 +2195,7 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
       auto newInst = IRB.CreateCall(
           OnAccessFunc, {IRB.CreatePointerCast(Addr, IRB.getPtrTy()),
                          IRB.getInt1(isPtrTy), LoadedValue,
-                         VSI_addr.Reform(IRB), IRB.getInt64(debugID)});
+                         IRB.getInt64(0), IRB.getInt64(debugID)});
       newInst->setDebugLoc(II.Inst->getDebugLoc());
       NumInstrumentedReads++;
     }
@@ -2203,134 +2203,134 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
   return true;
 }
 
-TraceRecorder::ValSourceInfo TraceRecorder::getSource(Value *Val, Function *F)
-{
-  ValSourceInfo VSI;
+// TraceRecorder::ValSourceInfo TraceRecorder::getSource(Value *Val, Function *F)
+// {
+//   ValSourceInfo VSI;
 
-  // Value *SrcValue = Val;
-  // APInt offset = APInt(14, 0);
-  // bool Res;
-  // do
-  // {
-  //   Res = false;
-  //   APInt Off(64, 0);
-  //   Value *NewSrcValue, *LastNewSrcValue;
-  //   for (NewSrcValue = SrcValue, LastNewSrcValue = nullptr;
-  //        NewSrcValue != LastNewSrcValue; LastNewSrcValue = NewSrcValue)
-  //   {
-  //     NewSrcValue = NewSrcValue->stripPointerCastsForAliasAnalysis();
-  //     NewSrcValue = NewSrcValue->stripPointerCastsAndAliases();
-  //     NewSrcValue = NewSrcValue->stripAndAccumulateConstantOffsets(
-  //         F->getParent()->getDataLayout(), Off, true);
-  //     NewSrcValue = StripCastsAndAccumulateConstantBinaryOffsets(
-  //         NewSrcValue, Off, F->getParent()->getDataLayout());
-  //   }
-  //   Res |= (SrcValue != NewSrcValue);
-  //   SrcValue = NewSrcValue;
-  //   offset += Off.trunc(14);
-  //   if (isa<GlobalVariable>(SrcValue))
-  //   {
-  //     VSI.setAddr(SrcValue, offset, true);
-  //     break;
-  //   }
-  //   else if (!isa<LoadInst>(SrcValue))
-  //   {
-  //     if (!VarOrders.count(SrcValue))
-  //     {
-  //       VarOrders[SrcValue] = VarOrderCounter;
-  //       outsideVars[VarOrderCounter] = false;
-  //       VarOrderCounter += 1;
-  //     }
-  //     VSI.setIdx(VarOrders.at(SrcValue), offset, true);
-  //     break;
-  //   }
-  //   else
-  //   {
-  //     // LoadInst
-  //     LoadInst *LI = dyn_cast<LoadInst>(SrcValue);
-  //     Value *Addr = LI->getPointerOperand();
-  //     if (isa<GlobalVariable>(Addr))
-  //     {
-  //       VSI.setAddr(Addr, offset, false);
-  //       break;
-  //     }
-  //     else
-  //     {
-  //       auto stores = getAllStoresToAddr(Addr, F);
-  //       std::vector<StoreInst *> reachableStore;
-  //       std::copy_if(stores.begin(), stores.end(),
-  //                    std::back_inserter(reachableStore),
-  //                    [&](StoreInst *s)
-  //                    { return isReachable(s, LI); });
-  //       if (reachableStore.size() == 0)
-  //       {
-  //         // cannot find a reachable store
+//   // Value *SrcValue = Val;
+//   // APInt offset = APInt(14, 0);
+//   // bool Res;
+//   // do
+//   // {
+//   //   Res = false;
+//   //   APInt Off(64, 0);
+//   //   Value *NewSrcValue, *LastNewSrcValue;
+//   //   for (NewSrcValue = SrcValue, LastNewSrcValue = nullptr;
+//   //        NewSrcValue != LastNewSrcValue; LastNewSrcValue = NewSrcValue)
+//   //   {
+//   //     NewSrcValue = NewSrcValue->stripPointerCastsForAliasAnalysis();
+//   //     NewSrcValue = NewSrcValue->stripPointerCastsAndAliases();
+//   //     NewSrcValue = NewSrcValue->stripAndAccumulateConstantOffsets(
+//   //         F->getParent()->getDataLayout(), Off, true);
+//   //     NewSrcValue = StripCastsAndAccumulateConstantBinaryOffsets(
+//   //         NewSrcValue, Off, F->getParent()->getDataLayout());
+//   //   }
+//   //   Res |= (SrcValue != NewSrcValue);
+//   //   SrcValue = NewSrcValue;
+//   //   offset += Off.trunc(14);
+//   //   if (isa<GlobalVariable>(SrcValue))
+//   //   {
+//   //     VSI.setAddr(SrcValue, offset, true);
+//   //     break;
+//   //   }
+//   //   else if (!isa<LoadInst>(SrcValue))
+//   //   {
+//   //     if (!VarOrders.count(SrcValue))
+//   //     {
+//   //       VarOrders[SrcValue] = VarOrderCounter;
+//   //       outsideVars[VarOrderCounter] = false;
+//   //       VarOrderCounter += 1;
+//   //     }
+//   //     VSI.setIdx(VarOrders.at(SrcValue), offset, true);
+//   //     break;
+//   //   }
+//   //   else
+//   //   {
+//   //     // LoadInst
+//   //     LoadInst *LI = dyn_cast<LoadInst>(SrcValue);
+//   //     Value *Addr = LI->getPointerOperand();
+//   //     if (isa<GlobalVariable>(Addr))
+//   //     {
+//   //       VSI.setAddr(Addr, offset, false);
+//   //       break;
+//   //     }
+//   //     else
+//   //     {
+//   //       auto stores = getAllStoresToAddr(Addr, F);
+//   //       std::vector<StoreInst *> reachableStore;
+//   //       std::copy_if(stores.begin(), stores.end(),
+//   //                    std::back_inserter(reachableStore),
+//   //                    [&](StoreInst *s)
+//   //                    { return isReachable(s, LI); });
+//   //       if (reachableStore.size() == 0)
+//   //       {
+//   //         // cannot find a reachable store
 
-  //         // check if the load address comes from an outside parameter
-  //         auto addrSource = getSource(Addr, F);
-  //         if (!addrSource.isNull())
-  //         {
-  //           if (addrSource.getisDirect() && !addrSource.getisRealAddr() &&
-  //               !outsideVars.at(addrSource.getIdx()))
-  //           {
-  //             if (!VarOrders.count(SrcValue))
-  //             {
-  //               VarOrders[SrcValue] = VarOrderCounter;
-  //               outsideVars[VarOrderCounter] = false;
-  //               VarOrderCounter += 1;
-  //             }
-  //             VSI.setIdx(VarOrders.at(SrcValue), offset, true);
-  //           }
-  //           else
-  //           {
-  //             VSI.setAddr(Addr, offset, false);
-  //           }
-  //         }
-  //         else
-  //         {
-  //           if (!VarOrders.count(SrcValue))
-  //           {
+//   //         // check if the load address comes from an outside parameter
+//   //         auto addrSource = getSource(Addr, F);
+//   //         if (!addrSource.isNull())
+//   //         {
+//   //           if (addrSource.getisDirect() && !addrSource.getisRealAddr() &&
+//   //               !outsideVars.at(addrSource.getIdx()))
+//   //           {
+//   //             if (!VarOrders.count(SrcValue))
+//   //             {
+//   //               VarOrders[SrcValue] = VarOrderCounter;
+//   //               outsideVars[VarOrderCounter] = false;
+//   //               VarOrderCounter += 1;
+//   //             }
+//   //             VSI.setIdx(VarOrders.at(SrcValue), offset, true);
+//   //           }
+//   //           else
+//   //           {
+//   //             VSI.setAddr(Addr, offset, false);
+//   //           }
+//   //         }
+//   //         else
+//   //         {
+//   //           if (!VarOrders.count(SrcValue))
+//   //           {
 
-  //             VarOrders[SrcValue] = VarOrderCounter;
-  //             outsideVars[VarOrderCounter] = false;
-  //             VarOrderCounter += 1;
-  //           }
-  //           VSI.setIdx(VarOrders.at(SrcValue), offset, true);
-  //         }
-  //         break;
-  //       }
-  //       else if (reachableStore.size() == 1)
-  //       {
-  //         // find the only store
-  //         // continue searching
-  //         StoreInst *S = reachableStore.at(0);
-  //         if (!isReachable(LI, S))
-  //         {
-  //           SrcValue = S->getValueOperand();
-  //           Res |= true;
-  //         }
-  //         else
-  //         {
-  //           StoresToBeInstrumented.insert(S);
-  //           VSI.setAddr(Addr, offset, false);
-  //           break;
-  //         }
-  //       }
-  //       else
-  //       {
-  //         // find multiple stores
-  //         // instrument this address
-  //         for (auto item : reachableStore)
-  //           StoresToBeInstrumented.insert(item);
-  //         VSI.setAddr(Addr, offset, false);
-  //         break;
-  //       }
-  //     }
-  //   }
-  // } while (Res);
+//   //             VarOrders[SrcValue] = VarOrderCounter;
+//   //             outsideVars[VarOrderCounter] = false;
+//   //             VarOrderCounter += 1;
+//   //           }
+//   //           VSI.setIdx(VarOrders.at(SrcValue), offset, true);
+//   //         }
+//   //         break;
+//   //       }
+//   //       else if (reachableStore.size() == 1)
+//   //       {
+//   //         // find the only store
+//   //         // continue searching
+//   //         StoreInst *S = reachableStore.at(0);
+//   //         if (!isReachable(LI, S))
+//   //         {
+//   //           SrcValue = S->getValueOperand();
+//   //           Res |= true;
+//   //         }
+//   //         else
+//   //         {
+//   //           StoresToBeInstrumented.insert(S);
+//   //           VSI.setAddr(Addr, offset, false);
+//   //           break;
+//   //         }
+//   //       }
+//   //       else
+//   //       {
+//   //         // find multiple stores
+//   //         // instrument this address
+//   //         for (auto item : reachableStore)
+//   //           StoresToBeInstrumented.insert(item);
+//   //         VSI.setAddr(Addr, offset, false);
+//   //         break;
+//   //       }
+//   //     }
+//   //   }
+//   // } while (Res);
 
-  return VSI;
-}
+//   return VSI;
+// }
 
 std::vector<StoreInst *> TraceRecorder::getAllStoresToAddr(Value *Addr,
                                                            Function *F)
