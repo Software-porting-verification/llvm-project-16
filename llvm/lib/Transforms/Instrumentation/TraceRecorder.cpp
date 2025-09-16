@@ -62,10 +62,10 @@ using namespace llvm;
 #define DEBUG_TYPE "trec"
 
 static cl::opt<bool> ClInstrumentMemoryAccesses(
-    "trec-instrument-memory-accesses", cl::init(false),
+    "trec-instrument-memory-accesses", cl::init(true),
     cl::desc("Instrument memory accesses"), cl::Hidden);
 static cl::opt<bool> ClForceInstrumentAllMemoryAccesses(
-    "trec-force-instrument-all-memory-accesses", cl::init(false),
+    "trec-force-instrument-all-memory-accesses", cl::init(true),
     cl::desc("Force to instrument all memory accesses"), cl::Hidden);
 static cl::opt<bool>
     ClInstrumentFuncEntryExit("trec-instrument-func-entry-exit", cl::init(true),
@@ -79,19 +79,19 @@ static cl::opt<bool> ClInstrumentMemIntrinsics(
     "trec-instrument-memintrinsics", cl::init(false),
     cl::desc("Instrument memintrinsics (memset/memcpy/memmove)"), cl::Hidden);
 static cl::opt<bool> ClInstrumentBranch(
-    "trec-instrument-branch", cl::init(false),
+    "trec-instrument-branch", cl::init(true),
     cl::desc("Instrument branch points (indirectcalls/invoke calls/conditional "
              "branches/switches)"),
     cl::Hidden);
 static cl::opt<bool>
-    ClInstrumentFuncParam("trec-instrument-function-parameters", cl::init(false),
+    ClInstrumentFuncParam("trec-instrument-function-parameters", cl::init(true),
                           cl::desc("Instrument function parameters"),
                           cl::Hidden);
 static cl::opt<bool>
     ClInstrumentMutableAllocs("trec-instrument-mutable-allocas", cl::init(true),
                               cl::desc("Instrument mutable allocas"),
                               cl::Hidden);
-static cl::opt<bool> ClInstrumentPathProfile("trec-instrument-path-profile", cl::init(true), cl::desc("Use path profiling"), cl::Hidden);
+static cl::opt<bool> ClInstrumentPathProfile("trec-instrument-path-profile", cl::init(false), cl::desc("Use path profiling"), cl::Hidden);
 
 STATISTIC(NumInstrumentedReads, "Number of instrumented reads");
 STATISTIC(NumInstrumentedWrites, "Number of instrumented writes");
