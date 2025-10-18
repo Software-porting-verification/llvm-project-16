@@ -2144,12 +2144,26 @@ namespace __trec
     TREC_INTERCEPT(pthread_timedjoin_np);
 #endif
 
-    TREC_INTERCEPT(pthread_cond_init);
-    TREC_INTERCEPT(pthread_cond_signal);
-    TREC_INTERCEPT(pthread_cond_broadcast);
-    TREC_INTERCEPT(pthread_cond_wait);
-    TREC_INTERCEPT(pthread_cond_timedwait);
-    TREC_INTERCEPT(pthread_cond_destroy);
+  // In glibc versions older than 2.36, dlsym(RTLD_NEXT, "pthread_cond_init")
+  // may return an outdated symbol (max(2.2,base_version)) if the port was
+  // introduced before 2.3.2 (when the new pthread_cond_t was introduced).
+#if SANITIZER_GLIBC && !__GLIBC_PREREQ(2, 36) &&                      \
+    (defined(__x86_64__) || defined(__mips__) || SANITIZER_PPC64V1 || \
+     defined(__s390x__))
+    INTERCEPT_FUNCTION_VER(pthread_cond_init, "GLIBC_2.3.2");
+    INTERCEPT_FUNCTION_VER(pthread_cond_signal, "GLIBC_2.3.2");
+    INTERCEPT_FUNCTION_VER(pthread_cond_broadcast, "GLIBC_2.3.2");
+    INTERCEPT_FUNCTION_VER(pthread_cond_wait, "GLIBC_2.3.2");
+    INTERCEPT_FUNCTION_VER(pthread_cond_timedwait, "GLIBC_2.3.2");
+    INTERCEPT_FUNCTION_VER(pthread_cond_destroy, "GLIBC_2.3.2");
+#else
+    INTERCEPT_FUNCTION(pthread_cond_init);
+    INTERCEPT_FUNCTION(pthread_cond_signal);
+    INTERCEPT_FUNCTION(pthread_cond_broadcast);
+    INTERCEPT_FUNCTION(pthread_cond_wait);
+    INTERCEPT_FUNCTION(pthread_cond_timedwait);
+    INTERCEPT_FUNCTION(pthread_cond_destroy);
+#endif
 
     TREC_MAYBE_PTHREAD_COND_CLOCKWAIT;
 
