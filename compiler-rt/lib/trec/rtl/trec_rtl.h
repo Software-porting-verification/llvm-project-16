@@ -434,7 +434,7 @@ namespace __trec
                       __sanitizer::u64 pc);
   void RecordStackSize(ThreadState *thr, __sanitizer::u64 stack_addr, __sanitizer::u64 stack_size);
   int ThreadCreate(ThreadState *thr, uptr pc, uptr uid, bool detached);
-  void ThreadStart(ThreadState *thr, int tid, tid_t os_id,
+  void ThreadStart(ThreadState *thr, int tid, __sanitizer::ThreadID os_id,
                    ThreadType thread_type);
   void ThreadFinish(ThreadState *thr);
   int ThreadConsumeTid(ThreadState *thr, uptr pc, uptr uid);

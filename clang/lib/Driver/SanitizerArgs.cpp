@@ -664,9 +664,9 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
                      SanitizerKind::Address | SanitizerKind::HWAddress |
                          SanitizerKind::KernelAddress |
                          SanitizerKind::KernelHWAddress |
-                         SanitizerKind::Memory)};
-
+                         SanitizerKind::Memory),
       std::make_pair(SanitizerKind::Thread, SanitizerKind::Trace)};
+
   // Enable toolchain specific default sanitizers if not explicitly disabled.
   SanitizerMask Default = TC.getDefaultSanitizers() & ~AllRemove;
 

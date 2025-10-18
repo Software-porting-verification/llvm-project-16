@@ -883,8 +883,6 @@ TREC_INTERCEPTOR(int, pthread_join, void *th, void **ret)
   return res;
 }
 
-DEFINE_REAL_PTHREAD_FUNCTIONS
-
 TREC_INTERCEPTOR(int, pthread_detach, void *th)
 {
   SCOPED_INTERCEPTOR_RAW(pthread_detach, th);

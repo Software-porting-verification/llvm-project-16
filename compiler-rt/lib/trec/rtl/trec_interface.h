@@ -18,7 +18,7 @@
 #define TREC_INTERFACE_H
 
 #include <sanitizer_common/sanitizer_internal_defs.h>
-using __sanitizer::tid_t;
+using __sanitizer::ThreadID;
 using __sanitizer::u32;
 using __sanitizer::uptr;
 

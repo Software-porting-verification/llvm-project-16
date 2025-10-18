@@ -43,7 +43,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -84,7 +83,7 @@ static cl::opt<bool> ClInstrumentBranch(
              "branches/switches)"),
     cl::Hidden);
 static cl::opt<bool>
-    ClInstrumentFuncParam("trec-instrument-function-parameters", cl::init(true),
+    ClInstrumentFuncParam("trec-instrument-function-parameters", cl::init(false),
                           cl::desc("Instrument function parameters"),
                           cl::Hidden);
 static cl::opt<bool>
@@ -1020,8 +1019,8 @@ namespace
       EdgeInfo() : pathVal(0), line(0), col(0) {}
       void fillInDebugInfo(Instruction *I)
       {
-        while (I->getDebugLoc().get() == nullptr && I->getPrevNonDebugInstruction())
-          I = I->getPrevNonDebugInstruction();
+        while (I->getDebugLoc().get() == nullptr && I->getPrevNode())
+          I = I->getPrevNode();
         if (I->getDebugLoc().get())
         {
           line = I->getDebugLoc().getLine();
@@ -1258,8 +1257,8 @@ namespace
         funcName = F->getName();
       }
       edges[blkID][1] = {lastDebugInst->getOpcodeName(), funcName, 0};
-      while (lastDebugInst->getDebugLoc().get() == nullptr && lastDebugInst->getPrevNonDebugInstruction())
-        lastDebugInst = lastDebugInst->getPrevNonDebugInstruction();
+      while (lastDebugInst->getDebugLoc().get() == nullptr && lastDebugInst->getPrevNode())
+        lastDebugInst = lastDebugInst->getPrevNode();
       edges[blkID][1].fillInDebugInfo(lastDebugInst);
     }
     else
@@ -1626,6 +1625,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
 {
   // This is required to prevent instrumenting call to __trec_init from
   // within the module constructor.
+
   if (F.getName() == kTrecModuleCtorName)
     return false;
   // If we cannot find the source file, then this function may not be written by
@@ -1707,10 +1707,9 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
                isa<InvokeInst>(Inst))
       {
-        if (isa<CallInst>(Inst) && !isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) &&
+        if (isa<CallInst>(Inst) && !dyn_cast<CallInst>(&Inst)->isMustTailCall() && !isa<IntrinsicInst>(Inst) && !isa<MemSetInst>(Inst) && !isa<MemTransferInst>(Inst) &&
             !Inst.getDebugLoc().isImplicitCode() && !dyn_cast<CallBase>(&Inst)->hasFnAttr(Attribute::Builtin))
           FuncCalls.push_back(&Inst);
-
         // Although these are also branches, we do not instrument them because
         // we cannot get to know the exact conditional variable that causes the
         // branch choosing (as the branch choosing may be caused by exceptions
@@ -1772,18 +1771,25 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       Res |= res;
     }
   }
-  if (ClInstrumentFuncParam)
+  
+  
+
+  if (ClInstrumentFuncEntryExit)
   {
     for (auto Inst : FuncCalls)
     {
       Res |= instrumentFunctionCall(Inst);
     }
-    for (auto Inst : Returns)
+    if (ClInstrumentFuncParam)
     {
-      Res |= instrumentReturn(Inst);
+      for (auto Inst : Returns)
+      {
+        Res |= instrumentReturn(Inst);
+      }
     }
   }
-
+  debuger.getOrInitDebuger()->commitSQL();
+  return false;
   // deal with cpp name mangling
   // getName() may return the name after mangling.
   // use getSubprogram()->getName() if possible
@@ -1930,7 +1936,7 @@ bool TraceRecorder::instrumentBranch(Instruction *I, const DataLayout &DL)
 
 bool TraceRecorder::instrumentMutableAllcas(Instruction *I)
 {
-  IRBuilder<> IRB(I->getNextNonDebugInstruction());
+  IRBuilder<> IRB(I->getNextNode());
   IRB.CreateCall(TrecFrameSize, {});
   return true;
 }
@@ -1938,16 +1944,16 @@ bool TraceRecorder::instrumentMutableAllcas(Instruction *I)
 bool TraceRecorder::instrumentReturn(Instruction *I)
 {
   IRBuilder<> IRB(I);
-  ValSourceInfo VSI_val;
+  // ValSourceInfo VSI_val;
   Value *RetVal = dyn_cast<ReturnInst>(I)->getReturnValue();
   bool res = false;
   if (RetVal)
   {
-    auto stores = getAllStoresToAddr(RetVal, I->getParent()->getParent());
-    for (auto &store : stores)
-    {
-      StoresToBeInstrumented.emplace(store);
-    }
+    // auto stores = getAllStoresToAddr(RetVal, I->getParent()->getParent());
+    // for (auto &store : stores)
+    // {
+    //   StoresToBeInstrumented.emplace(store);
+    // }
     // auto VSI_val = getSource(RetVal, I->getParent()->getParent());
     // VSI_val.Reform(IRB);
     Value *RetValInst = nullptr;
@@ -1973,7 +1979,7 @@ bool TraceRecorder::instrumentReturn(Instruction *I)
 
 bool TraceRecorder::instrumentFunctionCall(Instruction *I)
 {
-  if (!I->getNextNonDebugInstruction())
+  if (!I->getNextNode())
     return false;
   IRBuilder<> IRB(I);
   CallBase *CI = dyn_cast<CallBase>(I);
@@ -1998,11 +2004,11 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
       outsideVars[VarOrderCounter] = true;
       VarOrderCounter += 1;
     }
-    auto stores = getAllStoresToAddr(CI->getArgOperand(i), F);
-    for (auto &store : stores)
-    {
-      StoresToBeInstrumented.emplace(store);
-    }
+    // auto stores = getAllStoresToAddr(CI->getArgOperand(i), F);
+    // for (auto &store : stores)
+    // {
+    //   StoresToBeInstrumented.emplace(store);
+    // }
   //   ValSourceInfo VSI = getSource(CI->getArgOperand(i), F);
   //   if (!VSI.isNull())
   //   {
@@ -2107,7 +2113,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
          IRB.getInt64(argDebugID), IRB.getInt64(createdDebugID)});
   }
 
-  IRBuilder<> IRB2(I->getNextNonDebugInstruction());
+  IRBuilder<> IRB2(I->getNextNode());
   auto exitInst = IRB2.CreateCall(TrecFuncExit, {IRB.getInt64(debugID)});
   exitInst->setDebugLoc(I->getDebugLoc());
 
@@ -2362,7 +2368,7 @@ bool TraceRecorder::isReachable(Instruction *From, Instruction *To)
   assert(isa<StoreInst>(From));
   assert(isa<LoadInst>(To));
   Instruction *cur = To;
-  while (cur = cur->getPrevNonDebugInstruction(), cur)
+  while (cur = cur->getPrevNode(), cur)
   {
     // previous instruction in the same basic block
     if (From == cur)

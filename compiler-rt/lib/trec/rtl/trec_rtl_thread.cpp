@@ -1010,7 +1010,7 @@ namespace __trec
     return tid;
   }
 
-  void ThreadStart(ThreadState *thr, int tid, tid_t os_id,
+  void ThreadStart(ThreadState *thr, int tid, __sanitizer::ThreadID os_id,
                    ThreadType thread_type)
   {
     ThreadRegistry *tr = ctx->thread_registry;
