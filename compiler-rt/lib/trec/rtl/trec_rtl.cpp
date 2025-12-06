@@ -55,8 +55,8 @@ namespace __trec
   static char ctx_placeholder[sizeof(Context)] ALIGNED(64);
   Context *ctx;
 
-  static char thread_registry_placeholder[sizeof(ThreadRegistry)];
-  static char sqlite_writer_placeholder[sizeof(SqliteDebugWriter)];
+  static ALIGNED(64) char thread_registry_placeholder[sizeof(ThreadRegistry)];
+  static ALIGNED(64) char sqlite_writer_placeholder[sizeof(SqliteDebugWriter)];
 
   static ThreadContextBase *CreateThreadContext(u32 tid)
   {
