@@ -559,18 +559,18 @@ namespace __trec
           {
             if (pair.first >= 1 && pair.first <= (oid & 0xffff))
             {
-              total_len += (sizeof(pair.first) + sizeof(pair.second));
-              put_metadata(&pair.first, sizeof(pair.first));
-              put_metadata(&pair.second, sizeof(pair.second));
+              // total_len += (sizeof(pair.first) + sizeof(pair.second));
+              // put_metadata(&pair.first, sizeof(pair.first));
+              // put_metadata(&pair.second, sizeof(pair.second));
             }
             return true;
           });
-      put_metadata(meta, len);
-      total_len += len;
+      // put_metadata(meta, len);
+      // total_len += len;
       __trec_trace::Event e(
           type, cur_thread()->tid,
           atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
-          total_len, pc);
+          0, pc);
       put_trace(e);
     }
     else if (type == __trec_trace::EventType::FuncExit)
@@ -579,12 +579,12 @@ namespace __trec
       __sanitizer::u16 total_len = 0;
       if (params.count(0))
       {
-        auto pair = params.find(0);
-        put_metadata(&pair->second, sizeof(pair->second));
-        total_len += sizeof(pair->second);
+        // auto pair = params.find(0);
+        // put_metadata(&pair->second, sizeof(pair->second));
+        // total_len += sizeof(pair->second);
       }
-      put_metadata(meta, len);
-      total_len += len;
+      // put_metadata(meta, len);
+      // total_len += len;
       __trec_trace::Event e(
           type, cur_thread()->tid,
           atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid,
@@ -593,11 +593,11 @@ namespace __trec
     }
     else
     {
-      if (meta && len)
-        put_metadata(meta, len);
+      // if (meta && len)
+      //   put_metadata(meta, len);
       __trec_trace::Event e(
           type, cur_thread()->tid,
-          atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid, len,
+          atomic_fetch_add(&ctx->global_id, 1, memory_order_relaxed), oid, 0,
           pc);
       put_trace(e);
     }

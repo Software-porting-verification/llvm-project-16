@@ -140,6 +140,7 @@ namespace __trec_trace
      * None:        0
      */
     __sanitizer::u64 oid;
+    __sanitizer::u64 pc;
     // x86_64 only supports 52-bit VMA (48-bit in most cases)
     // use the extra highest bits to distinguish kernel and user space
     // __sanitizer::u64 pc : 54;
@@ -150,11 +151,12 @@ namespace __trec_trace
           meta_size(_meta_size),
           tid(_tid),
           gid(_gid),
-          oid(_oid)
+          oid(_oid),
+          pc(_pc)
     {
     }
   };
-  static_assert(sizeof(Event) == 16, "ERROR: sizeof(Event) != 16");
+  static_assert(sizeof(Event) == 24, "ERROR: sizeof(Event) != 24");
 } // namespace __trec_trace
 
 namespace __trec_metadata

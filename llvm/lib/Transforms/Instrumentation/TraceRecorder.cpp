@@ -1692,16 +1692,19 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       if (isa<LoadInst>(Inst))
       {
         LoadInst *LI = dyn_cast<LoadInst>(&Inst);
-        if (ClForceInstrumentAllMemoryAccesses)
+        if (ClForceInstrumentAllMemoryAccesses){
           LoadsToBeInstrumented.insert(LI);
+          
+        }
         NumAllReads++;
       }
       else if (isa<StoreInst>(Inst))
       {
         StoreInst *SI = dyn_cast<StoreInst>(&Inst);
         if (isa<GlobalVariable>(SI->getPointerOperand()) ||
-            ClForceInstrumentAllMemoryAccesses)
+            ClForceInstrumentAllMemoryAccesses){
           StoresToBeInstrumented.insert(SI);
+        }
         NumAllWrites++;
       }
       else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
@@ -1788,8 +1791,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
     }
   }
-  debuger.getOrInitDebuger()->commitSQL();
-  return false;
+
   // deal with cpp name mangling
   // getName() may return the name after mangling.
   // use getSubprogram()->getName() if possible

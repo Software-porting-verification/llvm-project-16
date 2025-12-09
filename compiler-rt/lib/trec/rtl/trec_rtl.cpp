@@ -518,7 +518,7 @@ namespace __trec
         LIKELY(thr->ignore_interceptors == 0) && !thr->bare_thread)
     {
       __trec_metadata::BranchMeta meta(sa.getAsUInt64(), debugID);
-      thr->tctx->writer.put_record(__trec_trace::EventType::Branch, cond, pc,
+      thr->tctx->writer.put_record(__trec_trace::EventType::Branch, cond, debugID,
                                    &meta, sizeof(meta));
     }
   }
@@ -590,7 +590,7 @@ namespace __trec
         thr->tctx->writer.put_record(
             type,
             (((1ULL) << (kAccessSizeLog + 48)) | (addr & (((1ULL) << 48) - 1))),
-            pc, &meta, sizeof(meta));
+            meta.debug_id, &meta, sizeof(meta));
       }
       else if (!kAccessIsWrite && LIKELY(ctx->flags.record_read))
       {
@@ -613,7 +613,7 @@ namespace __trec
         thr->tctx->writer.put_record(
             type,
             (((1ULL) << (kAccessSizeLog + 48)) | (addr & (((1ULL) << 48) - 1))),
-            pc, &meta, sizeof(meta));
+            meta.debug_id, &meta, sizeof(meta));
       }
     }
   }
@@ -639,7 +639,7 @@ namespace __trec
       __trec_metadata::FuncMeta meta(debugID);
       thr->tctx->writer.put_record(__trec_trace::EventType::FuncEnter,
                                    (((__sanitizer::u64)order) << 16) | arg_cnt,
-                                   pc, &meta, sizeof(meta));
+                                   meta.debug_id, &meta, sizeof(meta));
     }
   }
 
@@ -652,14 +652,14 @@ namespace __trec
         LIKELY(thr->ignore_interceptors == 0))
     {
       __trec_metadata::FuncMeta meta(debugID);
-      thr->tctx->writer.put_record(__trec_trace::EventType::FuncExit, 0, pc,
+      thr->tctx->writer.put_record(__trec_trace::EventType::FuncExit, 0, meta.debug_id,
                                    &meta, sizeof(meta));
     }
   }
 
   ALWAYS_INLINE USED void RecordStackSize(ThreadState *thr, __sanitizer::u64 stack_addr, __sanitizer::u64 stack_size)
   {
-    if (LIKELY(ctx->flags.output_trace) && (LIKELY(ctx->flags.record_write) || LIKELY(ctx->flags.record_read)))
+    if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.record_func_enter_exit) && (LIKELY(ctx->flags.record_write) || LIKELY(ctx->flags.record_read)))
     {
       thr->tctx->writer.put_record(__trec_trace::EventType::StackSize,
                                    (stack_addr & ((1ULL << 48) - 1)) | (((stack_size >= (1 << 16)) ? (u64)0xffff : (stack_size)) << 48), 0);
