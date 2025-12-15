@@ -1692,9 +1692,9 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       if (isa<LoadInst>(Inst))
       {
         LoadInst *LI = dyn_cast<LoadInst>(&Inst);
-        if (ClForceInstrumentAllMemoryAccesses){
+        if (ClForceInstrumentAllMemoryAccesses)
+        {
           LoadsToBeInstrumented.insert(LI);
-          
         }
         NumAllReads++;
       }
@@ -1702,7 +1702,8 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       {
         StoreInst *SI = dyn_cast<StoreInst>(&Inst);
         if (isa<GlobalVariable>(SI->getPointerOperand()) ||
-            ClForceInstrumentAllMemoryAccesses){
+            ClForceInstrumentAllMemoryAccesses)
+        {
           StoresToBeInstrumented.insert(SI);
         }
         NumAllWrites++;
@@ -1774,8 +1775,6 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       Res |= res;
     }
   }
-  
-  
 
   if (ClInstrumentFuncEntryExit)
   {
@@ -2011,37 +2010,37 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
     // {
     //   StoresToBeInstrumented.emplace(store);
     // }
-  //   ValSourceInfo VSI = getSource(CI->getArgOperand(i), F);
-  //   if (!VSI.isNull())
-  //   {
-  //     Value *ValInst;
-  //     if (CI->getArgOperand(i)->getType()->isIntegerTy() ||
-  //         CI->getArgOperand(i)->getType()->isPointerTy())
-  //       ValInst = IRB.CreateBitOrPointerCast(CI->getArgOperand(i),
-  //                                            IRB.getPtrTy());
-  //     else
-  //       ValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
-  //     std::string varname = CI->getArgOperand(i)->getName().str();
-  //     if (isa<Function>(CI->getArgOperand(i)))
-  //     {
-  //       Function *created = dyn_cast<Function>(CI->getArgOperand(i));
-  //       if (created->getSubprogram())
-  //       {
-  //         varname = created->getSubprogram()->getName();
-  //       }
-  //     }
-  //     int nameA = debuger.getOrInitDebuger()->getVarID(varname.c_str());
-  //     int nameB = 0;
-  //     int line = I->getDebugLoc().getLine();
-  //     int col = I->getDebugLoc().getCol();
-  //     uint64_t debugID =
-  //         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
-  //     IRB.CreateCall(TrecFuncParam, {IRB.getInt16(i + 1), VSI.Reform(IRB),
-  //                                    ValInst, IRB.getInt64(debugID)});
-  //   }
+    //   ValSourceInfo VSI = getSource(CI->getArgOperand(i), F);
+    //   if (!VSI.isNull())
+    //   {
+    //     Value *ValInst;
+    //     if (CI->getArgOperand(i)->getType()->isIntegerTy() ||
+    //         CI->getArgOperand(i)->getType()->isPointerTy())
+    //       ValInst = IRB.CreateBitOrPointerCast(CI->getArgOperand(i),
+    //                                            IRB.getPtrTy());
+    //     else
+    //       ValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
+    //     std::string varname = CI->getArgOperand(i)->getName().str();
+    //     if (isa<Function>(CI->getArgOperand(i)))
+    //     {
+    //       Function *created = dyn_cast<Function>(CI->getArgOperand(i));
+    //       if (created->getSubprogram())
+    //       {
+    //         varname = created->getSubprogram()->getName();
+    //       }
+    //     }
+    //     int nameA = debuger.getOrInitDebuger()->getVarID(varname.c_str());
+    //     int nameB = 0;
+    //     int line = I->getDebugLoc().getLine();
+    //     int col = I->getDebugLoc().getCol();
+    //     uint64_t debugID =
+    //         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
+    //     IRB.CreateCall(TrecFuncParam, {IRB.getInt16(i + 1), VSI.Reform(IRB),
+    //                                    ValInst, IRB.getInt64(debugID)});
+    //   }
   }
   Function *CalledF = CI->getCalledFunction();
-  StringRef CalledFName = CI->getCalledOperand() ?  CI->getCalledOperand()->getName() : "";
+  StringRef CalledFName = CI->getCalledOperand() ? CI->getCalledOperand()->getName() : "";
   std::string CurrentFileName = "";
   int line = 0;
   int col = 0;
@@ -2166,8 +2165,21 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
     Value *StoredValue = cast<StoreInst>(II.Inst)->getValueOperand();
     if (StoredValue->getType()->isIntOrPtrTy())
     {
-      int nameA = debuger.getOrInitDebuger()->getVarID(Addr->getName().str().c_str());
-      int nameB = debuger.getOrInitDebuger()->getVarID(StoredValue->getName().str().c_str());
+      std::string createdFuncName = "", createdFileName = "";
+      createdFuncName = II.Inst->getParent()->getParent()->getName().str();
+      if (II.Inst->getParent()->getParent()->getSubprogram())
+      {
+        createdFuncName = II.Inst->getParent()->getParent()->getSubprogram()->getName();
+        if (II.Inst->getParent()->getParent()->getSubprogram()->getFile())
+        {
+          createdFileName = concatFileName(
+              II.Inst->getParent()->getParent()->getSubprogram()->getFile()->getDirectory().str(),
+              II.Inst->getParent()->getParent()->getSubprogram()->getFile()->getFilename().str());
+        }
+      }
+
+      int nameA = debuger.getOrInitDebuger()->getVarID(createdFuncName.c_str());
+      int nameB = debuger.getOrInitDebuger()->getFileID(createdFileName.c_str());
       int line = II.Inst->getDebugLoc().getLine();
       int col = II.Inst->getDebugLoc().getCol();
       uint64_t debugID =
@@ -2193,8 +2205,21 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
     Value *LoadedValue = II.Inst;
     if (LoadedValue->getType()->isIntOrPtrTy())
     {
-      int nameA = debuger.getOrInitDebuger()->getVarID(Addr->getName().str().c_str());
-      int nameB = debuger.getOrInitDebuger()->getVarID(LoadedValue->getName().str().c_str());
+      std::string createdFuncName = "", createdFileName = "";
+      createdFuncName = II.Inst->getParent()->getParent()->getName().str();
+      if (II.Inst->getParent()->getParent()->getSubprogram())
+      {
+        createdFuncName = II.Inst->getParent()->getParent()->getSubprogram()->getName();
+        if (II.Inst->getParent()->getParent()->getSubprogram()->getFile())
+        {
+          createdFileName = concatFileName(
+              II.Inst->getParent()->getParent()->getSubprogram()->getFile()->getDirectory().str(),
+              II.Inst->getParent()->getParent()->getSubprogram()->getFile()->getFilename().str());
+        }
+      }
+
+      int nameA = debuger.getOrInitDebuger()->getVarID(createdFuncName.c_str());
+      int nameB = debuger.getOrInitDebuger()->getFileID(createdFileName.c_str());
       int line = II.Inst->getDebugLoc().getLine();
       int col = II.Inst->getDebugLoc().getCol();
       uint64_t debugID =
