@@ -84,7 +84,7 @@ static cl::opt<bool> ClInstrumentBranch(
              "branches/switches)"),
     cl::Hidden);
 static cl::opt<bool>
-    ClInstrumentFuncParam("trec-instrument-function-parameters", cl::init(false),
+    ClInstrumentFuncParam("trec-instrument-function-parameters", cl::init(true),
                           cl::desc("Instrument function parameters"),
                           cl::Hidden);
 static cl::opt<bool>
