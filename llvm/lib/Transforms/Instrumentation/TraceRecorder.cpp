@@ -2067,7 +2067,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
   if (nameA != 1 || nameB != 1)
     debugID = debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
   auto entryInst = IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
-                                                  IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(isa<InlineAsm>(CI->getCalledOperand()) ? IRB.getInt8(0) : CI->getCalledOperand(), IRB.getPtrTy())});
+                                                  IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(IRB.getInt64(0), IRB.getPtrTy())});
   entryInst->setDebugLoc(I->getDebugLoc());
   if (CalledFName == "pthread_create" && arg_size >= 4)
   {
