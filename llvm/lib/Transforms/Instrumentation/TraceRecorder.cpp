@@ -2103,7 +2103,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(argnameA, argnameB, line, col));
     IRB.CreateCall(
         TrecThreadCreate,
-        {IRB.CreateBitOrPointerCast(CI->getArgOperand(3), IRB.getPtrTy()),
+        {IRB.CreateBitOrPointerCast(IRB.getInt64(0), IRB.getPtrTy()),
          IRB.getInt64(argDebugID), IRB.getInt64(createdDebugID)});
   }
 
