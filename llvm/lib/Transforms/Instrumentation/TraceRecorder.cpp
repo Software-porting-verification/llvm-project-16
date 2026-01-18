@@ -1495,7 +1495,7 @@ void TraceRecorder::initialize(Module &M)
                                        IRB.getVoidTy(), IRB.getInt64Ty());
   TrecThreadCreate =
       M.getOrInsertFunction("__trec_thread_create", Attr, IRB.getVoidTy(),
-                            IRB.getPtrTy(), IRB.getInt64Ty());
+                            IRB.getPtrTy(), IRB.getInt64Ty(),IRB.getInt64Ty());
   TrecFrameSize = M.getOrInsertFunction("__trec_frame_size", Attr, IRB.getVoidTy());
   IntegerType *OrdTy = IRB.getInt32Ty();
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i)
@@ -2067,7 +2067,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
   if (nameA != 1 || nameB != 1)
     debugID = debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(nameA, nameB, line, col));
   auto entryInst = IRB.CreateCall(TrecFuncEntry, {IRB.getInt16(order), IRB.getInt16(arg_size),
-                                                  IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(IRB.getInt64(0), IRB.getPtrTy())});
+                                                  IRB.getInt64(debugID), IRB.CreateBitOrPointerCast(isa<InlineAsm>(CI->getCalledOperand()) ? IRB.getInt8(0) : CI->getCalledOperand(), IRB.getPtrTy())});
   entryInst->setDebugLoc(I->getDebugLoc());
   if (CalledFName == "pthread_create" && arg_size >= 4)
   {
@@ -2103,7 +2103,7 @@ bool TraceRecorder::instrumentFunctionCall(Instruction *I)
         debuger.getOrInitDebuger()->ReformID(debuger.getOrInitDebuger()->getDebugInfoID(argnameA, argnameB, line, col));
     IRB.CreateCall(
         TrecThreadCreate,
-        {IRB.CreateBitOrPointerCast(IRB.getInt64(0), IRB.getPtrTy()),
+        {IRB.CreateBitOrPointerCast(CI->getArgOperand(3), IRB.getPtrTy()),
          IRB.getInt64(argDebugID), IRB.getInt64(createdDebugID)});
   }
 
