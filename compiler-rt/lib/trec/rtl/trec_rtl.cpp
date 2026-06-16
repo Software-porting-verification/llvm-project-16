@@ -138,12 +138,6 @@ namespace __trec
       Report("Create temp header directory failed\n");
       Die();
     }
-    internal_snprintf(dest_path, 2 * TREC_DIR_PATH_LEN - 1, "%s/metadata", path);
-    if (mkdir(dest_path, 0700))
-    {
-      Report("Create temp metadata directory failed\n");
-      Die();
-    }
     internal_snprintf(dest_path, 2 * TREC_DIR_PATH_LEN - 1, "%s/trace", path);
     if (mkdir(dest_path, 0700))
     {
@@ -170,16 +164,6 @@ namespace __trec
     //   Report("Parent copy module file failed\n");
     //   Die();
     // }
-
-    internal_snprintf(src_path, 2 * TREC_DIR_PATH_LEN - 1, "%s/metadata/%u.bin",
-                      parent_path, Maintid);
-    internal_snprintf(dest_path, 2 * TREC_DIR_PATH_LEN - 1, "%s/metadata/%u.bin",
-                      path, Maintid);
-    if (CopyFile(src_path, dest_path))
-    {
-      Report("Parent copy metadata file failed\n");
-      Die();
-    }
     internal_snprintf(src_path, 2 * TREC_DIR_PATH_LEN - 1, "%s/trace/%u.bin",
                       parent_path, Maintid);
     internal_snprintf(dest_path, 2 * TREC_DIR_PATH_LEN - 1, "%s/trace/%u.bin",
@@ -236,14 +220,6 @@ namespace __trec
     if (mkdir(filepath, ACCESSPERMS) != 0)
     {
       Report("Could not create trace directory at %s, errno=%d\n", filepath,
-             errno);
-      Die();
-    }
-
-    internal_snprintf(filepath, TREC_DIR_PATH_LEN - 1, "%s/%s", path, "metadata");
-    if (mkdir(filepath, ACCESSPERMS) != 0)
-    {
-      Report("Could not create metadata directory at %s, errno=%d\n", filepath,
              errno);
       Die();
     }
@@ -517,9 +493,8 @@ namespace __trec
     if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.record_branch) &&
         LIKELY(thr->ignore_interceptors == 0) && !thr->bare_thread)
     {
-      __trec_metadata::BranchMeta meta(sa.getAsUInt64(), debugID);
       thr->tctx->writer.put_record(__trec_trace::EventType::Branch, cond, pc,
-                                   &meta, sizeof(meta));
+                                   debugID);
     }
   }
 
@@ -565,7 +540,8 @@ namespace __trec
       __trec_metadata::SourceAddressInfo SAI_val, __sanitizer::u64 debugID)
   {
     if (LIKELY(ctx->flags.output_trace) &&
-        LIKELY(thr->ignore_interceptors == 0))
+        LIKELY(thr->ignore_interceptors == 0) &&(
+        UNLIKELY(addr>=Mapping::kHeapMemBeg && addr<Mapping::kHeapMemEnd)))
     {
       if (kAccessIsWrite && LIKELY(ctx->flags.record_write))
       {
@@ -585,12 +561,11 @@ namespace __trec
             type = __trec_trace::EventType::PlainWrite;
         }
 
-        __trec_metadata::WriteMeta meta(val, SAI_addr, SAI_val, debugID);
 
         thr->tctx->writer.put_record(
             type,
             (((1ULL) << (kAccessSizeLog + 48)) | (addr & (((1ULL) << 48) - 1))),
-            pc, &meta, sizeof(meta));
+            pc, debugID);
       }
       else if (!kAccessIsWrite && LIKELY(ctx->flags.record_read))
       {
@@ -609,11 +584,10 @@ namespace __trec
           else
             type = __trec_trace::EventType::PlainRead;
         }
-        __trec_metadata::ReadMeta meta(val, SAI_addr, debugID);
         thr->tctx->writer.put_record(
             type,
             (((1ULL) << (kAccessSizeLog + 48)) | (addr & (((1ULL) << 48) - 1))),
-            pc, &meta, sizeof(meta));
+            pc, debugID);
       }
     }
   }
@@ -636,10 +610,9 @@ namespace __trec
         auto frame = symbolizer->SymbolizePC(func);
         debugID = thr->tctx->writer.getDebugIDFromSymbolizeInfo(frame);
       }
-      __trec_metadata::FuncMeta meta(debugID);
       thr->tctx->writer.put_record(__trec_trace::EventType::FuncEnter,
                                    (((__sanitizer::u64)order) << 16) | arg_cnt,
-                                   pc, &meta, sizeof(meta));
+                                   pc, debugID);
     }
   }
 
@@ -651,15 +624,14 @@ namespace __trec
         LIKELY(ctx->flags.record_func_enter_exit) &&
         LIKELY(thr->ignore_interceptors == 0))
     {
-      __trec_metadata::FuncMeta meta(debugID);
       thr->tctx->writer.put_record(__trec_trace::EventType::FuncExit, 0, pc,
-                                   &meta, sizeof(meta));
+                                   debugID);
     }
   }
 
   ALWAYS_INLINE USED void RecordStackSize(ThreadState *thr, __sanitizer::u64 stack_addr, __sanitizer::u64 stack_size)
   {
-    if (LIKELY(ctx->flags.output_trace) && (LIKELY(ctx->flags.record_write) || LIKELY(ctx->flags.record_read)))
+    if (LIKELY(ctx->flags.output_trace) && UNLIKELY(ctx->flags.record_stack_size)&& (LIKELY(ctx->flags.record_write) || LIKELY(ctx->flags.record_read)))
     {
       thr->tctx->writer.put_record(__trec_trace::EventType::StackSize,
                                    (stack_addr & ((1ULL << 48) - 1)) | (((stack_size >= (1 << 16)) ? (u64)0xffff : (stack_size)) << 48), 0);

@@ -28,18 +28,19 @@ TREC_FLAG(bool, die_after_fork, true,
           "Die after multi-threaded fork if the child creates new threads.")
 TREC_FLAG(bool, output_trace, true, "Output trace.")
 TREC_FLAG(bool, record_mutex, true, "Record Mutex Lock/Unlock Operations?")
-TREC_FLAG(bool, record_rwlock, true, "Record Reader/Writer Lock/Unlock Operations?")
+TREC_FLAG(bool, record_rwlock, false, "Record Reader/Writer Lock/Unlock Operations?")
 TREC_FLAG(bool, record_cond, true, "Record Conditions?")
-TREC_FLAG(bool, record_alloc_free, true, "Record Memory Object Allocate/Free?")
+TREC_FLAG(bool, record_alloc_free, false, "Record Memory Object Allocate/Free?")
 TREC_FLAG(bool, record_branch, true, "Record conditional branch insts.")
-TREC_FLAG(bool, record_func_enter_exit, true,
+TREC_FLAG(bool, record_func_enter_exit, false,
           "Record function enter/exit insts.")
 TREC_FLAG(bool, record_func_param, true, "Record function parameter insts.")
 TREC_FLAG(bool, record_read, true, "Record Memory Read Operations.")
 TREC_FLAG(bool, record_write, true, "Record Memory Write Operations.")
-TREC_FLAG(bool, record_range, true, "Record Range Memory Read Operations.")
-TREC_FLAG(bool, record_path_profile, true, "Record path profiling.")
+TREC_FLAG(bool, record_range, false, "Record Range Memory Read Operations.")
+TREC_FLAG(bool, record_stack_size, false, "Record Stack Size.")
+TREC_FLAG(bool, record_path_profile, false, "Record path profiling.")
 TREC_FLAG(bool, print_debug_on_dead, false,
           "Print Debug Info On Receiving Dead Signals")
-TREC_FLAG(bool, symbolize_at_runtime, true, "Symbolize unkown function name at runtime.")
+TREC_FLAG(bool, symbolize_at_runtime, false, "Symbolize unkown function name at runtime.")
 

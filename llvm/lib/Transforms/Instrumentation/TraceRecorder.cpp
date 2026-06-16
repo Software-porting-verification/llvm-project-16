@@ -1788,8 +1788,6 @@ bool TraceRecorder::sanitizeFunction(Function &F,
       }
     }
   }
-  debuger.getOrInitDebuger()->commitSQL();
-  return false;
   // deal with cpp name mangling
   // getName() may return the name after mangling.
   // use getSubprogram()->getName() if possible
@@ -1841,6 +1839,7 @@ bool TraceRecorder::sanitizeFunction(Function &F,
 
   if (ClInstrumentMemoryAccesses)
   {
+
     std::set<Instruction *> instrumentedStores, instrumentedLoads;
     while (instrumentedStores != StoresToBeInstrumented ||
            instrumentedLoads != LoadsToBeInstrumented)
@@ -1961,10 +1960,30 @@ bool TraceRecorder::instrumentReturn(Instruction *I)
       RetValInst = IRB.CreateBitOrPointerCast(RetVal, IRB.getPtrTy());
     else
       RetValInst = IRB.CreateIntToPtr(IRB.getInt64(0), IRB.getPtrTy());
+      Function *F = I->getParent()->getParent();
+
+  std::string funcName = "", fileName = "";
+  int line = 0, col = 0;
+  if (I->getDebugLoc().get())
+  {
+    line = I->getDebugLoc().getLine();
+    col = I->getDebugLoc().getCol();
+    if (I->getDebugLoc().getScope())
+    {
+      fileName = concatFileName(I->getDebugLoc().get()->getScope()->getDirectory().str(), I->getDebugLoc().get()->getScope()->getFilename().str());
+      funcName = I->getDebugLoc().get()->getScope()->getName().str();
+      if (auto SP = getDISubprogram(I->getDebugLoc().getScope()))
+      {
+        funcName = SP->getName();
+      }
+    }
+  }
+
+  int nameA = debuger.getOrInitDebuger()->getVarID(funcName.c_str()), nameB = debuger.getOrInitDebuger()->getFileID(fileName.c_str());
     if (RetValInst)
     {
-      int nameA = debuger.getOrInitDebuger()->getVarID(RetVal->getName().str().c_str());
-      int nameB = 0;
+      int nameA = debuger.getOrInitDebuger()->getVarID(funcName.c_str());
+      int nameB = debuger.getOrInitDebuger()->getVarID(fileName.c_str());
       int line = I->getDebugLoc().getLine();
       int col = I->getDebugLoc().getCol();
       uint64_t debugID =
@@ -2157,6 +2176,24 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
   }
 
   // ValSourceInfo VSI_addr = getSource(Addr, II.Inst->getParent()->getParent());
+  std::string funcName = "", fileName = "";
+  int line = 0, col = 0;
+  if (II.Inst->getDebugLoc().get())
+  {
+    line = II.Inst->getDebugLoc().getLine();
+    col = II.Inst->getDebugLoc().getCol();
+    if (II.Inst->getDebugLoc().getScope())
+    {
+      fileName = concatFileName(II.Inst->getDebugLoc().get()->getScope()->getDirectory().str(), II.Inst->getDebugLoc().get()->getScope()->getFilename().str());
+      funcName = II.Inst->getDebugLoc().get()->getScope()->getName().str();
+      if (auto SP = getDISubprogram(II.Inst->getDebugLoc().getScope()))
+      {
+        funcName = SP->getName();
+      }
+    }
+  }
+
+  int nameA = debuger.getOrInitDebuger()->getVarID(funcName.c_str()), nameB = debuger.getOrInitDebuger()->getFileID(fileName.c_str());
 
   if (IsWrite)
   {
@@ -2164,8 +2201,6 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
     Value *StoredValue = cast<StoreInst>(II.Inst)->getValueOperand();
     if (StoredValue->getType()->isIntOrPtrTy())
     {
-      int nameA = debuger.getOrInitDebuger()->getVarID(Addr->getName().str().c_str());
-      int nameB = debuger.getOrInitDebuger()->getVarID(StoredValue->getName().str().c_str());
       int line = II.Inst->getDebugLoc().getLine();
       int col = II.Inst->getDebugLoc().getCol();
       uint64_t debugID =
@@ -2191,8 +2226,6 @@ bool TraceRecorder::instrumentLoadStore(const InstructionInfo &II,
     Value *LoadedValue = II.Inst;
     if (LoadedValue->getType()->isIntOrPtrTy())
     {
-      int nameA = debuger.getOrInitDebuger()->getVarID(Addr->getName().str().c_str());
-      int nameB = debuger.getOrInitDebuger()->getVarID(LoadedValue->getName().str().c_str());
       int line = II.Inst->getDebugLoc().getLine();
       int col = II.Inst->getDebugLoc().getCol();
       uint64_t debugID =

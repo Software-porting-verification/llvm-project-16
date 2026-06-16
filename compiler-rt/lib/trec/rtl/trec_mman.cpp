@@ -225,12 +225,11 @@ namespace __trec
         LIKELY(ctx->flags.output_trace) &&
         LIKELY(thr->ignore_interceptors == 0))
     {
-      __trec_metadata::MemFreeMeta meta(1, 0, 0, 1);
       thr->tctx->writer.put_record(
           __trec_trace::EventType::MemFree,
           (((__sanitizer::u64)sz & 0xffff) << 48) |
               ((__sanitizer::u64)p & ((((u64)1) << 48) - 1)),
-          pc, &meta, sizeof(meta));
+          pc);
     }
   }
 

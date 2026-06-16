@@ -38,10 +38,8 @@ void MutexPostLock(ThreadState *thr, uptr pc, uptr addr,
           rec);
   if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.record_mutex) &&
       LIKELY(thr->ignore_interceptors == 0)) {
-    __trec_metadata::MutexMeta meta(SAI.getAsUInt64());
     thr->tctx->writer.put_record(__trec_trace::EventType::MutexLock,
-                                 addr & (((1ULL) << 48) - 1), pc, &meta,
-                                 sizeof(meta));
+                                 addr & (((1ULL) << 48) - 1), pc);
   }
 }
 
@@ -60,10 +58,8 @@ int MutexUnlock(ThreadState *thr, uptr pc, uptr addr,
   DPrintf("#%d: MutexUnlock %zx flagz=0x%x\n", thr->tid, addr, flagz);
   if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.record_mutex) &&
       LIKELY(thr->ignore_interceptors == 0)) {
-    __trec_metadata::MutexMeta meta(SAI.getAsUInt64());
     thr->tctx->writer.put_record(__trec_trace::EventType::MutexUnlock,
-                                 addr & (((1ULL) << 48) - 1), pc, &meta,
-                                 sizeof(meta));
+                                 addr & (((1ULL) << 48) - 1), pc);
   }
 
   return 0;
@@ -73,10 +69,8 @@ void CondWait(ThreadState *thr, uptr pc, uptr cond,
               __trec_metadata::SourceAddressInfo cond_SAI) {
   if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.record_cond) &&
       LIKELY(thr->ignore_interceptors == 0)) {
-    __trec_metadata::CondMeta meta(cond_SAI.getAsUInt64());
     thr->tctx->writer.put_record(__trec_trace::EventType::CondWait,
-                                 cond & (((1ULL) << 48) - 1), pc, &meta,
-                                 sizeof(meta));
+                                 cond & (((1ULL) << 48) - 1), pc);
   }
 }
 
@@ -84,11 +78,10 @@ void CondSignal(ThreadState *thr, uptr pc, uptr cond, bool is_broadcast,
                 __trec_metadata::SourceAddressInfo SAI) {
   if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.record_cond) &&
       LIKELY(thr->ignore_interceptors == 0)) {
-    __trec_metadata::CondMeta meta(SAI.getAsUInt64());
     thr->tctx->writer.put_record(
         is_broadcast ? __trec_trace::EventType::CondBroadcast
                      : __trec_trace::EventType::CondSignal,
-        cond & (((1ULL) << 48) - 1), pc, &meta, sizeof(meta));
+        cond & (((1ULL) << 48) - 1), pc);
   }
 }
 
@@ -101,10 +94,8 @@ void MutexPostReadLock(ThreadState *thr, uptr pc, uptr addr,
   DPrintf("#%d: MutexPostReadLock %zx flagz=0x%x\n", thr->tid, addr, flagz);
   if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.record_mutex) &&
       ctx->flags.record_rwlock && LIKELY(thr->ignore_interceptors == 0)) {
-    __trec_metadata::MutexMeta meta(SAI.getAsUInt64());
     thr->tctx->writer.put_record(__trec_trace::EventType::ReaderLock,
-                                 addr & (((1ULL) << 48) - 1), pc, &meta,
-                                 sizeof(meta));
+                                 addr & (((1ULL) << 48) - 1), pc);
   }
 }
 
@@ -118,10 +109,8 @@ void MutexReadOrWriteUnlock(ThreadState *thr, uptr pc, uptr addr,
     else {
       if (LIKELY(ctx->flags.output_trace) && LIKELY(ctx->flags.record_mutex) &&
           LIKELY(thr->ignore_interceptors == 0)) {
-        __trec_metadata::CondMeta meta(sa.getAsUInt64());
         thr->tctx->writer.put_record(__trec_trace::EventType::ReaderUnlock,
-                                     addr & (((1ULL) << 48) - 1), pc, &meta,
-                                     sizeof(meta));
+                                     addr & (((1ULL) << 48) - 1), pc);
       }
     }
   }

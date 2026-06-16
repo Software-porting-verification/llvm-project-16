@@ -203,23 +203,20 @@ namespace __trec
   class TraceWriter
   {
     __sanitizer::u16 id;
-    char *trace_buffer = nullptr, *metadata_buffer = nullptr;
-    __sanitizer::u64 trace_len = 0, metadata_len = 0;
+    char *trace_buffer = nullptr;
+    __sanitizer::u64 trace_len = 0;
     __trec_header::TraceHeader header;
     __sanitizer::Mutex mtx;
-    DenseMap<__sanitizer::u16, __trec_metadata::FuncParamMeta> params;
     bool is_end;
     void put_trace(__trec_trace::Event &e);
-    void put_metadata(void *msg, __sanitizer::u16 len);
     void flush_trace();
-    void flush_metadata();
     void flush_header();
 
   public:
     TraceWriter(u16 tid);
     ~TraceWriter();
     void put_record(__trec_trace::EventType type, __sanitizer::u64 _oid,
-                    __sanitizer::u64 _pc, void *meta = nullptr,
+                    __sanitizer::u64 _pc, __sanitizer::u64 debugID = 0,
                     __sanitizer::u16 len = 0);
 
     void flush_all();

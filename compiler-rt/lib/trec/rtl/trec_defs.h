@@ -140,26 +140,28 @@ namespace __trec_trace
      * None:        0
      */
     __sanitizer::u64 oid;
+    __sanitizer::u64 debug_id;
     // x86_64 only supports 52-bit VMA (48-bit in most cases)
     // use the extra highest bits to distinguish kernel and user space
     // __sanitizer::u64 pc : 54;
     Event(EventType _type, __sanitizer::u64 _tid, __sanitizer::u64 _gid,
           __sanitizer::u64 _oid, __sanitizer::u64 _meta_size,
-          __sanitizer::u64 _pc)
+          __sanitizer::u64 _pc, __sanitizer::u64 _debug_id)
         : type(_type),
           meta_size(_meta_size),
           tid(_tid),
           gid(_gid),
-          oid(_oid)
+          oid(_oid),
+          debug_id(_debug_id)
     {
     }
   };
-  static_assert(sizeof(Event) == 16, "ERROR: sizeof(Event) != 16");
+  static_assert(sizeof(Event) == 24, "ERROR: sizeof(Event) != 24");
 } // namespace __trec_trace
 
 namespace __trec_metadata
 {
-  const char TREC_METADATA_VER[] = "20231207";
+  const __sanitizer::u64 TREC_METADATA_VER = 20260616ULL;
   struct SourceAddressInfo
   {
     __sanitizer::u64 isDirect : 1;
@@ -185,79 +187,6 @@ namespace __trec_metadata
   };
   static_assert(sizeof(SourceAddressInfo) == 8,
                 "ERROR: sizeof(SourceAddressInfo)!=8");
-
-  struct ReadMeta
-  {
-    SourceAddressInfo sa;
-    __sanitizer::u64 val;
-    __sanitizer::u64 debug_id;
-    ReadMeta(__sanitizer::u64 v, SourceAddressInfo s, __sanitizer::u64 debug)
-        : sa(s), val(v), debug_id(debug) {}
-  };
-  static_assert(sizeof(ReadMeta) == 24, "ERROR: sizeof(ReadMeta)!=24");
-
-  struct WriteMeta
-  {
-    SourceAddressInfo sa_addr, sa_val;
-    __sanitizer::u64 val;
-    __sanitizer::u64 debug_id;
-    WriteMeta(__sanitizer::u64 v, SourceAddressInfo as, SourceAddressInfo vs,
-              __sanitizer::u64 debug)
-        : sa_addr(as), sa_val(vs), val(v), debug_id(debug) {}
-  };
-  static_assert(sizeof(WriteMeta) == 32, "ERROR: sizeof(WriteMeta)!=32");
-
-  struct BranchMeta
-  {
-    SourceAddressInfo sa;
-    __sanitizer::u64 debug_id;
-    BranchMeta(SourceAddressInfo s, __sanitizer::u64 debug)
-        : sa(s), debug_id(debug) {}
-  };
-  static_assert(sizeof(BranchMeta) == 16, "ERROR: sizeof(BranchMeta)!=16");
-
-  struct FuncMeta
-  {
-    __sanitizer::u64 debug_id;
-    FuncMeta(__sanitizer::u64 debug) : debug_id(debug) {}
-  };
-  static_assert(sizeof(FuncMeta) == 8, "ERROR: sizeof(FuncEnterMeta)!=8");
-
-  struct FuncParamMeta
-  {
-    SourceAddressInfo sa;
-    __sanitizer::u64 val;
-    __sanitizer::u64 debug_id;
-    FuncParamMeta(SourceAddressInfo s, __sanitizer::u64 v, __sanitizer::u64 debug)
-        : sa(s), val(v), debug_id(debug) {}
-  };
-
-  static_assert(sizeof(FuncParamMeta) == 24, "ERROR: sizeof(FuncParamMeta)!=24");
-
-  struct MemFreeMeta : SourceAddressInfo
-  {
-    using SourceAddressInfo::SourceAddressInfo;
-  };
-  static_assert(sizeof(MemFreeMeta) == 8, "ERROR: sizeof(MemFreeMeta) != 8");
-
-  struct MutexMeta : SourceAddressInfo
-  {
-    using SourceAddressInfo::SourceAddressInfo;
-  };
-  static_assert(sizeof(MutexMeta) == 8, "ERROR: sizeof(MutexMeta) != 8");
-
-  struct CondMeta : SourceAddressInfo
-  {
-    using SourceAddressInfo::SourceAddressInfo;
-  };
-  static_assert(sizeof(CondMeta) == 8, "ERROR: sizeof(CondMeta) != 8");
-
-  struct MemRangeMeta : SourceAddressInfo
-  {
-    using SourceAddressInfo::SourceAddressInfo;
-  };
-
-  static_assert(sizeof(MemRangeMeta) == 8, "ERROR: sizeof(MemRangeMeta) != 8");
 
 } // namespace __trec_metadata
 
