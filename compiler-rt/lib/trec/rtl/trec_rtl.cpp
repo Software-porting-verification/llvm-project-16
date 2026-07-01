@@ -541,7 +541,7 @@ namespace __trec
   {
     if (LIKELY(ctx->flags.output_trace) &&
         LIKELY(thr->ignore_interceptors == 0) &&(
-        UNLIKELY(addr>=Mapping::kHeapMemBeg && addr<Mapping::kHeapMemEnd)))
+        UNLIKELY(addr>=Mapping::kHeapMemBeg && addr<Mapping::kHeapMemEnd) || UNLIKELY(addr>=Mapping::kMidAppMemBeg && addr<Mapping::kMidAppMemEnd)))
     {
       if (kAccessIsWrite && LIKELY(ctx->flags.record_write))
       {
